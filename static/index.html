@@ -29,14 +29,21 @@
   form button { background:var(--cyan); color:#00222c; border:0; border-radius:12px; padding:0 16px; font-weight:700; cursor:pointer; }
   #mic { background:#12314d; color:var(--cyan); }
   #mic.on { background:#6cff9a; color:#002a12; }
+  #login { position:fixed; inset:0; background:rgba(5,11,20,.96); display:none; align-items:center; justify-content:center; z-index:10; }
+  #login form { flex-direction:column; width:min(320px,86%); padding:0; }
+  #login h2 { letter-spacing:.3em; font-size:16px; text-align:center; }
+  #err { color:#ff7b7b; font-size:13px; min-height:1em; text-align:center; }
+  .inbox { border-color:var(--cyan); }
 </style>
 </head>
 <body>
+<div id="login"><form id="lf"><h2>J.A.R.V.I.S.</h2><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button>Accedi</button><div id="err"></div></form></div>
 <header>
   <div id="orb"></div>
   <div><h1>J.A.R.V.I.S.</h1><div id="status">pronto</div></div>
   <div class="spacer"></div>
   <button id="tts" class="on" title="Risposte vocali">🔊 voce</button>
+  <button id="bell" title="Notifiche">📬 <span id="nb">0</span></button>
   <button id="wake" title="Ascolto continuo: di' 'Jarvis ...'">👂 sempre in ascolto</button>
 </header>
 <div id="log"></div>
@@ -49,65 +56,130 @@
 const $ = s => document.querySelector(s);
 const log = $('#log'), orb = $('#orb'), status = $('#status');
 const session = localStorage.jarvisSession ||= crypto.randomUUID();
-let ttsOn = true, wakeOn = false, busy = false;
+let ttsOn = true, wakeOn = false, busy = false, cfg = { tts:false, stt:false };
+let audioEl = null;
 
 function add(text, cls, tools) {
   const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text;
   if (tools?.length) { const t = document.createElement('div'); t.className = 'tools'; t.textContent = '⚙ ' + tools.join(' · '); d.append(t); }
-  log.append(d); log.scrollTop = log.scrollHeight;
+  log.append(d); log.scrollTop = log.scrollHeight; return d;
 }
 function setState(s, label) { orb.className = s; status.textContent = label; }
 
-function speak(text) {
-  if (!ttsOn || !('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text.replace(/[*_`#]/g, ''));
-  u.lang = 'it-IT';
-  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('it'));
-  if (v) u.voice = v;
-  u.onend = () => { if (wakeOn) startRec(); };
-  speechSynthesis.speak(u);
+async function api(path, opts = {}) {
+  const r = await fetch(path, { credentials:'same-origin', ...opts, headers:{ 'Content-Type':'application/json', ...(opts.headers||{}) } });
+  if (r.status === 401) { showLogin(); throw new Error('login richiesto'); }
+  if (!r.ok) throw new Error((await r.text()).slice(0, 200));
+  return r;
 }
+
+// ---- Login ----
+function showLogin() { $('#login').style.display = 'flex'; $('#pw').focus(); }
+$('#lf').onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: $('#pw').value }) });
+  if (r.ok) { $('#login').style.display = 'none'; $('#pw').value = ''; $('#err').textContent = ''; init(); } else $('#err').textContent = 'Password errata o troppi tentativi';
+};
+
+// ---- Voce in uscita: voce neurale del server se configurata, altrimenti quella del browser ----
+function afterSpeech() { if (wakeOn) startRec(); }
+async function speak(text) {
+  if (!ttsOn) return;
+  const clean = text.replace(/[*_`#]/g, '');
+  audioEl?.pause(); speechSynthesis.cancel();
+  if (cfg.tts) {
+    try {
+      const r = await api('/api/tts', { method:'POST', body: JSON.stringify({ text: clean }) });
+      audioEl = new Audio(URL.createObjectURL(await r.blob())); audioEl.onended = afterSpeech; await audioEl.play(); return;
+    } catch (e) { /* ripiega sulla voce del browser */ }
+  }
+  if (!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(clean); u.lang = 'it-IT';
+  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('it')); if (v) u.voice = v;
+  u.onend = afterSpeech; speechSynthesis.speak(u);
+}
+const speaking = () => speechSynthesis.speaking || (audioEl && !audioEl.paused && !audioEl.ended);
 
 async function send(text) {
   if (!text.trim() || busy) return;
   busy = true; add(text, 'user'); setState('thinking', 'sto pensando…');
   try {
-    const r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session, message: text }) });
-    if (!r.ok) throw new Error(await r.text());
-    const j = await r.json();
+    const j = await (await api('/api/chat', { method:'POST', body: JSON.stringify({ session, message: text }) })).json();
     add(j.reply, 'jarvis', j.tools); speak(j.reply);
   } catch (e) { add('Errore: ' + e.message, 'jarvis'); }
   busy = false; setState('', wakeOn ? 'in ascolto…' : 'pronto');
 }
-
 $('#f').onsubmit = e => { e.preventDefault(); const v = $('#q').value; $('#q').value = ''; send(v); };
-$('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) speechSynthesis.cancel(); };
+$('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) { speechSynthesis.cancel(); audioEl?.pause(); } };
 
-// --- Voce in ingresso ---
+// ---- Voce in ingresso ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, recActive = false;
 function startRec() {
-  if (!SR || recActive || busy) return;
+  if (!SR || recActive || busy || speaking()) return;
   rec = new SR(); rec.lang = 'it-IT'; rec.interimResults = false;
   rec.onstart = () => { recActive = true; $('#mic').classList.add('on'); setState('listening', 'ti ascolto…'); };
-  rec.onend = () => { recActive = false; $('#mic').classList.remove('on'); if (wakeOn && !busy && !speechSynthesis.speaking) setTimeout(startRec, 300); else if (!busy) setState('', wakeOn ? 'in ascolto…' : 'pronto'); };
+  rec.onend = () => { recActive = false; $('#mic').classList.remove('on'); if (wakeOn && !busy && !speaking()) setTimeout(startRec, 300); else if (!busy) setState('', wakeOn ? 'in ascolto…' : 'pronto'); };
   rec.onresult = ev => {
     let t = ev.results[0][0].transcript.trim();
-    if (wakeOn) { // in modalita' continua reagisce solo alla parola d'ordine
-      const m = t.match(/^(ehi |hey |ok )?jarvis[,.!]?\s*(.*)$/i);
-      if (!m) return; t = m[2];
-    }
+    if (wakeOn) { const m = t.match(/^(ehi |hey |ok )?jarvis[,.!]?\s*(.*)$/i); if (!m) return; t = m[2]; }
     if (t) send(t);
   };
-  rec.onerror = () => {};
-  rec.start();
+  rec.onerror = () => {}; rec.start();
 }
-$('#mic').onclick = () => { if (!SR) return alert('Riconoscimento vocale non supportato: usa Chrome o Edge.'); recActive ? rec.stop() : startRec(); };
+
+// Push-to-talk con Whisper (piu' preciso) quando disponibile
+let mr = null, chunks = [];
+async function whisperToggle() {
+  if (mr?.state === 'recording') { mr.stop(); return; }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+  mr = new MediaRecorder(stream); chunks = [];
+  mr.ondataavailable = e => chunks.push(e.data);
+  mr.onstart = () => { $('#mic').classList.add('on'); setState('listening', 'ti ascolto… (premi ancora per inviare)'); };
+  mr.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop()); $('#mic').classList.remove('on'); setState('thinking', 'trascrivo…');
+    try {
+      const blob = new Blob(chunks, { type: mr.mimeType });
+      const r = await api('/api/stt', { method:'POST', headers:{ 'Content-Type': mr.mimeType }, body: blob });
+      const { text } = await r.json(); setState('', 'pronto'); send(text);
+    } catch (e) { add('Errore: ' + e.message, 'jarvis'); setState('', 'pronto'); }
+  };
+  mr.start();
+}
+$('#mic').onclick = () => {
+  if (cfg.stt && navigator.mediaDevices) return whisperToggle();
+  if (!SR) return alert('Riconoscimento vocale non supportato: usa Chrome o Edge.');
+  recActive ? rec.stop() : startRec();
+};
 $('#wake').onclick = e => { if (!SR) return alert('Usa Chrome o Edge.'); wakeOn = !wakeOn; e.target.classList.toggle('on', wakeOn); wakeOn ? startRec() : rec?.stop(); };
 
+// ---- Notifiche proattive (briefing, agenti in background, promemoria) ----
+async function pollInbox() {
+  try {
+    const items = await (await api('/api/inbox')).json();
+    $('#nb').textContent = items.length;
+    if (!items.length || busy) return;
+    for (const it of items.reverse()) {
+      const d = add(`📬 ${it.title}\n${it.body}`, 'jarvis inbox');
+      if (document.hidden && Notification.permission === 'granted') new Notification(it.title, { body: it.body.slice(0, 160) });
+    }
+    speak(items.map(i => i.body).join(' '));
+    await api('/api/inbox/read', { method:'POST', body: JSON.stringify({ ids: items.map(i => i.id) }) });
+    $('#nb').textContent = 0;
+  } catch (e) {}
+}
+$('#bell').onclick = () => { Notification?.requestPermission?.(); pollInbox(); };
+
+let started = false;
+async function init() {
+  if (started) return; started = true;
+  try { cfg = await (await api('/api/config')).json(); } catch (e) { started = false; return; }
+  if (cfg.stt) $('#mic').title = 'Premi per parlare, premi ancora per inviare (Whisper)';
+  add(`Buongiorno${cfg.user ? ', ' + cfg.user : ''}. Tutti i sistemi sono operativi. Come posso esserle utile?`, 'jarvis');
+  pollInbox(); setInterval(pollInbox, 15000);
+}
 speechSynthesis?.getVoices();
-add('Buongiorno. Tutti i sistemi sono operativi. Come posso esserle utile?', 'jarvis');
+(async () => { const a = await (await fetch('/api/auth')).json(); a.required && !a.ok ? showLogin() : init(); })();
 </script>
 </body>
 </html>

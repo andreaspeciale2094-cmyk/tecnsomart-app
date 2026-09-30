@@ -1,7 +1,7 @@
 """Registro dei tool: ogni modulo espone SCHEMAS (per Claude) e HANDLERS (funzioni)."""
-from . import memory_tools, web, pc, home, mail_calendar
+from . import memory_tools, web, pc, home, mail_calendar, agents
 
-_MODULES = [memory_tools, web, pc, home, mail_calendar]
+_MODULES = [memory_tools, web, pc, home, mail_calendar, agents]
 
 SCHEMAS = [s for m in _MODULES for s in m.SCHEMAS]
 HANDLERS = {k: v for m in _MODULES for k, v in m.HANDLERS.items()}
