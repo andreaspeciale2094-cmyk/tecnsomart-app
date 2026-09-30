@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.A.R.V.I.S.</title>
+<style>
+  :root { --bg:#050b14; --panel:#0b1626; --cyan:#35e0ff; --dim:#6b8aa3; --text:#d6f3ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; height:100dvh; display:flex; flex-direction:column; background:radial-gradient(circle at 50% 0%, #0d2540, var(--bg) 60%); color:var(--text); font-family: ui-sans-serif, system-ui, sans-serif; }
+  header { display:flex; align-items:center; gap:14px; padding:14px 16px; }
+  #orb { width:38px; height:38px; border-radius:50%; background:radial-gradient(circle, #fff 0, var(--cyan) 30%, #0a5a78 70%); box-shadow:0 0 18px var(--cyan); transition:.3s; }
+  #orb.listening { box-shadow:0 0 34px #6cff9a; background:radial-gradient(circle,#fff 0,#6cff9a 30%,#0a7844 70%); }
+  #orb.thinking { animation:pulse 1s infinite; }
+  @keyframes pulse { 50% { transform:scale(1.25); box-shadow:0 0 40px var(--cyan); } }
+  h1 { font-size:16px; letter-spacing:.35em; margin:0; font-weight:600; }
+  #status { color:var(--dim); font-size:12px; }
+  .spacer { flex:1; }
+  header button { background:none; border:1px solid #1d3a55; color:var(--dim); border-radius:8px; padding:6px 10px; cursor:pointer; font-size:12px; }
+  header button.on { color:var(--cyan); border-color:var(--cyan); }
+  #log { flex:1; overflow-y:auto; padding:8px 16px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:min(720px,88%); padding:10px 14px; border-radius:14px; line-height:1.45; white-space:pre-wrap; }
+  .user { align-self:flex-end; background:#12314d; }
+  .jarvis { align-self:flex-start; background:var(--panel); border:1px solid #143049; }
+  .tools { font-size:11px; color:var(--dim); margin-top:6px; }
+  form { display:flex; gap:8px; padding:12px 16px 18px; }
+  input { flex:1; background:var(--panel); border:1px solid #1d3a55; color:var(--text); border-radius:12px; padding:12px 14px; font-size:16px; outline:none; }
+  input:focus { border-color:var(--cyan); }
+  form button { background:var(--cyan); color:#00222c; border:0; border-radius:12px; padding:0 16px; font-weight:700; cursor:pointer; }
+  #mic { background:#12314d; color:var(--cyan); }
+  #mic.on { background:#6cff9a; color:#002a12; }
+</style>
+</head>
+<body>
+<header>
+  <div id="orb"></div>
+  <div><h1>J.A.R.V.I.S.</h1><div id="status">pronto</div></div>
+  <div class="spacer"></div>
+  <button id="tts" class="on" title="Risposte vocali">🔊 voce</button>
+  <button id="wake" title="Ascolto continuo: di' 'Jarvis ...'">👂 sempre in ascolto</button>
+</header>
+<div id="log"></div>
+<form id="f">
+  <button type="button" id="mic" title="Parla">🎤</button>
+  <input id="q" placeholder="Scrivi o parla…" autocomplete="off" autofocus>
+  <button>Invia</button>
+</form>
+<script>
+const $ = s => document.querySelector(s);
+const log = $('#log'), orb = $('#orb'), status = $('#status');
+const session = localStorage.jarvisSession ||= crypto.randomUUID();
+let ttsOn = true, wakeOn = false, busy = false;
+
+function add(text, cls, tools) {
+  const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text;
+  if (tools?.length) { const t = document.createElement('div'); t.className = 'tools'; t.textContent = '⚙ ' + tools.join(' · '); d.append(t); }
+  log.append(d); log.scrollTop = log.scrollHeight;
+}
+function setState(s, label) { orb.className = s; status.textContent = label; }
+
+function speak(text) {
+  if (!ttsOn || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.replace(/[*_`#]/g, ''));
+  u.lang = 'it-IT';
+  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('it'));
+  if (v) u.voice = v;
+  u.onend = () => { if (wakeOn) startRec(); };
+  speechSynthesis.speak(u);
+}
+
+async function send(text) {
+  if (!text.trim() || busy) return;
+  busy = true; add(text, 'user'); setState('thinking', 'sto pensando…');
+  try {
+    const r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session, message: text }) });
+    if (!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    add(j.reply, 'jarvis', j.tools); speak(j.reply);
+  } catch (e) { add('Errore: ' + e.message, 'jarvis'); }
+  busy = false; setState('', wakeOn ? 'in ascolto…' : 'pronto');
+}
+
+$('#f').onsubmit = e => { e.preventDefault(); const v = $('#q').value; $('#q').value = ''; send(v); };
+$('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) speechSynthesis.cancel(); };
+
+// --- Voce in ingresso ---
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, recActive = false;
+function startRec() {
+  if (!SR || recActive || busy) return;
+  rec = new SR(); rec.lang = 'it-IT'; rec.interimResults = false;
+  rec.onstart = () => { recActive = true; $('#mic').classList.add('on'); setState('listening', 'ti ascolto…'); };
+  rec.onend = () => { recActive = false; $('#mic').classList.remove('on'); if (wakeOn && !busy && !speechSynthesis.speaking) setTimeout(startRec, 300); else if (!busy) setState('', wakeOn ? 'in ascolto…' : 'pronto'); };
+  rec.onresult = ev => {
+    let t = ev.results[0][0].transcript.trim();
+    if (wakeOn) { // in modalita' continua reagisce solo alla parola d'ordine
+      const m = t.match(/^(ehi |hey |ok )?jarvis[,.!]?\s*(.*)$/i);
+      if (!m) return; t = m[2];
+    }
+    if (t) send(t);
+  };
+  rec.onerror = () => {};
+  rec.start();
+}
+$('#mic').onclick = () => { if (!SR) return alert('Riconoscimento vocale non supportato: usa Chrome o Edge.'); recActive ? rec.stop() : startRec(); };
+$('#wake').onclick = e => { if (!SR) return alert('Usa Chrome o Edge.'); wakeOn = !wakeOn; e.target.classList.toggle('on', wakeOn); wakeOn ? startRec() : rec?.stop(); };
+
+speechSynthesis?.getVoices();
+add('Buongiorno. Tutti i sistemi sono operativi. Come posso esserle utile?', 'jarvis');
+</script>
+</body>
+</html>
