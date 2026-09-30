@@ -17,15 +17,16 @@ def synthesize(text: str) -> bytes:
         r = httpx.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOICE_ID}",
             headers={"xi-api-key": config.ELEVENLABS_API_KEY},
-            json={"text": text, "model_id": "eleven_multilingual_v2"},
+            json={"text": text, "model_id": "eleven_multilingual_v2",
+                  "voice_settings": {"stability": 0.65, "similarity_boost": 0.8, "style": 0.2, "use_speaker_boost": True}},
             timeout=60,
         )
     else:
         r = httpx.post(
             "https://api.openai.com/v1/audio/speech",
             headers={"Authorization": f"Bearer {config.OPENAI_API_KEY}"},
-            json={"model": "gpt-4o-mini-tts", "voice": "onyx", "input": text,
-                  "instructions": "Parla in italiano con tono calmo, elegante e sicuro, come un maggiordomo hi-tech."},
+            json={"model": "gpt-4o-mini-tts", "voice": config.OPENAI_VOICE, "input": text,
+                  "instructions": config.VOICE_STYLE},
             timeout=60,
         )
     r.raise_for_status()
