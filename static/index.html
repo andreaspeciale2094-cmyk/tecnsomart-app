@@ -83,22 +83,36 @@ $('#lf').onsubmit = async e => {
 
 // ---- Voce in uscita: voce neurale del server se configurata, altrimenti quella del browser ----
 function afterSpeech() { if (wakeOn) startRec(); }
+function splitSentences(t) {
+  const parts = t.match(/[^.!?…\n]+[.!?…]*/g) || [t], out = []; let cur = '';
+  for (const p of parts) { if (cur && (cur + p).length > 200) { out.push(cur.trim()); cur = p; } else cur += p; }
+  if (cur.trim()) out.push(cur.trim()); return out;
+}
+let speakToken = 0, speakingNow = false;
+// Voce neurale del server a frasi: la prima parte subito, le successive si preparano mentre parla.
 async function speak(text) {
   if (!ttsOn) return;
-  const clean = text.replace(/[*_`#]/g, '');
-  audioEl?.pause(); speechSynthesis.cancel();
-  if (cfg.tts) {
-    try {
-      const r = await api('/api/tts', { method:'POST', body: JSON.stringify({ text: clean }) });
-      audioEl = new Audio(URL.createObjectURL(await r.blob())); audioEl.onended = afterSpeech; await audioEl.play(); return;
-    } catch (e) { /* ripiega sulla voce del browser */ }
-  }
-  if (!('speechSynthesis' in window)) return;
-  const u = new SpeechSynthesisUtterance(clean); u.lang = 'it-IT';
+  const token = ++speakToken; audioEl?.pause(); speechSynthesis.cancel(); speakingNow = true;
+  const chunks = splitSentences(text.replace(/[*_`#]/g, '')); let i = 0;
+  try {
+    if (cfg.tts) {
+      const get = c => api('/api/tts', { method:'POST', body: JSON.stringify({ text: c }) }).then(r => r.blob());
+      let next = get(chunks[0]);
+      for (; i < chunks.length; i++) {
+        const blob = await next; if (token !== speakToken) return;
+        if (i + 1 < chunks.length) { next = get(chunks[i + 1]); next.catch(() => {}); }
+        await new Promise(res => { audioEl = new Audio(URL.createObjectURL(blob)); audioEl.onended = res; audioEl.onerror = res; audioEl.play().catch(res); });
+        if (token !== speakToken) return;
+      }
+      speakingNow = false; return afterSpeech();
+    }
+  } catch (e) { if (token !== speakToken) return; /* ripiega sulla voce del browser dalla frase che e' fallita */ }
+  if (!('speechSynthesis' in window)) { speakingNow = false; return; }
+  const u = new SpeechSynthesisUtterance(chunks.slice(i).join(' ')); u.lang = 'it-IT';
   const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('it')); if (v) u.voice = v;
-  u.onend = afterSpeech; speechSynthesis.speak(u);
+  u.onend = () => { speakingNow = false; afterSpeech(); }; speechSynthesis.speak(u);
 }
-const speaking = () => speechSynthesis.speaking || (audioEl && !audioEl.paused && !audioEl.ended);
+const speaking = () => speakingNow || speechSynthesis.speaking;
 
 async function send(text) {
   if (!text.trim() || busy) return;
@@ -110,7 +124,7 @@ async function send(text) {
   busy = false; setState('', wakeOn ? 'in ascolto…' : 'pronto');
 }
 $('#f').onsubmit = e => { e.preventDefault(); const v = $('#q').value; $('#q').value = ''; send(v); };
-$('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) { speechSynthesis.cancel(); audioEl?.pause(); } };
+$('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) { speakToken++; speakingNow = false; speechSynthesis.cancel(); audioEl?.pause(); } };
 
 // ---- Voce in ingresso ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;

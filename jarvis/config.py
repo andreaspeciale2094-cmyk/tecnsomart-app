@@ -33,6 +33,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # TTS, Whisper (STT) ed embedd
 BRIEFING_TIME = os.getenv("BRIEFING_TIME", "")  # es. 07:30 (ora locale del server)
 
 # Voce gratuita (Edge TTS, nessuna chiave). Voci italiane: it-IT-DiegoNeural (maschile), it-IT-GiuseppeMultilingualNeural, it-IT-ElsaNeural (femminile)
-EDGE_VOICE = os.getenv("EDGE_VOICE", "it-IT-DiegoNeural")
-EDGE_RATE = os.getenv("EDGE_RATE", "-5%")
-EDGE_PITCH = os.getenv("EDGE_PITCH", "-3Hz")
+EDGE_VOICE = os.getenv("EDGE_VOICE", "it-IT-GiuseppeMultilingualNeural")
+EDGE_RATE = os.getenv("EDGE_RATE", "-3%")
+EDGE_PITCH = os.getenv("EDGE_PITCH", "+0Hz")

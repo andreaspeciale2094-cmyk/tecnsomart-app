@@ -1,5 +1,6 @@
 """Voce naturale: TTS (ElevenLabs / OpenAI) e STT (Whisper)."""
 import asyncio
+import re
 
 import httpx
 from . import config
@@ -8,6 +9,24 @@ try:
     import edge_tts  # voce neurale gratuita, senza chiave
 except ImportError:
     edge_tts = None
+
+
+_EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200d]+")
+
+
+def clean_for_speech(text: str) -> str:
+    """Toglie tutto cio' che una voce legge male: markdown, link, emoji, simboli."""
+    t = re.sub(r"```.*?```", " ", text, flags=re.S)
+    t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)  # [testo](url) -> testo
+    t = re.sub(r"https?://\S+", " link ", t)
+    t = _EMOJI.sub(" ", t)
+    t = re.sub(r"[*_`#>|~]+", " ", t)
+    t = re.sub(r"^\s*[-•]\s+", "", t, flags=re.M)
+    t = (t.replace("&", " e ").replace("%", " per cento").replace("°C", " gradi").replace("°", " gradi")
+          .replace("€", " euro").replace("$", " dollari").replace("/", " "))
+    t = re.sub(r"\s*\n+\s*", ". ", t)  # a capo = pausa
+    t = re.sub(r"([.!?])\s*\.", r"\1", t)
+    return re.sub(r"\s+", " ", t).strip()
 
 
 def tts_available() -> bool:
@@ -30,7 +49,9 @@ def stt_available() -> bool:
 
 
 def synthesize(text: str) -> bytes:
-    text = text[:2500]
+    text = clean_for_speech(text)[:2500]
+    if not text:
+        raise ValueError("niente da leggere")
     if config.ELEVENLABS_API_KEY:
         r = httpx.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOICE_ID}",
