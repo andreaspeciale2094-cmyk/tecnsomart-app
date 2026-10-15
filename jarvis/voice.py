@@ -1,10 +1,28 @@
 """Voce naturale: TTS (ElevenLabs / OpenAI) e STT (Whisper)."""
+import asyncio
+
 import httpx
 from . import config
 
+try:
+    import edge_tts  # voce neurale gratuita, senza chiave
+except ImportError:
+    edge_tts = None
+
 
 def tts_available() -> bool:
-    return bool(config.ELEVENLABS_API_KEY or config.OPENAI_API_KEY)
+    return bool(config.ELEVENLABS_API_KEY or config.OPENAI_API_KEY or edge_tts)
+
+
+def _edge_synthesize(text: str) -> bytes:
+    async def run():
+        c = edge_tts.Communicate(text, config.EDGE_VOICE, rate=config.EDGE_RATE, pitch=config.EDGE_PITCH)
+        return b"".join([ch["data"] async for ch in c.stream() if ch["type"] == "audio"])
+
+    audio = asyncio.run(run())  # chiamata da un thread del server: nessun loop attivo
+    if not audio:
+        raise RuntimeError("Edge TTS non ha restituito audio")
+    return audio
 
 
 def stt_available() -> bool:
@@ -21,7 +39,7 @@ def synthesize(text: str) -> bytes:
                   "voice_settings": {"stability": 0.65, "similarity_boost": 0.8, "style": 0.2, "use_speaker_boost": True}},
             timeout=60,
         )
-    else:
+    elif config.OPENAI_API_KEY:
         r = httpx.post(
             "https://api.openai.com/v1/audio/speech",
             headers={"Authorization": f"Bearer {config.OPENAI_API_KEY}"},
@@ -29,6 +47,8 @@ def synthesize(text: str) -> bytes:
                   "instructions": config.VOICE_STYLE},
             timeout=60,
         )
+    else:
+        return _edge_synthesize(text)
     r.raise_for_status()
     return r.content
 
