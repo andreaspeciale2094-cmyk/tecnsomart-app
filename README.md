@@ -27,6 +27,8 @@ Di' "Jarvis, ..." con il pulsante 👂 attivo, oppure usa il microfono 🎤.
 
 ## Funzioni avanzate
 
+Mail/calendario, domotica, briefing e agenti in background sono **spenti di default** (interruttori `JARVIS_MAIL`, `JARVIS_HOME`, `JARVIS_AGENTS` in `.env`); la ricerca web si spegne con `JARVIS_WEB_SEARCH=false`. Il controllo del PC resta dietro `JARVIS_PC_CONTROL`.
+
 - **Voce naturale:** con `ELEVENLABS_API_KEY` (o `OPENAI_API_KEY`) Jarvis risponde con una voce neurale; con `OPENAI_API_KEY` il microfono usa Whisper (premi per parlare, premi ancora per inviare). Senza chiavi usa **Edge TTS** (gratuito, voce neurale `EDGE_VOICE`, richiede internet); se anche quello fallisce ripiega sulla voce del browser. Il pulsante 👂 (parola d'ordine "Jarvis") usa sempre il riconoscimento del browser.
 - **Briefing e attivita' pianificate:** imposta `BRIEFING_TIME=07:30` per il briefing mattutino (calendario, mail, promemoria). Puoi anche dire "ogni giorno alle 18 ricordami di..." o "ogni 30 minuti controlla le mail": Jarvis usa `schedule_task`. I risultati arrivano in 📬 (con notifica del browser e lettura vocale). Il server deve restare acceso.
 - **Agenti in background:** per compiti lunghi ("fammi un'analisi di...") Jarvis avvia `background_task` e ti avvisa quando ha finito. Gli agenti in background non possono eseguire comandi sul PC ne' creare altri agenti.

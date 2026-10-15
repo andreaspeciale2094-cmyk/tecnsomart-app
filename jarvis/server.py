@@ -11,7 +11,8 @@ from . import auth, brain, config, memory, scheduler, voice
 
 @asynccontextmanager
 async def lifespan(app):
-    scheduler.start()
+    if config.ENABLE_AGENTS:
+        scheduler.start()
     yield
 
 

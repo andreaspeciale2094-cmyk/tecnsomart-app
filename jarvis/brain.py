@@ -8,7 +8,7 @@ from . import config, memory, tools
 client = anthropic.Anthropic()
 
 # Ricerca web lato server di Anthropic (nessun codice da mantenere).
-SERVER_TOOLS = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}]
+SERVER_TOOLS = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}] if config.ENABLE_WEB_SEARCH else []
 
 
 def system_prompt(query: str = "", unattended: bool = False) -> str:
@@ -22,6 +22,10 @@ def system_prompt(query: str = "", unattended: bool = False) -> str:
         "\nSTAI LAVORANDO IN BACKGROUND senza l'utente: non fare domande, non chiedere conferme, non puoi eseguire comandi sul PC. Produci direttamente il risultato finale, pronto da leggere."
         if unattended else ""
     )
+    agents_rule = (
+        "- Per compiti lunghi (ricerche, analisi) usa `background_task` e avvisa l'utente che il risultato arrivera' nelle notifiche; per promemoria e routine usa `schedule_task`.\n"
+        if config.ENABLE_AGENTS else ""
+    )
     return f"""Sei JARVIS, l'assistente personale di {config.USER_NAME}. Rispondi in italiano, con tono elegante, brillante e leggermente ironico, come il Jarvis di Iron Man. Sii conciso: le risposte vengono spesso lette ad alta voce, quindi evita elenchi, markdown, emoji, link e simboli: scrivi come parleresti, con frasi brevi e naturali, numeri e unita' a parole.
 
 Principi:
@@ -29,8 +33,7 @@ Principi:
 - Salva con `remember` ogni informazione duratura sull'utente, senza chiederlo.
 - Prima di azioni irreversibili o con effetti esterni (cancellare file, comandi rischiosi, spegnere dispositivi importanti) chiedi conferma.
 - Se un tool e' disattivato o non configurato, dillo e spiega come abilitarlo.
-- Per compiti lunghi (ricerche, analisi) usa `background_task` e avvisa l'utente che il risultato arrivera' nelle notifiche; per promemoria e routine usa `schedule_task`.
-- Non inventare dati: se non sai, cerca o ammettilo.
+{agents_rule}- Non inventare dati: se non sai, cerca o ammettilo.
 
 Data e ora attuali: {datetime.now():%A %d %B %Y, %H:%M}.
 

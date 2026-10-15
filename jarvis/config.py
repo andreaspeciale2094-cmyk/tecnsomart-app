@@ -6,7 +6,18 @@ load_dotenv()
 
 MODEL = os.getenv("JARVIS_MODEL", "claude-sonnet-5-5")
 USER_NAME = os.getenv("JARVIS_USER_NAME", "signore")
-PC_CONTROL = os.getenv("JARVIS_PC_CONTROL", "false").lower() == "true"
+
+
+def _flag(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in ("1", "true", "si", "yes")
+
+
+PC_CONTROL = _flag("JARVIS_PC_CONTROL")
+# Funzioni extra: spente di default, cosi' non costano nulla e non pesano su ogni messaggio.
+ENABLE_WEB_SEARCH = _flag("JARVIS_WEB_SEARCH", True)
+ENABLE_AGENTS = _flag("JARVIS_AGENTS")  # attivita' pianificate, briefing e agenti in background
+ENABLE_MAIL = _flag("JARVIS_MAIL")  # mail e calendario in lettura
+ENABLE_HOME = _flag("JARVIS_HOME")  # domotica Home Assistant
 WORKDIR = Path(os.getenv("JARVIS_WORKDIR", "./workspace")).resolve()
 DB_PATH = os.getenv("JARVIS_DB", "jarvis.db")
 MAX_TOOL_ROUNDS = 12
