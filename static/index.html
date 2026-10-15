@@ -119,7 +119,7 @@ async function send(text) {
   busy = true; add(text, 'user'); setState('thinking', 'sto pensando…');
   try {
     const j = await (await api('/api/chat', { method:'POST', body: JSON.stringify({ session, message: text }) })).json();
-    add(j.reply, 'jarvis', j.tools); speak(j.reply);
+    add(j.reply, 'jarvis', j.tools); speak(j.reply);  // anche gli errori vengono detti a voce
   } catch (e) { add('Errore: ' + e.message, 'jarvis'); }
   busy = false; setState('', wakeOn ? 'in ascolto…' : 'pronto');
 }

@@ -3,7 +3,7 @@ import threading
 import time
 from datetime import datetime
 
-from . import config
+from . import config, logs
 from .db import db
 
 BRIEFING_PROMPT = (
@@ -35,7 +35,7 @@ def run_unattended(title: str, prompt: str):
     try:
         reply, _ = brain.think([{"role": "user", "content": prompt}], unattended=True)
     except Exception as e:
-        reply = f"Attivita' fallita: {e}"
+        reply = f"Attivita' fallita: {logs.handle(e)}"
     add_inbox(title, reply)
 
 

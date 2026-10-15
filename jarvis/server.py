@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import auth, brain, config, memory, scheduler, voice
+from . import auth, brain, config, logs, memory, scheduler, voice
 
 
 @asynccontextmanager
@@ -60,8 +60,13 @@ class Chat(BaseModel):
 @app.post("/api/chat")
 def chat(body: Chat):
     history = _sessions.setdefault(body.session, [])
+    before = len(history)
     history.append({"role": "user", "content": body.message})
-    reply, log = brain.think(history)
+    try:
+        reply, log = brain.think(history)
+    except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
+        del history[before:]
+        return {"reply": logs.handle(e), "tools": [], "error": True}
     # Limita la storia senza spezzare coppie tool_use/tool_result: riparti da un turno utente testuale.
     if len(history) > config.MAX_HISTORY:
         cut = len(history) - config.MAX_HISTORY
