@@ -28,7 +28,8 @@
 14. Tetto di spesa mensile di 25 dollari sulla Console Anthropic sempre attivo.
 
 ## Stato
-**IN CORSO:** Fase 1 (basi: parte, risponde, costa poco).
+**FATTO:** Fase 1 provata da Andrea (10 domande su 10, errori in italiano, registri, prompt a tre livelli).
+**IN ATTESA DEL SI':** router Groq/Claude (resto della Fase 1). Poi Fase 2 (voce e interruzioni) solo dopo il "vai".
 **IDEE:** vedi `docs/PIANO_JARVIS.md`.
 
 ## Tecnico (per Claude)
