@@ -59,11 +59,16 @@ def ask_groq(history: list[dict], query: str) -> str | None:
         + f"\n\nRispondi solo se la risposta e' semplice e certa. Se serve cercare online, usare la memoria personale, fare calcoli o ragionamenti, "
         f"o non sei sicuro, rispondi ESATTAMENTE con {ESCAPE} e nient'altro."
     )
+    payload = {"model": config.GROQ_MODEL, "messages": [{"role": "system", "content": system}] + _text_history(history),
+               "max_tokens": 300, "temperature": 0.4}
+    if "gpt-oss" in config.GROQ_MODEL:
+        # modello che "ragiona": poco ragionamento, cosi' resta veloce e i token bastano per la risposta
+        payload["reasoning_effort"] = "low"
+        payload["max_tokens"] = 800
     r = httpx.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {config.GROQ_API_KEY}"},
-        json={"model": config.GROQ_MODEL, "messages": [{"role": "system", "content": system}] + _text_history(history),
-              "max_tokens": 300, "temperature": 0.4},
+        json=payload,
         timeout=8,
     )
     r.raise_for_status()

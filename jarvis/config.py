@@ -50,7 +50,7 @@ EDGE_PITCH = os.getenv("EDGE_PITCH", "+0Hz")
 
 # Router: domande semplici a Groq (economico), il resto a Claude. Attivo solo se c'e' GROQ_API_KEY.
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 ENABLE_ROUTER = bool(GROQ_API_KEY) and _flag("JARVIS_ROUTER", True)
 
 # Quanto "pensa" Claude: low (veloce ed economico, consigliato), medium, high.
