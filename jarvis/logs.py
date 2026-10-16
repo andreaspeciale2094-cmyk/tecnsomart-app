@@ -20,7 +20,7 @@ def _write(name: str, line: str):
 
 
 def clean(text: str) -> str:
-    text = re.sub(r"(sk|gsk|xai)-[A-Za-z0-9_\-]{8,}", "[chiave]", text)  # mai chiavi nel registro
+    text = re.sub(r"\b(sk|gsk|xai|key)[-_][A-Za-z0-9_\-]{8,}", "[chiave]", text)  # mai chiavi nel registro
     return re.sub(r"\s+", " ", text)[:300]
 
 
