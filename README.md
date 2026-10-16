@@ -25,6 +25,10 @@ Di' "Jarvis, ..." con il pulsante 👂 attivo, oppure usa il microfono 🎤.
 
 **Aggiungere un'abilita':** crea un modulo in `jarvis/tools/` con `SCHEMAS` e `HANDLERS` e registralo in `tools/__init__.py`.
 
+## Risparmio (router)
+
+Con `GROQ_API_KEY` in `.env`, le domande semplici (ora, saluti, risposte brevi) vanno a Groq; tutto il resto, o se Groq non e' sicuro o e' fuori servizio, a Claude. `logs/consumi.log` dice chi ha risposto e il costo stimato. `JARVIS_EFFORT` (low/medium/high) regola quanto pensa Claude.
+
 ## Funzioni avanzate
 
 Mail/calendario, domotica, briefing e agenti in background sono **spenti di default** (interruttori `JARVIS_MAIL`, `JARVIS_HOME`, `JARVIS_AGENTS` in `.env`); la ricerca web si spegne con `JARVIS_WEB_SEARCH=false`. Il controllo del PC resta dietro `JARVIS_PC_CONTROL`.

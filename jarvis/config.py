@@ -47,3 +47,18 @@ BRIEFING_TIME = os.getenv("BRIEFING_TIME", "")  # es. 07:30 (ora locale del serv
 EDGE_VOICE = os.getenv("EDGE_VOICE", "it-IT-GiuseppeMultilingualNeural")
 EDGE_RATE = os.getenv("EDGE_RATE", "-3%")
 EDGE_PITCH = os.getenv("EDGE_PITCH", "+0Hz")
+
+# Router: domande semplici a Groq (economico), il resto a Claude. Attivo solo se c'e' GROQ_API_KEY.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+ENABLE_ROUTER = bool(GROQ_API_KEY) and _flag("JARVIS_ROUTER", True)
+
+# Quanto "pensa" Claude: low (veloce ed economico, consigliato), medium, high.
+EFFORT = os.getenv("JARVIS_EFFORT", "low")
+
+# Prezzi in dollari per milione di token, usati SOLO per il costo stimato nel registro consumi.
+# Claude Sonnet 5.5 (listino Anthropic). Groq: controlla il listino sul loro sito e correggi se serve.
+PRICE_CLAUDE_IN = float(os.getenv("PRICE_CLAUDE_IN", "2.00"))
+PRICE_CLAUDE_OUT = float(os.getenv("PRICE_CLAUDE_OUT", "10.00"))
+PRICE_GROQ_IN = float(os.getenv("PRICE_GROQ_IN", "0.59"))
+PRICE_GROQ_OUT = float(os.getenv("PRICE_GROQ_OUT", "0.79"))

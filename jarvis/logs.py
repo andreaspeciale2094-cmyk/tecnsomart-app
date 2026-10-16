@@ -5,6 +5,8 @@ from pathlib import Path
 
 import anthropic
 
+from . import config
+
 LOG_DIR = Path("logs")
 
 
@@ -60,5 +62,17 @@ def log_usage(model: str, usage):
     fresh = getattr(usage, "input_tokens", 0) or 0
     out = getattr(usage, "output_tokens", 0) or 0
     total_in = fresh + cached + created
-    saved = f"{round(100 * cached / total_in)}% dell'ingresso letto dalla cache (costa molto meno)" if total_in and cached else "cache non usata"
-    _write("consumi.log", f"{model} | ingresso nuovo {fresh} | scritto in cache {created} | letto da cache {cached} | uscita {out} | {saved}")
+    # cache: lettura = 10% del prezzo normale, scrittura = 125%
+    cost = (fresh * config.PRICE_CLAUDE_IN + created * config.PRICE_CLAUDE_IN * 1.25
+            + cached * config.PRICE_CLAUDE_IN * 0.1 + out * config.PRICE_CLAUDE_OUT) / 1e6
+    saved = f"{round(100 * cached / total_in)}% dell'ingresso letto dalla cache" if total_in and cached else "cache non usata"
+    _write("consumi.log", f"CLAUDE {model} | ingresso nuovo {fresh} | scritto in cache {created} | letto da cache {cached} | uscita {out} | {saved} | costo stimato ${cost:.5f}")
+
+
+def log_groq(model: str, tokens_in: int, tokens_out: int):
+    cost = (tokens_in * config.PRICE_GROQ_IN + tokens_out * config.PRICE_GROQ_OUT) / 1e6
+    _write("consumi.log", f"GROQ {model} | ingresso {tokens_in} | uscita {tokens_out} | costo stimato ${cost:.5f}")
+
+
+def log_route(note: str):
+    _write("consumi.log", f"ROUTER | {note}")

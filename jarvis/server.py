@@ -67,12 +67,21 @@ def chat(body: Chat):
     except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
         del history[before:]
         return {"reply": logs.handle(e), "tools": [], "error": True}
-    # Limita la storia senza spezzare coppie tool_use/tool_result: riparti da un turno utente testuale.
     if len(history) > config.MAX_HISTORY:
-        cut = len(history) - config.MAX_HISTORY
-        while cut < len(history) and not (history[cut]["role"] == "user" and isinstance(history[cut]["content"], str)):
-            cut += 1
-        del history[:cut]
+        # Conversazione lunga: ripartiamo da una storia pulita con solo gli ultimi scambi in testo.
+        # (Togliere pezzi dall'inizio invaliderebbe i "pensieri" di Claude e darebbe errore.)
+        recent = []
+        for m in history:
+            if isinstance(m["content"], str):
+                recent.append({"role": m["role"], "content": m["content"]})
+            elif m["role"] == "assistant":
+                txt = "".join(getattr(b, "text", "") for b in m["content"] if getattr(b, "type", None) == "text").strip()
+                if txt:
+                    recent.append({"role": "assistant", "content": txt})
+        recent = recent[-10:]
+        while recent and recent[0]["role"] != "user":
+            recent.pop(0)
+        history[:] = recent
     return {"reply": reply, "tools": log}
 
 
