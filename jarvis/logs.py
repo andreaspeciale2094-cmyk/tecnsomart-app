@@ -19,7 +19,7 @@ def _write(name: str, line: str):
         pass  # il registro non deve mai far fallire Jarvis
 
 
-def _clean(text: str) -> str:
+def clean(text: str) -> str:
     text = re.sub(r"(sk|gsk|xai)-[A-Za-z0-9_\-]{8,}", "[chiave]", text)  # mai chiavi nel registro
     return re.sub(r"\s+", " ", text)[:300]
 
@@ -45,7 +45,7 @@ def explain(e: Exception) -> tuple[str, str]:
 
 
 def log_error(e: Exception, cause: str):
-    _write("errori.log", f"{cause} | {type(e).__name__} | {_clean(str(e))}")
+    _write("errori.log", f"{cause} | {type(e).__name__} | {clean(str(e))}")
 
 
 def handle(e: Exception) -> str:

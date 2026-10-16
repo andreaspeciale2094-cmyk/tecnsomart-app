@@ -82,8 +82,11 @@ def route(history: list[dict], query: str) -> str | None:
         return None
     try:
         reply = ask_groq(history, query)
-    except Exception as e:  # Groq giu', chiave errata, modello cambiato...: si va su Claude
-        logs.log_route(f"Groq non disponibile ({type(e).__name__}), passo a Claude")
+    except httpx.HTTPStatusError as e:  # Groq risponde ma rifiuta: scriviamo il perche' (senza chiavi)
+        logs.log_route(f"Groq ha risposto errore {e.response.status_code}: {logs.clean(e.response.text)}. Passo a Claude")
+        return None
+    except Exception as e:  # Groq giu', niente rete...: si va su Claude
+        logs.log_route(f"Groq non disponibile ({type(e).__name__}: {logs.clean(str(e))}), passo a Claude")
         return None
     logs.log_route("risposto da Groq" if reply else "Groq non e' sicuro, passo a Claude")
     return reply
