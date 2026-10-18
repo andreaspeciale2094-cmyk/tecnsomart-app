@@ -31,7 +31,7 @@
 **FATTO:** Fase 1 provata da Andrea (10 domande su 10, errori in italiano, registri, prompt a tre livelli).
 **FATTO e provato da Andrea (18/10):** router Groq/Claude (`jarvis/router.py`), costo stimato nel registro consumi, Claude con effort basso.
 **IN CORSO:** Fase 2 (voce e interruzioni). Voce gratuita (Edge) per i test; ElevenLabs solo alla fine. Andrea ha cuffie bluetooth.
-  - Pezzo 1 (risposta a pezzi, voce alla prima frase): fatto e provato (voce ok con le cuffie). Pezzo 2 (frasi fisse registrate in `audio_fisse/`, partono se la risposta tarda piu' di 0,7 s): fatto e provato da Andrea. Pezzo 3 ("mai silenzio": dopo 3 s senza audio dice cosa sta facendo, frasi `stato_*`): fatto, da provare. Poi: 4 interruzioni.
+  - Pezzo 1 (risposta a pezzi, voce alla prima frase): fatto e provato (voce ok con le cuffie). Pezzo 2 (frasi fisse registrate in `audio_fisse/`, partono se la risposta tarda piu' di 0,7 s): fatto e provato da Andrea. Pezzo 3 ("mai silenzio": dopo 3 s senza audio dice cosa sta facendo, frasi `stato_*`): fatto e provato da Andrea. Pezzo 4 (interruzioni: pulsante stop/Esc, parole stop/basta/aspetta/un attimo, parlare sopra la voce in ascolto continuo; richieste in coda mai in parallelo): fatto, da provare. Aperto: errore "inatteso" segnalato da Andrea rispondendo "ok" mentre Jarvis parlava (causa da leggere in `logs/errori.log`).
 **IDEE:** vedi `docs/PIANO_JARVIS.md`.
 
 ## Tecnico (per Claude)

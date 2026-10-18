@@ -42,6 +42,7 @@
   <div id="orb"></div>
   <div><h1>J.A.R.V.I.S.</h1><div id="status">pronto</div></div>
   <div class="spacer"></div>
+  <button id="stopbtn" title="Ferma la voce (anche: di' stop)">⏹ stop</button>
   <button id="tts" class="on" title="Risposte vocali">🔊 voce</button>
   <button id="bell" title="Notifiche">📬 <span id="nb">0</span></button>
   <button id="wake" title="Ascolto continuo: di' 'Jarvis ...'">👂 sempre in ascolto</button>
@@ -82,13 +83,14 @@ $('#lf').onsubmit = async e => {
 };
 
 // ---- Voce in uscita: voce neurale del server se configurata, altrimenti quella del browser ----
+let lastUserText = '', interrupted = false, pendingText = null;
 function afterSpeech() { if (wakeOn) startRec(); }
 
 // ---- Voce in uscita a frasi: la prima parte appena e' pronta, le altre si preparano mentre parla ----
 let speakToken = 0, speakingNow = false, queue = [], wake = null, streamDone = true, firstAudioCb = null;
 // Frasi fisse ("Un attimo, signore."): partono subito se la risposta tarda, cosi' non c'e' mai silenzio
 let fixedAudio = {}, fillerEl = null, fillerDone = Promise.resolve(), fillerEnd = null, lastFiller = '', audioActive = false, lastActivity = 0;
-const STATUS = { web_search: 'stato_cerca', fetch_url: 'stato_pagina', remember: 'stato_memoria', recall: 'stato_memoria', forget: 'stato_memoria' };
+const STATUS = { web_search: 'stato_cerca', code_execution: 'stato_cerca', bash_code_execution: 'stato_cerca', web_fetch: 'stato_pagina', fetch_url: 'stato_pagina', remember: 'stato_memoria', recall: 'stato_memoria', forget: 'stato_memoria' };
 const note = (tag, detail = '') => { try { fetch('/api/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag, detail }) }).catch(() => {}); } catch (e) {} };
 let sendStart = 0, loadTries = 0;
 async function loadFillers() {
@@ -169,10 +171,10 @@ function takeSentences(buf, final) {
   return [out, rest];
 }
 
-async function send(text) {
+async function send(text, label) {
   if (!text.trim() || busy) return;
   stopSpeaking();
-  busy = true; add(text, 'user'); setState('thinking', 'sto pensando…');
+  busy = true; add(label || text, 'user'); setState('thinking', 'sto pensando…');
   const bubble = add('', 'jarvis'), t0 = performance.now();
   const token = beginSpeech(); let buf = '', shown = '', tools = [], timeNote = '';
   let toolKey = 'stato_ancora', ended = false; lastActivity = sendStart = performance.now();
@@ -196,7 +198,7 @@ async function send(text) {
         if (ev.type === 'text') {
           clearTimeout(fillerTimer); lastActivity = performance.now(); shown += ev.delta; buf += ev.delta; render();
           const [sent, rest] = takeSentences(buf, false); buf = rest; sent.forEach(x => enqueue(x, token));
-        } else if (ev.type === 'tool') { tools.push(ev.name); toolKey = STATUS[ev.name] || 'stato_ancora'; render();
+        } else if (ev.type === 'tool') { tools.push(ev.name); if (STATUS[ev.name]) toolKey = STATUS[ev.name]; render();
         } else if (ev.type === 'done') { tools = ev.tools.length ? ev.tools : tools; render();
         } else if (ev.type === 'error') { shown = ev.message; buf = ev.message; render(); }
       }
@@ -205,22 +207,47 @@ async function send(text) {
   } catch (e) { shown = 'Errore: ' + e.message; render(); }
   ended = true; clearInterval(silenceTimer); clearTimeout(fillerTimer); endSpeech(); render();
   busy = false; setState('', wakeOn ? 'in ascolto…' : 'pronto');
+  if (pendingText) { const p = pendingText; pendingText = null; send(p.full, p.label); }  // richiesta fatta mentre rispondeva
 }
-$('#f').onsubmit = e => { e.preventDefault(); const v = $('#q').value; $('#q').value = ''; send(v); };
+$('#f').onsubmit = e => { e.preventDefault(); const v = $('#q').value.trim(); $('#q').value = ''; if (!v) return; interrupted = false; lastUserText = v; submit(v, v); };
+$('#stopbtn').onclick = () => { stopSpeaking(); interrupted = false; pendingText = null; };
+addEventListener('keydown', e => { if (e.key === 'Escape') $('#stopbtn').onclick(); });
 $('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) stopSpeaking(); };
 
 // ---- Voce in ingresso ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, recActive = false;
+const STOP_RE = /^(?:(?:ehi |hey |ok )?jarvis[,.!]?\s*)?(stop|basta|fermo|fermati|zitto)[.!]?$/i;   // ferma e annulla
+const WAIT_RE = /^(?:(?:ehi |hey |ok )?jarvis[,.!]?\s*)?(aspetta|un attimo|un momento|aspetta un attimo)[.!]?$/i;  // ferma e aspetta l'aggiunta
+const WAKE_RE = /^(ehi |hey |ok )?jarvis[,.!]?\s*(.*)$/i;
+function submit(full, label) { if (busy) { pendingText = { full, label }; return; } send(full, label); }
+
+// Un frase ascoltata: comandi di stop, aggiunta alla richiesta di prima, oppure richiesta nuova
+function handleHeard(t, overSpeech) {
+  t = t.trim(); if (!t) return;
+  if (wakeOn && !overSpeech && !interrupted) { const m = t.match(WAKE_RE); if (!m || !m[2]) return; t = m[2].trim(); }
+  if (STOP_RE.test(t)) { stopSpeaking(); interrupted = false; pendingText = null; return; }
+  if (WAIT_RE.test(t)) { stopSpeaking(); interrupted = !!lastUserText; return; }
+  if (interrupted && lastUserText) {
+    const full = `Richiesta di prima: «${lastUserText}». Mi sono interrotto per aggiungere: «${t}». Rianalizza tutto e rispondi.`;
+    lastUserText = `${lastUserText} ${t}`; interrupted = false; submit(full, t); return;
+  }
+  lastUserText = t; submit(t, t);
+}
+
 function startRec() {
-  if (!SR || recActive || busy || speaking()) return;
-  rec = new SR(); rec.lang = 'it-IT'; rec.interimResults = false;
-  rec.onstart = () => { recActive = true; $('#mic').classList.add('on'); setState('listening', 'ti ascolto…'); };
-  rec.onend = () => { recActive = false; $('#mic').classList.remove('on'); if (wakeOn && !busy && !speaking()) setTimeout(startRec, 300); else if (!busy) setState('', wakeOn ? 'in ascolto…' : 'pronto'); };
+  if (!SR || recActive || (!wakeOn && (busy || speaking()))) return;   // in ascolto continuo ascolta anche mentre Jarvis parla
+  rec = new SR(); rec.lang = 'it-IT'; rec.interimResults = true;
+  let over = false;
+  rec.onstart = () => { recActive = true; $('#mic').classList.add('on'); if (!busy) setState('listening', 'ti ascolto…'); };
+  rec.onend = () => { recActive = false; $('#mic').classList.remove('on'); if (wakeOn) setTimeout(startRec, 300); else if (!busy) setState('', 'pronto'); };
   rec.onresult = ev => {
-    let t = ev.results[0][0].transcript.trim();
-    if (wakeOn) { const m = t.match(/^(ehi |hey |ok )?jarvis[,.!]?\s*(.*)$/i); if (!m) return; t = m[2]; }
-    if (t) send(t);
+    const r = ev.results[ev.results.length - 1], t = r[0].transcript.trim();
+    if (!r.isFinal) {  // sta parlando sopra la voce di Jarvis: si ferma subito
+      if (!over && speaking() && t.length >= 4) { over = true; stopSpeaking(); interrupted = !!lastUserText; }
+      return;
+    }
+    handleHeard(t, over); over = false;
   };
   rec.onerror = () => {}; rec.start();
 }
@@ -238,7 +265,7 @@ async function whisperToggle() {
     try {
       const blob = new Blob(chunks, { type: mr.mimeType });
       const r = await api('/api/stt', { method:'POST', headers:{ 'Content-Type': mr.mimeType }, body: blob });
-      const { text } = await r.json(); setState('', 'pronto'); send(text);
+      const { text } = await r.json(); setState('', 'pronto'); handleHeard(text, false);
     } catch (e) { add('Errore: ' + e.message, 'jarvis'); setState('', 'pronto'); }
   };
   mr.start();
