@@ -42,8 +42,11 @@ def think_stream(history: list[dict], unattended: bool = False):
             tools=schemas + SERVER_TOOLS,
             messages=history,
         ) as stream:
-            for piece in stream.text_stream:
-                yield {"type": "text", "delta": piece}
+            for ev in stream:
+                if ev.type == "text":
+                    yield {"type": "text", "delta": ev.text}
+                elif ev.type == "content_block_start" and getattr(ev.content_block, "type", "") in ("tool_use", "server_tool_use"):
+                    yield {"type": "tool", "name": ev.content_block.name}  # subito: la pagina puo' dire cosa sta facendo
             resp = stream.get_final_message()
         logs.log_usage(config.MODEL, resp.usage)
         history.append({"role": "assistant", "content": resp.content})
@@ -58,7 +61,6 @@ def think_stream(history: list[dict], unattended: bool = False):
         for b in resp.content:
             if b.type == "tool_use":
                 log.append(f"{b.name}({b.input})")
-                yield {"type": "tool", "name": b.name}
                 out = "Errore: tool non consentito in background." if unattended and b.name in BLOCKED_UNATTENDED else tools.run_tool(b.name, b.input)
                 results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
         history.append({"role": "user", "content": results})

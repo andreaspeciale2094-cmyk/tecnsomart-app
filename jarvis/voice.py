@@ -129,6 +129,11 @@ FIXED_PHRASES = {
     "attesa2": "Ci penso io.",
     "attesa3": "Subito.",
     "attesa4": "Vediamo.",
+    # dette se un lavoro dura piu' di 3 secondi (mai silenzio)
+    "stato_cerca": "Sto cercando online, signore.",
+    "stato_pagina": "Sto leggendo la pagina.",
+    "stato_memoria": "Controllo la memoria.",
+    "stato_ancora": "Ci sto ancora lavorando, signore.",
 }
 
 
