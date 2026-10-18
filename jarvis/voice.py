@@ -1,9 +1,10 @@
 """Voce naturale: TTS (ElevenLabs / OpenAI) e STT (Whisper)."""
 import asyncio
 import re
+import time
 
 import httpx
-from . import config
+from . import config, logs
 
 try:
     import edge_tts  # voce neurale gratuita, senza chiave
@@ -48,30 +49,58 @@ def stt_available() -> bool:
     return bool(config.OPENAI_API_KEY)
 
 
+_down: dict[str, float] = {}  # voce -> fino a quando saltarla dopo un errore
+
+
+def _elevenlabs(text: str) -> bytes:
+    r = httpx.post(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOICE_ID}",
+        headers={"xi-api-key": config.ELEVENLABS_API_KEY},
+        json={"text": text, "model_id": "eleven_multilingual_v2",
+              "voice_settings": {"stability": 0.65, "similarity_boost": 0.8, "style": 0.2, "use_speaker_boost": True}},
+        timeout=60,
+    )
+    r.raise_for_status()
+    return r.content
+
+
+def _openai(text: str) -> bytes:
+    r = httpx.post(
+        "https://api.openai.com/v1/audio/speech",
+        headers={"Authorization": f"Bearer {config.OPENAI_API_KEY}"},
+        json={"model": "gpt-4o-mini-tts", "voice": config.OPENAI_VOICE, "input": text, "instructions": config.VOICE_STYLE},
+        timeout=60,
+    )
+    r.raise_for_status()
+    return r.content
+
+
+def _providers() -> list[tuple[str, object]]:
+    mode, order = config.VOICE_MODE, []
+    if mode in ("auto", "elevenlabs") and config.ELEVENLABS_API_KEY:
+        order.append(("elevenlabs", _elevenlabs))
+    if mode in ("auto", "openai") and config.OPENAI_API_KEY:
+        order.append(("openai", _openai))
+    if edge_tts:
+        order.append(("edge", _edge_synthesize))  # gratuita: sempre l'ultimo ripiego
+    return order
+
+
 def synthesize(text: str) -> bytes:
     text = clean_for_speech(text)[:2500]
     if not text:
         raise ValueError("niente da leggere")
-    if config.ELEVENLABS_API_KEY:
-        r = httpx.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOICE_ID}",
-            headers={"xi-api-key": config.ELEVENLABS_API_KEY},
-            json={"text": text, "model_id": "eleven_multilingual_v2",
-                  "voice_settings": {"stability": 0.65, "similarity_boost": 0.8, "style": 0.2, "use_speaker_boost": True}},
-            timeout=60,
-        )
-    elif config.OPENAI_API_KEY:
-        r = httpx.post(
-            "https://api.openai.com/v1/audio/speech",
-            headers={"Authorization": f"Bearer {config.OPENAI_API_KEY}"},
-            json={"model": "gpt-4o-mini-tts", "voice": config.OPENAI_VOICE, "input": text,
-                  "instructions": config.VOICE_STYLE},
-            timeout=60,
-        )
-    else:
-        return _edge_synthesize(text)
-    r.raise_for_status()
-    return r.content
+    last = None
+    for name, fn in _providers():
+        if _down.get(name, 0) > time.time():
+            continue  # fallita da poco: non perdiamo tempo a riprovare a ogni frase
+        try:
+            return fn(text)
+        except Exception as e:
+            last = e
+            _down[name] = time.time() + (600 if name != "edge" else 30)
+            logs.log_voice(name, e)
+    raise last or RuntimeError("nessuna voce disponibile")
 
 
 def transcribe(audio: bytes, content_type: str) -> str:

@@ -106,15 +106,17 @@ async function runQueue(token) {
       await new Promise(r => wake = r); wake = null; continue;
     }
     const item = queue.shift();
-    let played = false;
+    let played = false, blocked = false;
     if (item.p) {
       try {
         const blob = await item.p; if (token !== speakToken) return;
         await new Promise(res => { audioEl = new Audio(URL.createObjectURL(blob)); audioEl.onended = res; audioEl.onerror = res;
-          audioEl.onplaying = () => { firstAudioCb?.(); firstAudioCb = null; }; audioEl.play().catch(res); });
-        played = true;
+          audioEl.onplaying = () => { firstAudioCb?.(); firstAudioCb = null; };
+          audioEl.play().catch(e => { blocked = true; res(); }); });
+        played = !blocked;
       } catch (e) { /* ripiega sulla voce del browser per questa frase */ }
     }
+    if (blocked) setState('', 'audio bloccato dal browser: clicca una volta sulla pagina e riprova');
     if (!played && token === speakToken && 'speechSynthesis' in window) {
       await new Promise(res => { const u = new SpeechSynthesisUtterance(item.text); u.lang = 'it-IT';
         const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('it')); if (v) u.voice = v;

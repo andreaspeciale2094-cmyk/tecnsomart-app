@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import anthropic
+import httpx
 
 from . import config
 
@@ -81,3 +82,8 @@ def log_route(note: str):
 def log_latency(first_text_s: float | None, total_s: float):
     first = f"{first_text_s:.2f}s" if first_text_s is not None else "nessun testo"
     _write("consumi.log", f"TEMPI | primo testo dopo {first} | risposta completa dopo {total_s:.2f}s")
+
+
+def log_voice(provider: str, e: Exception):
+    status = f" (errore {e.response.status_code})" if isinstance(getattr(e, "response", None), httpx.Response) else ""
+    _write("errori.log", f"voce | {provider} non disponibile{status}: {clean(str(e))} | passo alla voce successiva")

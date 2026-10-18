@@ -62,3 +62,7 @@ PRICE_CLAUDE_IN = float(os.getenv("PRICE_CLAUDE_IN", "2.00"))
 PRICE_CLAUDE_OUT = float(os.getenv("PRICE_CLAUDE_OUT", "10.00"))
 PRICE_GROQ_IN = float(os.getenv("PRICE_GROQ_IN", "0.59"))
 PRICE_GROQ_OUT = float(os.getenv("PRICE_GROQ_OUT", "0.79"))
+
+# Quale voce usare: auto (la migliore disponibile, con ripiego sulla gratuita), edge (SOLO gratuita: nessuna spesa),
+# elevenlabs oppure openai. In ogni caso, se una voce a pagamento fallisce si passa alla gratuita.
+VOICE_MODE = os.getenv("JARVIS_VOICE", "auto").strip().lower()
