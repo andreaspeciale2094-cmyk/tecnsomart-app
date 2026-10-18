@@ -1,7 +1,7 @@
 """Prompt a tre livelli (identita', sicurezza, contesto), condivisi da Claude e dal router Groq."""
 from datetime import datetime
 
-from . import config, memory
+from . import config, memory, memory_core
 
 # --- Prompt a tre livelli. I primi due sono SEMPRE uguali (cosi' la cache funziona); il terzo cambia. ---
 IDENTITY = f"""Sei JARVIS, il maggiordomo personale di {config.USER_NAME}. Parli in italiano, con tono elegante, calmo e leggermente ironico, come il Jarvis di Iron Man.
@@ -21,12 +21,9 @@ STATIC_PROMPT = IDENTITY + "\n\n" + SAFETY
 
 def context_prompt(query: str = "", unattended: bool = False) -> str:
     """Livello 3: cio' che cambia a ogni richiesta (ora, ricordi, cosa sta facendo)."""
-    seen, facts_list = set(), []
-    for f in (memory.recall(query, 10) if query else []) + memory.recall(limit=15):
-        if f["id"] not in seen:
-            seen.add(f["id"])
-            facts_list.append(f"- [{f['id']}] {f['text']}")
-    facts = "\n".join(facts_list) or "(nessuno)"
+    # Archivio: solo i ricordi pertinenti a QUESTA richiesta (il resto si cerca con `recall`, solo quando serve)
+    facts = "\n".join(f"- [{f['id']}] {f['text']}" for f in (memory.recall(query, 6) if query else []))
+    facts = facts or "(nessuno pertinente: se ti serve qualcosa, cerca con `recall`)"
     extra = ""
     if config.ENABLE_AGENTS:
         extra += "\nPer compiti lunghi usa `background_task` (il risultato arriva nelle notifiche); per promemoria e routine usa `schedule_task`."
@@ -34,15 +31,22 @@ def context_prompt(query: str = "", unattended: bool = False) -> str:
         extra += "\nSTAI LAVORANDO IN BACKGROUND senza l'utente: non fare domande, non chiedere conferme, non puoi eseguire comandi sul PC. Produci direttamente il risultato finale."
     ora = datetime.now().hour
     fascia = "mattina" if 5 <= ora < 13 else "pomeriggio" if 13 <= ora < 18 else "sera" if 18 <= ora < 23 else "notte"
-    return f"Data e ora attuali: {datetime.now():%A %d %B %Y, %H:%M} (fascia: {fascia}).\nCosa sai dell'utente (ricordi rilevanti e recenti):\n{facts}{extra}"
+    return f"Data e ora attuali: {datetime.now():%A %d %B %Y, %H:%M} (fascia: {fascia}).\nRicordi dell'archivio pertinenti a questa richiesta:\n{facts}{extra}"
+
+
+def viva_prompt() -> str:
+    core = memory_core.read()
+    return f"Memoria viva (cio' che sai sempre di {config.USER_NAME}, sempre vera):\n{core}" if core else ""
 
 
 def system_blocks(query: str = "", unattended: bool = False) -> list[dict]:
-    # cache_control sulla parte fissa: strumenti + identita' + regole vengono letti dalla cache.
-    return [
-        {"type": "text", "text": STATIC_PROMPT, "cache_control": {"type": "ephemeral"}},
-        {"type": "text", "text": context_prompt(query, unattended)},
-    ]
+    # Due punti di cache: (1) strumenti + identita' + regole, (2) memoria viva. Cambia solo l'ultimo blocco.
+    blocks = [{"type": "text", "text": STATIC_PROMPT, "cache_control": {"type": "ephemeral"}}]
+    viva = viva_prompt()
+    if viva:
+        blocks.append({"type": "text", "text": viva, "cache_control": {"type": "ephemeral"}})
+    blocks.append({"type": "text", "text": context_prompt(query, unattended)})
+    return blocks
 
 
 def system_prompt(query: str = "", unattended: bool = False) -> str:

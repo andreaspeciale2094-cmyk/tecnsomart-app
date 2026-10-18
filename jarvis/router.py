@@ -55,6 +55,8 @@ def ask_groq(history: list[dict], query: str) -> str | None:
     system = (
         brain_prompts.STATIC_PROMPT
         + "\n\n"
+        + brain_prompts.viva_prompt()
+        + "\n\n"
         + brain_prompts.context_prompt(query)
         + f"\n\nRispondi solo se la risposta e' semplice e certa. Se serve cercare online, usare la memoria personale, fare calcoli o ragionamenti, "
         f"o non sei sicuro, rispondi ESATTAMENTE con {ESCAPE} e nient'altro."
