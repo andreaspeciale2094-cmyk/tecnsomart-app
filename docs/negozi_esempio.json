@@ -1,0 +1,20 @@
+{
+  "url": "INDIRIZZO /exec DELL'APP (quello dentro index.html del repository tecnosmart-app)",
+  "run": {
+    "mono": {
+      "cicloPredefinito": 26,
+      "categorie": [
+        {"key": "categoria1", "nome": "Categoria uno", "unita": "Pz", "targetGruppo": 10},
+        {"key": "categoria2", "nome": "Categoria due", "unita": "Pt", "targetGruppo": 6}
+      ],
+      "negozi": [
+        {"slug": "negozio-a", "nome": "Negozio A", "quota": 0.6},
+        {"slug": "negozio-b", "nome": "Negozio B", "quota": 0.4},
+        {"slug": "promoter", "nome": "Promoter", "quota": 0, "fuoriGruppo": true}
+      ],
+      "mesi": {
+        "2099-01": {"ciclo": 27, "negozi": {"negozio-a": {"categoria1": 100, "categoria2": 60}, "negozio-b": {"categoria1": 80}}}
+      }
+    }
+  }
+}

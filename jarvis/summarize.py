@@ -8,7 +8,7 @@ SYSTEM = """Sei l'archivista di Jarvis, il maggiordomo di {nome}. Ricevi una par
 Rispondi SOLO con un oggetto JSON con due campi:
 - "riassunto": al massimo 10 righe brevi, una per riga, con i fatti, le decisioni e le cose da fare. Niente saluti, niente chiacchiere. Includi il vecchio riassunto, se c'e'.
 - "fatti_permanenti": elenco (anche vuoto, massimo 8) di informazioni DURATURE su {nome} (preferenze, persone, abitudini, impegni ricorrenti), ognuna in una frase breve e completa. Non metterci cose passeggere.
-Non scrivere mai password, chiavi, numeri di carte o conti, ne' dati personali dei clienti dei negozi."""
+Non scrivere mai password, chiavi, numeri di carte o conti, ne' dati personali dei clienti dei negozi. Non scrivere nemmeno i dati dei negozi (vendite, target, risultati, nomi degli addetti): non vanno ricordati."""
 
 _SECRET = re.compile(r"password|passwd|\biban\b|\b\d{12,19}\b|\bsk-|gsk_|\bpin\b", re.IGNORECASE)
 
