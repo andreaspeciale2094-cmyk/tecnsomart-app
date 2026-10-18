@@ -141,7 +141,7 @@ async function send(text) {
   busy = true; add(text, 'user'); setState('thinking', 'sto pensando…');
   const bubble = add('', 'jarvis'), t0 = performance.now();
   const token = beginSpeech(); let buf = '', shown = '', tools = [], timeNote = '';
-  firstAudioCb = () => { timeNote = `prima parola dopo ${((performance.now() - t0) / 1000).toFixed(1)} s`; };
+  firstAudioCb = () => { timeNote = `prima parola dopo ${((performance.now() - t0) / 1000).toFixed(1)} s`; render(); };
   const render = () => { bubble.textContent = shown; if (tools.length || timeNote) { const t = document.createElement('div'); t.className = 'tools'; t.textContent = '⚙ ' + [...tools, timeNote].filter(Boolean).join(' · '); bubble.append(t); } log.scrollTop = log.scrollHeight; };
   try {
     const r = await api('/api/chat_stream', { method:'POST', body: JSON.stringify({ session, message: text }) });
