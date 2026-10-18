@@ -91,3 +91,8 @@ def log_voice(provider: str, e: Exception):
 
 def log_page(tag: str, detail: str):
     _write("consumi.log", f"PAGINA | {tag} | {clean(detail)[:80]}")
+
+
+def log_memory(note: str):
+    """Registro delle azioni sulla memoria: solo numeri e conteggi, mai il contenuto dei ricordi."""
+    _write("consumi.log", f"MEMORIA | {clean(note)[:100]}")

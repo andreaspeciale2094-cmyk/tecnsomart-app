@@ -20,13 +20,13 @@ def _last_user_text(history: list[dict]) -> str:
     return ""
 
 
-def think_stream(history: list[dict], unattended: bool = False):
+def think_stream(history: list[dict], unattended: bool = False, summary: str = ""):
     """Ciclo agentico a pezzi: produce eventi {"type": "text"|"tool"|"done", ...}.
     Il testo arriva man mano che Claude lo scrive, cosi' Jarvis puo' parlare subito."""
     log: list[str] = []
     query = _last_user_text(history)
     if not unattended:  # richieste semplici: prima Groq (economico), se non e' sicuro risponde Claude
-        quick = router.route(history, query)
+        quick = router.route(history, query, summary)
         if quick:
             history.append({"role": "assistant", "content": quick})
             yield {"type": "text", "delta": quick}
@@ -38,7 +38,7 @@ def think_stream(history: list[dict], unattended: bool = False):
             model=config.MODEL,
             max_tokens=4096,  # il "pensiero" conta nel limite
             output_config={"effort": config.EFFORT},
-            system=system_blocks(query, unattended),
+            system=system_blocks(query, unattended, summary),
             tools=schemas + SERVER_TOOLS,
             messages=history,
         ) as stream:
@@ -69,10 +69,10 @@ def think_stream(history: list[dict], unattended: bool = False):
     yield {"type": "done", "reply": msg, "tools": log}
 
 
-def think(history: list[dict], unattended: bool = False) -> tuple[str, list[str]]:
+def think(history: list[dict], unattended: bool = False, summary: str = "") -> tuple[str, list[str]]:
     """Come think_stream, ma aspetta la fine. Ritorna (risposta, log strumenti)."""
     reply, log = "", []
-    for ev in think_stream(history, unattended):
+    for ev in think_stream(history, unattended, summary):
         if ev["type"] == "done":
             reply, log = ev["reply"], ev["tools"]
     return reply, log

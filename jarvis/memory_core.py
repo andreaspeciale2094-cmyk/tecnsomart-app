@@ -5,6 +5,8 @@ import re
 import shutil
 from pathlib import Path
 
+from . import memory
+
 ROOT = Path(__file__).parent.parent
 CORE_DIR = ROOT / "memoria"
 CORE_FILE = CORE_DIR / "viva.md"
@@ -58,4 +60,5 @@ def remove(number: int) -> str:
         return "Numero non valido."
     removed = lines.pop(bullets[number - 1])
     CORE_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    memory.notify_forgotten(f"riga {number} della memoria viva")
     return f"Tolto dalla memoria viva: {removed[2:].strip()}"

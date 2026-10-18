@@ -3,8 +3,19 @@ import json
 import re
 import time
 
-from . import embeddings
+from . import embeddings, logs
 from .db import db
+
+FORGET_HOOKS: list = []  # funzioni chiamate quando qualcosa viene dimenticato (es. svuotare i riassunti)
+
+
+def notify_forgotten(what: str) -> None:
+    logs.log_memory(f"dimenticato: {what}")
+    for hook in FORGET_HOOKS:
+        try:
+            hook()
+        except Exception:
+            pass
 
 
 def _norm(t: str) -> str:
@@ -25,7 +36,10 @@ def remember(text: str) -> int:
 
 def forget(fact_id: int) -> bool:
     with db() as con:
-        return con.execute("DELETE FROM facts WHERE id = ?", (fact_id,)).rowcount > 0
+        done = con.execute("DELETE FROM facts WHERE id = ?", (fact_id,)).rowcount > 0
+    if done:
+        notify_forgotten(f"ricordo dell'archivio n. {fact_id}")
+    return done
 
 
 def _ensure_embeddings(con, rows):

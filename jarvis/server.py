@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import auth, brain, config, logs, memory, scheduler, voice
+from . import auth, brain, config, logs, memory, scheduler, sessions, voice
 
 
 @asynccontextmanager
@@ -22,7 +22,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Jarvis", lifespan=lifespan)
-_sessions: dict[str, list] = {}
+_sessions = sessions.histories
 STATIC = Path(__file__).parent.parent / "static"
 PUBLIC = {"/api/login", "/api/auth"}
 
@@ -64,46 +64,25 @@ class Chat(BaseModel):
 
 @app.post("/api/chat")
 def chat(body: Chat):
-    history = _sessions.setdefault(body.session, [])
-    before = len(history)
-    history.append({"role": "user", "content": body.message})
+    history, before = sessions.start_request(body.session, body.message)
     try:
-        reply, log = brain.think(history)
+        reply, log = brain.think(history, summary=sessions.summaries.get(body.session, ""))
     except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
         del history[before:]
         return {"reply": logs.handle(e), "tools": [], "error": True}
-    _trim(history)
+    sessions.compact_in_background(body.session)
     return {"reply": reply, "tools": log}
-
-
-def _trim(history: list):
-    if len(history) > config.MAX_HISTORY:
-        # Conversazione lunga: ripartiamo da una storia pulita con solo gli ultimi scambi in testo.
-        recent = []
-        for m in history:
-            if isinstance(m["content"], str):
-                recent.append({"role": m["role"], "content": m["content"]})
-            elif m["role"] == "assistant":
-                txt = "".join(getattr(b, "text", "") for b in m["content"] if getattr(b, "type", None) == "text").strip()
-                if txt:
-                    recent.append({"role": "assistant", "content": txt})
-        recent = recent[-10:]
-        while recent and recent[0]["role"] != "user":
-            recent.pop(0)
-        history[:] = recent
 
 
 @app.post("/api/chat_stream")
 def chat_stream(body: Chat):
     """Risposta a pezzi (una riga JSON per evento), cosi' la voce parte alla prima frase."""
-    history = _sessions.setdefault(body.session, [])
-    before = len(history)
-    history.append({"role": "user", "content": body.message})
+    history, before = sessions.start_request(body.session, body.message)
 
     def events():
         t0, first = time.time(), None
         try:
-            for ev in brain.think_stream(history):
+            for ev in brain.think_stream(history, summary=sessions.summaries.get(body.session, "")):
                 if ev["type"] == "text" and first is None:
                     first = time.time() - t0
                 yield json.dumps(ev, ensure_ascii=False) + "\n"
@@ -112,7 +91,7 @@ def chat_stream(body: Chat):
             yield json.dumps({"type": "error", "message": logs.handle(e)}, ensure_ascii=False) + "\n"
             return
         logs.log_latency(first, time.time() - t0)
-        _trim(history)
+        sessions.compact_in_background(body.session)
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
 

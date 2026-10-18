@@ -22,6 +22,10 @@ WORKDIR = Path(os.getenv("JARVIS_WORKDIR", "./workspace")).resolve()
 DB_PATH = os.getenv("JARVIS_DB", "jarvis.db")
 MAX_TOOL_ROUNDS = 12
 MAX_HISTORY = 40
+# Memoria della conversazione: ultimi 10 messaggi interi; quando i vecchi superano 20, vengono riassunti.
+KEEP_RECENT = 10
+COMPACT_WHEN_OLDER = 20
+HARD_MAX_MESSAGES = 80  # rete di sicurezza se il riassunto non riesce
 
 HA_URL = os.getenv("HA_URL", "").rstrip("/")
 HA_TOKEN = os.getenv("HA_TOKEN", "")

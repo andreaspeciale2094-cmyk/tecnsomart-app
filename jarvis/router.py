@@ -50,14 +50,28 @@ def _text_history(history: list[dict], limit: int = 6) -> list[dict]:
     return out[-limit:]
 
 
-def ask_groq(history: list[dict], query: str) -> str | None:
+def groq_text(system: str, user: str, max_tokens: int = 900, timeout: int = 25) -> str:
+    """Una richiesta semplice a Groq (usata per i riassunti). Alza un errore se non risponde."""
+    payload = {"model": config.GROQ_MODEL, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+               "max_tokens": max_tokens, "temperature": 0.2}
+    if "gpt-oss" in config.GROQ_MODEL:
+        payload["reasoning_effort"] = "low"
+    r = httpx.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {config.GROQ_API_KEY}"}, json=payload, timeout=timeout)
+    r.raise_for_status()
+    data = r.json()
+    usage = data.get("usage", {})
+    logs.log_groq(config.GROQ_MODEL, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
+    return (data["choices"][0]["message"].get("content") or "").strip()
+
+
+def ask_groq(history: list[dict], query: str, summary: str = "") -> str | None:
     """Ritorna la risposta di Groq, oppure None se serve Claude."""
     system = (
         brain_prompts.STATIC_PROMPT
         + "\n\n"
         + brain_prompts.viva_prompt()
         + "\n\n"
-        + brain_prompts.context_prompt(query)
+        + brain_prompts.context_prompt(query, summary=summary)
         + f"\n\nRispondi solo se la risposta e' semplice e certa. Se serve cercare online, usare la memoria personale, fare calcoli o ragionamenti, "
         f"o non sei sicuro, rispondi ESATTAMENTE con {ESCAPE} e nient'altro."
     )
@@ -83,12 +97,12 @@ def ask_groq(history: list[dict], query: str) -> str | None:
     return reply
 
 
-def route(history: list[dict], query: str) -> str | None:
+def route(history: list[dict], query: str, summary: str = "") -> str | None:
     """Prova Groq per le richieste semplici. None = risponde Claude."""
     if not config.ENABLE_ROUTER or not is_simple(query, history[:-1]):
         return None
     try:
-        reply = ask_groq(history, query)
+        reply = ask_groq(history, query, summary)
     except httpx.HTTPStatusError as e:  # Groq risponde ma rifiuta: scriviamo il perche' (senza chiavi)
         logs.log_route(f"Groq ha risposto errore {e.response.status_code}: {logs.clean(e.response.text)}. Passo a Claude")
         return None
