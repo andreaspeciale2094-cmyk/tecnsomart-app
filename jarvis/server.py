@@ -128,6 +128,19 @@ def tts(body: Speak):
     return Response(voice.synthesize(body.text), media_type="audio/mpeg")
 
 
+class Note(BaseModel):
+    tag: str
+    detail: str = ""
+
+
+@app.post("/api/note")
+def note(body: Note):
+    """La pagina scrive nel registro cosa ha fatto (solo etichette note, mai il testo delle conversazioni)."""
+    if body.tag in ("frasi", "fissa", "stato", "stato_mancante"):
+        logs.log_page(body.tag, body.detail)
+    return {"ok": True}
+
+
 @app.get("/api/fixed")
 def fixed_list():
     return {"phrases": list(voice.FIXED_PHRASES) if voice.tts_available() else []}

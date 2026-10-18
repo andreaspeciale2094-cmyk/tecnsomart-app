@@ -89,14 +89,22 @@ let speakToken = 0, speakingNow = false, queue = [], wake = null, streamDone = t
 // Frasi fisse ("Un attimo, signore."): partono subito se la risposta tarda, cosi' non c'e' mai silenzio
 let fixedAudio = {}, fillerEl = null, fillerDone = Promise.resolve(), fillerEnd = null, lastFiller = '', audioActive = false, lastActivity = 0;
 const STATUS = { web_search: 'stato_cerca', fetch_url: 'stato_pagina', remember: 'stato_memoria', recall: 'stato_memoria', forget: 'stato_memoria' };
+const note = (tag, detail = '') => { try { fetch('/api/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag, detail }) }).catch(() => {}); } catch (e) {} };
+let sendStart = 0, loadTries = 0;
 async function loadFillers() {
+  let total = 0;
   try {
-    const { phrases } = await (await api('/api/fixed')).json();
-    for (const k of phrases) { try { fixedAudio[k] = URL.createObjectURL(await (await api('/api/fixed/' + k)).blob()); } catch (e) {} }
+    const { phrases } = await (await api('/api/fixed')).json(); total = phrases.length;
+    for (const k of phrases) { if (fixedAudio[k]) continue; try { fixedAudio[k] = URL.createObjectURL(await (await api('/api/fixed/' + k)).blob()); } catch (e) {} }
   } catch (e) {}
+  const n = Object.keys(fixedAudio).length;
+  if (n < total && loadTries++ < 8) setTimeout(loadFillers, 5000);  // alcune non erano ancora pronte: riprova
+  else note('frasi', `${n} di ${total} caricate`);
 }
 function playFixed(key, token) {
-  if (!ttsOn || !fixedAudio[key] || token !== speakToken || queue.length || audioActive) return false;
+  if (!ttsOn || token !== speakToken || queue.length || audioActive) return false;
+  if (!fixedAudio[key]) { note('stato_mancante', key); return false; }
+  note(key.startsWith('attesa') ? 'fissa' : 'stato', `${key} dopo ${((performance.now() - sendStart) / 1000).toFixed(1)} s`);
   audioActive = true; lastActivity = performance.now();
   fillerDone = new Promise(res => { fillerEnd = res; });
   fillerEl = new Audio(fixedAudio[key]);
@@ -167,7 +175,7 @@ async function send(text) {
   busy = true; add(text, 'user'); setState('thinking', 'sto pensando…');
   const bubble = add('', 'jarvis'), t0 = performance.now();
   const token = beginSpeech(); let buf = '', shown = '', tools = [], timeNote = '';
-  let toolKey = 'stato_ancora', ended = false; lastActivity = performance.now();
+  let toolKey = 'stato_ancora', ended = false; lastActivity = sendStart = performance.now();
   const fillerTimer = setTimeout(() => { if (!shown) playFiller(token); }, 700);
   // Mai silenzio: se per 3 secondi non si sente niente, dice cosa sta facendo (ripete ogni 3 s di silenzio)
   const silenceTimer = setInterval(() => {

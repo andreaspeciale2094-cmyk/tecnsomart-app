@@ -87,3 +87,7 @@ def log_latency(first_text_s: float | None, total_s: float):
 def log_voice(provider: str, e: Exception):
     status = f" (errore {e.response.status_code})" if isinstance(getattr(e, "response", None), httpx.Response) else ""
     _write("errori.log", f"voce | {provider} non disponibile{status}: {clean(str(e))} | passo alla voce successiva")
+
+
+def log_page(tag: str, detail: str):
+    _write("consumi.log", f"PAGINA | {tag} | {clean(detail)[:80]}")
