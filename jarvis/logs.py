@@ -76,3 +76,8 @@ def log_groq(model: str, tokens_in: int, tokens_out: int):
 
 def log_route(note: str):
     _write("consumi.log", f"ROUTER | {note}")
+
+
+def log_latency(first_text_s: float | None, total_s: float):
+    first = f"{first_text_s:.2f}s" if first_text_s is not None else "nessun testo"
+    _write("consumi.log", f"TEMPI | primo testo dopo {first} | risposta completa dopo {total_s:.2f}s")

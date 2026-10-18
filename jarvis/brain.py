@@ -20,38 +20,57 @@ def _last_user_text(history: list[dict]) -> str:
     return ""
 
 
-def think(history: list[dict], unattended: bool = False) -> tuple[str, list[str]]:
-    """Esegue il ciclo agentico. Modifica `history` in place; ritorna (risposta, log tool)."""
+def think_stream(history: list[dict], unattended: bool = False):
+    """Ciclo agentico a pezzi: produce eventi {"type": "text"|"tool"|"done", ...}.
+    Il testo arriva man mano che Claude lo scrive, cosi' Jarvis puo' parlare subito."""
     log: list[str] = []
     query = _last_user_text(history)
     if not unattended:  # richieste semplici: prima Groq (economico), se non e' sicuro risponde Claude
         quick = router.route(history, query)
         if quick:
             history.append({"role": "assistant", "content": quick})
-            return quick, ["risposto da Groq"]
+            yield {"type": "text", "delta": quick}
+            yield {"type": "done", "reply": quick, "tools": ["risposto da Groq"]}
+            return
     schemas = [t for t in tools.SCHEMAS if not (unattended and t["name"] in BLOCKED_UNATTENDED)]
     for _ in range(config.MAX_TOOL_ROUNDS):
-        resp = client.messages.create(
+        with client.messages.stream(
             model=config.MODEL,
             max_tokens=4096,  # il "pensiero" conta nel limite
             output_config={"effort": config.EFFORT},
             system=system_blocks(query, unattended),
             tools=schemas + SERVER_TOOLS,
             messages=history,
-        )
+        ) as stream:
+            for piece in stream.text_stream:
+                yield {"type": "text", "delta": piece}
+            resp = stream.get_final_message()
         logs.log_usage(config.MODEL, resp.usage)
         history.append({"role": "assistant", "content": resp.content})
 
         if resp.stop_reason == "pause_turn":  # il server-side tool ha bisogno di continuare
             continue
         if resp.stop_reason != "tool_use":
-            return "".join(b.text for b in resp.content if b.type == "text").strip(), log
+            yield {"type": "done", "reply": "".join(b.text for b in resp.content if b.type == "text").strip(), "tools": log}
+            return
 
         results = []
         for b in resp.content:
             if b.type == "tool_use":
                 log.append(f"{b.name}({b.input})")
+                yield {"type": "tool", "name": b.name}
                 out = "Errore: tool non consentito in background." if unattended and b.name in BLOCKED_UNATTENDED else tools.run_tool(b.name, b.input)
                 results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
         history.append({"role": "user", "content": results})
-    return "Ho raggiunto il limite di passaggi su questa richiesta, signore.", log
+    msg = "Ho raggiunto il limite di passaggi su questa richiesta, signore."
+    yield {"type": "text", "delta": msg}
+    yield {"type": "done", "reply": msg, "tools": log}
+
+
+def think(history: list[dict], unattended: bool = False) -> tuple[str, list[str]]:
+    """Come think_stream, ma aspetta la fine. Ritorna (risposta, log strumenti)."""
+    reply, log = "", []
+    for ev in think_stream(history, unattended):
+        if ev["type"] == "done":
+            reply, log = ev["reply"], ev["tools"]
+    return reply, log

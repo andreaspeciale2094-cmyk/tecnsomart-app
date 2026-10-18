@@ -83,48 +83,88 @@ $('#lf').onsubmit = async e => {
 
 // ---- Voce in uscita: voce neurale del server se configurata, altrimenti quella del browser ----
 function afterSpeech() { if (wakeOn) startRec(); }
-function splitSentences(t) {
-  const parts = t.match(/[^.!?…\n]+[.!?…]*/g) || [t], out = []; let cur = '';
-  for (const p of parts) { if (cur && (cur + p).length > 200) { out.push(cur.trim()); cur = p; } else cur += p; }
-  if (cur.trim()) out.push(cur.trim()); return out;
-}
-let speakToken = 0, speakingNow = false;
-// Voce neurale del server a frasi: la prima parte subito, le successive si preparano mentre parla.
-async function speak(text) {
-  if (!ttsOn) return;
-  const token = ++speakToken; audioEl?.pause(); speechSynthesis.cancel(); speakingNow = true;
-  const chunks = splitSentences(text.replace(/[*_`#]/g, '')); let i = 0;
-  try {
-    if (cfg.tts) {
-      const get = c => api('/api/tts', { method:'POST', body: JSON.stringify({ text: c }) }).then(r => r.blob());
-      let next = get(chunks[0]);
-      for (; i < chunks.length; i++) {
-        const blob = await next; if (token !== speakToken) return;
-        if (i + 1 < chunks.length) { next = get(chunks[i + 1]); next.catch(() => {}); }
-        await new Promise(res => { audioEl = new Audio(URL.createObjectURL(blob)); audioEl.onended = res; audioEl.onerror = res; audioEl.play().catch(res); });
-        if (token !== speakToken) return;
-      }
-      speakingNow = false; return afterSpeech();
-    }
-  } catch (e) { if (token !== speakToken) return; /* ripiega sulla voce del browser dalla frase che e' fallita */ }
-  if (!('speechSynthesis' in window)) { speakingNow = false; return; }
-  const u = new SpeechSynthesisUtterance(chunks.slice(i).join(' ')); u.lang = 'it-IT';
-  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('it')); if (v) u.voice = v;
-  u.onend = () => { speakingNow = false; afterSpeech(); }; speechSynthesis.speak(u);
-}
+
+// ---- Voce in uscita a frasi: la prima parte appena e' pronta, le altre si preparano mentre parla ----
+let speakToken = 0, speakingNow = false, queue = [], wake = null, streamDone = true, firstAudioCb = null;
 const speaking = () => speakingNow || speechSynthesis.speaking;
+const stopSpeaking = () => { speakToken++; queue = []; speakingNow = false; audioEl?.pause(); speechSynthesis.cancel(); wake?.(); };
+
+function beginSpeech() { stopSpeaking(); streamDone = false; const t = speakToken; runQueue(t); return t; }
+function endSpeech() { streamDone = true; wake?.(); }
+function enqueue(text, token) {
+  if (!ttsOn || token !== speakToken || !text.trim()) return;
+  const clean = text.replace(/[*_`#]/g, '');
+  const p = cfg.tts ? api('/api/tts', { method:'POST', body: JSON.stringify({ text: clean }) }).then(r => r.blob()) : null;
+  p?.catch(() => {});
+  queue.push({ text: clean, p }); wake?.();
+}
+async function runQueue(token) {
+  speakingNow = true;
+  while (token === speakToken) {
+    if (!queue.length) {
+      if (streamDone) break;
+      await new Promise(r => wake = r); wake = null; continue;
+    }
+    const item = queue.shift();
+    let played = false;
+    if (item.p) {
+      try {
+        const blob = await item.p; if (token !== speakToken) return;
+        await new Promise(res => { audioEl = new Audio(URL.createObjectURL(blob)); audioEl.onended = res; audioEl.onerror = res;
+          audioEl.onplaying = () => { firstAudioCb?.(); firstAudioCb = null; }; audioEl.play().catch(res); });
+        played = true;
+      } catch (e) { /* ripiega sulla voce del browser per questa frase */ }
+    }
+    if (!played && token === speakToken && 'speechSynthesis' in window) {
+      await new Promise(res => { const u = new SpeechSynthesisUtterance(item.text); u.lang = 'it-IT';
+        const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('it')); if (v) u.voice = v;
+        u.onstart = () => { firstAudioCb?.(); firstAudioCb = null; }; u.onend = res; u.onerror = res; speechSynthesis.speak(u); });
+    }
+  }
+  if (token === speakToken) { speakingNow = false; afterSpeech(); }
+}
+
+// Estrae le frasi complete dal testo che arriva a pezzi (min. 12 caratteri, tranne l'ultima)
+function takeSentences(buf, final) {
+  const out = []; let rest = buf, m;
+  const re = /^([\s\S]{12,}?[.!?…]+)(\s+|$)/;
+  while ((m = re.exec(rest)) && (m[2] || final)) { out.push(m[1].trim()); rest = rest.slice(m[0].length); }
+  if (final && rest.trim()) { out.push(rest.trim()); rest = ''; }
+  return [out, rest];
+}
 
 async function send(text) {
   if (!text.trim() || busy) return;
+  stopSpeaking();
   busy = true; add(text, 'user'); setState('thinking', 'sto pensando…');
+  const bubble = add('', 'jarvis'), t0 = performance.now();
+  const token = beginSpeech(); let buf = '', shown = '', tools = [], timeNote = '';
+  firstAudioCb = () => { timeNote = `prima parola dopo ${((performance.now() - t0) / 1000).toFixed(1)} s`; };
+  const render = () => { bubble.textContent = shown; if (tools.length || timeNote) { const t = document.createElement('div'); t.className = 'tools'; t.textContent = '⚙ ' + [...tools, timeNote].filter(Boolean).join(' · '); bubble.append(t); } log.scrollTop = log.scrollHeight; };
   try {
-    const j = await (await api('/api/chat', { method:'POST', body: JSON.stringify({ session, message: text }) })).json();
-    add(j.reply, 'jarvis', j.tools); speak(j.reply);  // anche gli errori vengono detti a voce
-  } catch (e) { add('Errore: ' + e.message, 'jarvis'); }
+    const r = await api('/api/chat_stream', { method:'POST', body: JSON.stringify({ session, message: text }) });
+    const reader = r.body.getReader(), dec = new TextDecoder(); let line = '';
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      line += dec.decode(value, { stream: true });
+      let i; while ((i = line.indexOf('\n')) >= 0) {
+        const raw = line.slice(0, i); line = line.slice(i + 1); if (!raw.trim()) continue;
+        const ev = JSON.parse(raw);
+        if (ev.type === 'text') {
+          shown += ev.delta; buf += ev.delta; render();
+          const [sent, rest] = takeSentences(buf, false); buf = rest; sent.forEach(x => enqueue(x, token));
+        } else if (ev.type === 'tool') { tools.push(ev.name); render();
+        } else if (ev.type === 'done') { tools = ev.tools.length ? ev.tools : tools; render();
+        } else if (ev.type === 'error') { shown = ev.message; buf = ev.message; render(); }
+      }
+    }
+    const [sent] = takeSentences(buf, true); sent.forEach(x => enqueue(x, token));
+  } catch (e) { shown = 'Errore: ' + e.message; render(); }
+  endSpeech(); render();
   busy = false; setState('', wakeOn ? 'in ascolto…' : 'pronto');
 }
 $('#f').onsubmit = e => { e.preventDefault(); const v = $('#q').value; $('#q').value = ''; send(v); };
-$('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) { speakToken++; speakingNow = false; speechSynthesis.cancel(); audioEl?.pause(); } };
+$('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) stopSpeaking(); };
 
 // ---- Voce in ingresso ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -177,7 +217,7 @@ async function pollInbox() {
       const d = add(`📬 ${it.title}\n${it.body}`, 'jarvis inbox');
       if (document.hidden && Notification.permission === 'granted') new Notification(it.title, { body: it.body.slice(0, 160) });
     }
-    speak(items.map(i => i.body).join(' '));
+    { const t = beginSpeech(); enqueue(items.map(i => i.body).join(' '), t); endSpeech(); }
     await api('/api/inbox/read', { method:'POST', body: JSON.stringify({ ids: items.map(i => i.id) }) });
     $('#nb').textContent = 0;
   } catch (e) {}

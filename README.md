@@ -25,6 +25,10 @@ Di' "Jarvis, ..." con il pulsante 👂 attivo, oppure usa il microfono 🎤.
 
 **Aggiungere un'abilita':** crea un modulo in `jarvis/tools/` con `SCHEMAS` e `HANDLERS` e registralo in `tools/__init__.py`.
 
+## Voce a frasi
+
+La risposta arriva a pezzi (`/api/chat_stream`): la voce parte alla prima frase completa e le altre si preparano mentre parla. Sotto ogni risposta compare "prima parola dopo X s" e `logs/consumi.log` registra i tempi (`TEMPI`).
+
 ## Risparmio (router)
 
 Con `GROQ_API_KEY` in `.env`, le domande semplici (ora, saluti, risposte brevi) vanno a Groq; tutto il resto, o se Groq non e' sicuro o e' fuori servizio, a Claude. `logs/consumi.log` dice chi ha risposto e il costo stimato. `JARVIS_EFFORT` (low/medium/high) regola quanto pensa Claude.

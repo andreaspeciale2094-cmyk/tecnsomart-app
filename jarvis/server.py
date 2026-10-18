@@ -2,7 +2,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+import json
+import time
+
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -67,9 +70,13 @@ def chat(body: Chat):
     except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
         del history[before:]
         return {"reply": logs.handle(e), "tools": [], "error": True}
+    _trim(history)
+    return {"reply": reply, "tools": log}
+
+
+def _trim(history: list):
     if len(history) > config.MAX_HISTORY:
         # Conversazione lunga: ripartiamo da una storia pulita con solo gli ultimi scambi in testo.
-        # (Togliere pezzi dall'inizio invaliderebbe i "pensieri" di Claude e darebbe errore.)
         recent = []
         for m in history:
             if isinstance(m["content"], str):
@@ -82,7 +89,30 @@ def chat(body: Chat):
         while recent and recent[0]["role"] != "user":
             recent.pop(0)
         history[:] = recent
-    return {"reply": reply, "tools": log}
+
+
+@app.post("/api/chat_stream")
+def chat_stream(body: Chat):
+    """Risposta a pezzi (una riga JSON per evento), cosi' la voce parte alla prima frase."""
+    history = _sessions.setdefault(body.session, [])
+    before = len(history)
+    history.append({"role": "user", "content": body.message})
+
+    def events():
+        t0, first = time.time(), None
+        try:
+            for ev in brain.think_stream(history):
+                if ev["type"] == "text" and first is None:
+                    first = time.time() - t0
+                yield json.dumps(ev, ensure_ascii=False) + "\n"
+        except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
+            del history[before:]
+            yield json.dumps({"type": "error", "message": logs.handle(e)}, ensure_ascii=False) + "\n"
+            return
+        logs.log_latency(first, time.time() - t0)
+        _trim(history)
+
+    return StreamingResponse(events(), media_type="application/x-ndjson")
 
 
 class Speak(BaseModel):
