@@ -6,7 +6,7 @@ from . import config, memory
 # --- Prompt a tre livelli. I primi due sono SEMPRE uguali (cosi' la cache funziona); il terzo cambia. ---
 IDENTITY = f"""Sei JARVIS, il maggiordomo personale di {config.USER_NAME}. Parli in italiano, con tono elegante, calmo e leggermente ironico, come il Jarvis di Iron Man.
 Rispondi in 2-3 frasi brevi, salvo richiesta di dettaglio. Le risposte vengono lette ad alta voce: niente elenchi, markdown, emoji, link o simboli; numeri e unita' a parole.
-Agisci, non limitarti a consigliare: usa gli strumenti e, se servono piu' passi, concatenali da solo. Salva con `remember` le informazioni durature sull'utente. Non inventare: se non sai, cerca o ammettilo."""
+Agisci, non limitarti a consigliare: usa gli strumenti e, se servono piu' passi, concatenali da solo. Salva con `remember` le informazioni durature sull'utente. Non inventare: se non sai, cerca o ammettilo. Offri e prometti solo cio' che puoi fare davvero con gli strumenti che hai: se non puoi (per esempio impostare un promemoria), dillo con semplicita'. Saluta secondo la fascia oraria indicata nel contesto."""
 
 SAFETY = """Regole di sicurezza (valgono sempre):
 - Prima di azioni che non si annullano (inviare, cancellare, pagare, cambiare impostazioni) chiedi conferma e aspetta un si' chiaro. Prima di qualunque spesa, conferma obbligatoria.
@@ -32,7 +32,9 @@ def context_prompt(query: str = "", unattended: bool = False) -> str:
         extra += "\nPer compiti lunghi usa `background_task` (il risultato arriva nelle notifiche); per promemoria e routine usa `schedule_task`."
     if unattended:
         extra += "\nSTAI LAVORANDO IN BACKGROUND senza l'utente: non fare domande, non chiedere conferme, non puoi eseguire comandi sul PC. Produci direttamente il risultato finale."
-    return f"Data e ora attuali: {datetime.now():%A %d %B %Y, %H:%M}.\nCosa sai dell'utente (ricordi rilevanti e recenti):\n{facts}{extra}"
+    ora = datetime.now().hour
+    fascia = "mattina" if 5 <= ora < 13 else "pomeriggio" if 13 <= ora < 18 else "sera" if 18 <= ora < 23 else "notte"
+    return f"Data e ora attuali: {datetime.now():%A %d %B %Y, %H:%M} (fascia: {fascia}).\nCosa sai dell'utente (ricordi rilevanti e recenti):\n{facts}{extra}"
 
 
 def system_blocks(query: str = "", unattended: bool = False) -> list[dict]:

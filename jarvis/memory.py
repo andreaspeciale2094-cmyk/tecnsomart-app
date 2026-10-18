@@ -1,14 +1,22 @@
 """Memoria a lungo termine semantica: fatti in SQLite con embedding."""
 import json
+import re
 import time
 
 from . import embeddings
 from .db import db
 
 
+def _norm(t: str) -> str:
+    return re.sub(r"[^a-z0-9 ]", "", t.lower().replace("\u2019", "'")).strip()
+
+
 def remember(text: str) -> int:
     emb = embeddings.embed([text])[0]
     with db() as con:
+        for fid, old, old_emb, kind in con.execute("SELECT id, text, emb, emb_kind FROM facts").fetchall():
+            if _norm(old) == _norm(text) or (kind == embeddings.KIND and old_emb and embeddings.cosine(emb, json.loads(old_emb)) >= 0.9):
+                return fid  # gia' saputo: non duplicare
         return con.execute(
             "INSERT INTO facts (text, created, emb, emb_kind) VALUES (?, ?, ?, ?)",
             (text, time.time(), json.dumps(emb), embeddings.KIND),

@@ -29,7 +29,7 @@
 
 ## Stato
 **FATTO:** Fase 1 provata da Andrea (10 domande su 10, errori in italiano, registri, prompt a tre livelli).
-**FATTO (da provare con la chiave Groq):** router Groq/Claude (`jarvis/router.py`), costo stimato nel registro consumi, Claude con effort basso.
+**FATTO e provato da Andrea (18/10):** router Groq/Claude (`jarvis/router.py`), costo stimato nel registro consumi, Claude con effort basso.
 **PROSSIMA:** Fase 2 (voce e interruzioni) solo dopo il "vai".
 **IDEE:** vedi `docs/PIANO_JARVIS.md`.
 
