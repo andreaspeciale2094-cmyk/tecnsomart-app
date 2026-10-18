@@ -128,6 +128,7 @@ function endSpeech() { streamDone = true; wake?.(); }
 function enqueue(text, token) {
   if (!ttsOn || token !== speakToken || !text.trim()) return;
   const clean = text.replace(/[*_`#]/g, '');
+  if (!/[\p{L}\p{N}]/u.test(clean)) return;   // solo simboli: niente da leggere
   const p = cfg.tts ? api('/api/tts', { method:'POST', body: JSON.stringify({ text: clean }) }).then(r => r.blob()) : null;
   p?.catch(() => {});
   queue.push({ text: clean, p }); wake?.();

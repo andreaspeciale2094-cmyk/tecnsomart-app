@@ -20,6 +20,13 @@ def _last_user_text(history: list[dict]) -> str:
     return ""
 
 
+def _without_thinking(content: list) -> list:
+    """Toglie i "pensieri" nascosti di Claude prima di salvarli nella storia.
+    Sono firmati sul testo di partenza (system, strumenti, messaggi): noi lo cambiamo a ogni richiesta (ora, ricordi,
+    riassunto), quindi rimandarli indietro darebbe errore 400 ("bound to a different conversation"). Non servono."""
+    return [b for b in content if getattr(b, "type", None) not in ("thinking", "redacted_thinking")]
+
+
 def think_stream(history: list[dict], unattended: bool = False, summary: str = ""):
     """Ciclo agentico a pezzi: produce eventi {"type": "text"|"tool"|"done", ...}.
     Il testo arriva man mano che Claude lo scrive, cosi' Jarvis puo' parlare subito."""
@@ -49,7 +56,7 @@ def think_stream(history: list[dict], unattended: bool = False, summary: str = "
                     yield {"type": "tool", "name": ev.content_block.name}  # subito: la pagina puo' dire cosa sta facendo
             resp = stream.get_final_message()
         logs.log_usage(config.MODEL, resp.usage)
-        history.append({"role": "assistant", "content": resp.content})
+        history.append({"role": "assistant", "content": _without_thinking(resp.content)})
 
         if resp.stop_reason == "pause_turn":  # il server-side tool ha bisogno di continuare
             continue

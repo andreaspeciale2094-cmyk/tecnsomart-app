@@ -94,8 +94,8 @@ def synthesize(text: str) -> bytes:
 def synthesize_named(text: str) -> tuple[bytes, str]:
     """Come synthesize, ma dice anche quale voce ha risposto (elevenlabs, openai, edge)."""
     text = clean_for_speech(text)[:2500]
-    if not text:
-        raise ValueError("niente da leggere")
+    if not re.search(r"[A-Za-z0-9\u00C0-\u024F]", text):
+        raise ValueError("niente da leggere")  # solo simboli o vuoto: nessuna voce lo saprebbe leggere
     last = None
     for name, fn in _providers():
         if _down.get(name, 0) > time.time():
