@@ -31,7 +31,7 @@
 **FATTO:** Fase 1 provata da Andrea (10 domande su 10, errori in italiano, registri, prompt a tre livelli).
 **FATTO e provato da Andrea (18/10):** router Groq/Claude (`jarvis/router.py`), costo stimato nel registro consumi, Claude con effort basso.
 **IN CORSO:** Fase 2 (voce e interruzioni). Voce gratuita (Edge) per i test; ElevenLabs solo alla fine. Andrea ha cuffie bluetooth.
-  - Pezzo 1 (risposta a pezzi, voce alla prima frase): fatto, da provare. Poi: 2 frasi fisse registrate, 3 "mai silenzio", 4 interruzioni.
+  - Pezzo 1 (risposta a pezzi, voce alla prima frase): fatto e provato (voce ok con le cuffie). Pezzo 2 (frasi fisse registrate in `audio_fisse/`, partono se la risposta tarda piu' di 0,7 s): fatto, da provare. Poi: 3 "mai silenzio" (>3 s dice cosa sta facendo), 4 interruzioni.
 **IDEE:** vedi `docs/PIANO_JARVIS.md`.
 
 ## Tecnico (per Claude)

@@ -86,8 +86,23 @@ function afterSpeech() { if (wakeOn) startRec(); }
 
 // ---- Voce in uscita a frasi: la prima parte appena e' pronta, le altre si preparano mentre parla ----
 let speakToken = 0, speakingNow = false, queue = [], wake = null, streamDone = true, firstAudioCb = null;
+// Frasi fisse ("Un attimo, signore."): partono subito se la risposta tarda, cosi' non c'e' mai silenzio
+let fillers = [], fillerEl = null, fillerDone = Promise.resolve(), fillerEnd = null, lastFiller = -1;
+async function loadFillers() {
+  try {
+    const { phrases } = await (await api('/api/fixed')).json();
+    for (const k of phrases) { try { fillers.push(URL.createObjectURL(await (await api('/api/fixed/' + k)).blob())); } catch (e) {} }
+  } catch (e) {}
+}
+function playFiller(token) {
+  if (!ttsOn || !fillers.length || token !== speakToken || queue.length) return;
+  let i; do { i = Math.floor(Math.random() * fillers.length); } while (fillers.length > 1 && i === lastFiller); lastFiller = i;
+  fillerDone = new Promise(res => { fillerEnd = res; });
+  fillerEl = new Audio(fillers[i]); fillerEl.onended = fillerEl.onerror = () => fillerEnd?.();
+  fillerEl.play().catch(() => fillerEnd?.());
+}
 const speaking = () => speakingNow || speechSynthesis.speaking;
-const stopSpeaking = () => { speakToken++; queue = []; speakingNow = false; audioEl?.pause(); speechSynthesis.cancel(); wake?.(); };
+const stopSpeaking = () => { speakToken++; queue = []; speakingNow = false; audioEl?.pause(); fillerEl?.pause(); fillerEnd?.(); speechSynthesis.cancel(); wake?.(); };
 
 function beginSpeech() { stopSpeaking(); streamDone = false; const t = speakToken; runQueue(t); return t; }
 function endSpeech() { streamDone = true; wake?.(); }
@@ -106,6 +121,7 @@ async function runQueue(token) {
       await new Promise(r => wake = r); wake = null; continue;
     }
     const item = queue.shift();
+    await fillerDone; if (token !== speakToken) return;
     let played = false, blocked = false;
     if (item.p) {
       try {
@@ -141,6 +157,7 @@ async function send(text) {
   busy = true; add(text, 'user'); setState('thinking', 'sto pensando…');
   const bubble = add('', 'jarvis'), t0 = performance.now();
   const token = beginSpeech(); let buf = '', shown = '', tools = [], timeNote = '';
+  const fillerTimer = setTimeout(() => { if (!shown) playFiller(token); }, 700);
   firstAudioCb = () => { timeNote = `prima parola dopo ${((performance.now() - t0) / 1000).toFixed(1)} s`; render(); };
   const render = () => { bubble.textContent = shown; if (tools.length || timeNote) { const t = document.createElement('div'); t.className = 'tools'; t.textContent = '⚙ ' + [...tools, timeNote].filter(Boolean).join(' · '); bubble.append(t); } log.scrollTop = log.scrollHeight; };
   try {
@@ -153,7 +170,7 @@ async function send(text) {
         const raw = line.slice(0, i); line = line.slice(i + 1); if (!raw.trim()) continue;
         const ev = JSON.parse(raw);
         if (ev.type === 'text') {
-          shown += ev.delta; buf += ev.delta; render();
+          clearTimeout(fillerTimer); shown += ev.delta; buf += ev.delta; render();
           const [sent, rest] = takeSentences(buf, false); buf = rest; sent.forEach(x => enqueue(x, token));
         } else if (ev.type === 'tool') { tools.push(ev.name); render();
         } else if (ev.type === 'done') { tools = ev.tools.length ? ev.tools : tools; render();
@@ -162,7 +179,7 @@ async function send(text) {
     }
     const [sent] = takeSentences(buf, true); sent.forEach(x => enqueue(x, token));
   } catch (e) { shown = 'Errore: ' + e.message; render(); }
-  endSpeech(); render();
+  clearTimeout(fillerTimer); endSpeech(); render();
   busy = false; setState('', wakeOn ? 'in ascolto…' : 'pronto');
 }
 $('#f').onsubmit = e => { e.preventDefault(); const v = $('#q').value; $('#q').value = ''; send(v); };
@@ -232,7 +249,7 @@ async function init() {
   try { cfg = await (await api('/api/config')).json(); } catch (e) { started = false; return; }
   if (cfg.stt) $('#mic').title = 'Premi per parlare, premi ancora per inviare (Whisper)';
   add(`Buongiorno${cfg.user ? ', ' + cfg.user : ''}. Tutti i sistemi sono operativi. Come posso esserle utile?`, 'jarvis');
-  pollInbox(); setInterval(pollInbox, 15000);
+  loadFillers(); pollInbox(); setInterval(pollInbox, 15000);
 }
 speechSynthesis?.getVoices();
 (async () => { const a = await (await fetch('/api/auth')).json(); a.required && !a.ok ? showLogin() : init(); })();

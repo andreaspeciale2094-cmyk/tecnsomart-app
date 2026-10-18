@@ -2,6 +2,7 @@
 import asyncio
 import re
 import time
+from pathlib import Path
 
 import httpx
 from . import config, logs
@@ -87,6 +88,11 @@ def _providers() -> list[tuple[str, object]]:
 
 
 def synthesize(text: str) -> bytes:
+    return synthesize_named(text)[0]
+
+
+def synthesize_named(text: str) -> tuple[bytes, str]:
+    """Come synthesize, ma dice anche quale voce ha risposto (elevenlabs, openai, edge)."""
     text = clean_for_speech(text)[:2500]
     if not text:
         raise ValueError("niente da leggere")
@@ -95,7 +101,7 @@ def synthesize(text: str) -> bytes:
         if _down.get(name, 0) > time.time():
             continue  # fallita da poco: non perdiamo tempo a riprovare a ogni frase
         try:
-            return fn(text)
+            return fn(text), name
         except Exception as e:
             last = e
             _down[name] = time.time() + (600 if name != "edge" else 30)
@@ -114,3 +120,40 @@ def transcribe(audio: bytes, content_type: str) -> str:
     )
     r.raise_for_status()
     return r.json()["text"].strip()
+
+
+# ---- Frasi fisse: create una volta, salvate su disco, riprodotte subito mentre Jarvis pensa ----
+FIXED_DIR = Path(__file__).parent.parent / "audio_fisse"
+FIXED_PHRASES = {
+    "attesa1": "Un attimo, signore.",
+    "attesa2": "Ci penso io.",
+    "attesa3": "Subito.",
+    "attesa4": "Vediamo.",
+}
+
+
+def _voice_id(name: str) -> str:
+    ident = {"elevenlabs": config.ELEVENLABS_VOICE_ID, "openai": config.OPENAI_VOICE, "edge": config.EDGE_VOICE}[name]
+    return re.sub(r"[^A-Za-z0-9]+", "-", ident)
+
+
+def fixed_audio(key: str) -> bytes:
+    """Audio della frase fissa. Se cambi voce, si rigenera da sola (nome file = voce)."""
+    text = FIXED_PHRASES[key]
+    FIXED_DIR.mkdir(exist_ok=True)
+    for name, _ in _providers():  # la voce migliore disponibile che ha gia' il file
+        f = FIXED_DIR / f"{name}_{_voice_id(name)}_{key}.mp3"
+        if _down.get(name, 0) <= time.time() and f.exists():
+            return f.read_bytes()
+    audio, name = synthesize_named(text)
+    (FIXED_DIR / f"{name}_{_voice_id(name)}_{key}.mp3").write_bytes(audio)
+    return audio
+
+
+def prepare_fixed():
+    """Prepara in anticipo tutte le frasi fisse (all'avvio, senza bloccare Jarvis)."""
+    for key in FIXED_PHRASES:
+        try:
+            fixed_audio(key)
+        except Exception:
+            pass

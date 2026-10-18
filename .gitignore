@@ -4,3 +4,4 @@ __pycache__/
 workspace/
 .venv/
 logs/
+audio_fisse/

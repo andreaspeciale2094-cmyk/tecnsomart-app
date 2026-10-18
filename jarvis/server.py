@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 import json
+import threading
 import time
 
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -16,6 +17,7 @@ from . import auth, brain, config, logs, memory, scheduler, voice
 async def lifespan(app):
     if config.ENABLE_AGENTS:
         scheduler.start()
+    threading.Thread(target=voice.prepare_fixed, daemon=True).start()
     yield
 
 
@@ -124,6 +126,21 @@ def tts(body: Speak):
     if not voice.tts_available():
         return JSONResponse({"error": "TTS non configurato"}, status_code=404)
     return Response(voice.synthesize(body.text), media_type="audio/mpeg")
+
+
+@app.get("/api/fixed")
+def fixed_list():
+    return {"phrases": list(voice.FIXED_PHRASES) if voice.tts_available() else []}
+
+
+@app.get("/api/fixed/{key}")
+def fixed_audio(key: str):
+    if key not in voice.FIXED_PHRASES:
+        return JSONResponse({"error": "frase sconosciuta"}, status_code=404)
+    try:
+        return Response(voice.fixed_audio(key), media_type="audio/mpeg")
+    except Exception:
+        return JSONResponse({"error": "voce non disponibile"}, status_code=503)
 
 
 @app.post("/api/stt")
