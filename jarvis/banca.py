@@ -120,12 +120,32 @@ def movimenti(giorni: int = 30) -> list[dict]:
                 if t.get("credit_debit_indicator") == "DBIT":
                     imp = -abs(imp)
                 parte = (t.get("creditor") or {}).get("name") if imp < 0 else (t.get("debtor") or {}).get("name")
-                out.append({"data": t.get("booking_date") or t.get("value_date") or "", "importo": imp,
-                            "controparte": (parte or "").strip(), "descrizione": " ".join(t.get("remittance_information") or [])[:80]})
+                reg = t.get("booking_date") or t.get("value_date") or ""
+                desc = " ".join(t.get("remittance_information") or []) or t.get("note") or (t.get("bank_transaction_code") or {}).get("description") or ""
+                out.append({"data": t.get("transaction_date") or t.get("value_date") or reg,  # giorno in cui hai pagato, se la banca lo da'
+                            "registrata": reg, "importo": imp, "controparte": (parte or "").strip(), "descrizione": " ".join(str(desc).split())[:80]})
             chiave = r.get("continuation_key")
             if not chiave:
                 break
     return sorted(out, key=lambda m: m["data"])
+
+
+def elenco(giorni: int = 7, tutti: bool = False) -> str:
+    """Movimenti uno per uno, ordinati per giorno di pagamento (la banca a volte li registra dopo)."""
+    mov = movimenti(giorni)
+    if not mov:
+        return f"Negli ultimi {giorni} giorni non ci sono movimenti registrati."
+    mov = sorted(mov, key=lambda m: m["data"])
+    uscite = [m for m in mov if tutti or m["importo"] < 0]
+    righe = [f"Movimenti degli ultimi {giorni} giorni (data di pagamento; tra parentesi il giorno di registrazione se diverso). "
+             f"Dove manca il nome, la banca non l'ha dato."]
+    for m in uscite[-120:]:
+        nome = m["controparte"] or m["descrizione"] or "(nome non dato dalla banca)"
+        reg = f" (reg. {m['registrata']})" if m["registrata"] and m["registrata"] != m["data"] else ""
+        righe.append(f"{m['data']}{reg} {_eur(m['importo'])} {nome}")
+    if len(uscite) > 120:
+        righe.append(f"... mostrati gli ultimi 120 di {len(uscite)}.")
+    return "\n".join(righe)
 
 
 def _eur(x: float) -> str:

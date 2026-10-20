@@ -12,6 +12,18 @@ SCHEMAS = [
         ),
         "input_schema": {"type": "object", "properties": {"giorni": {"type": "integer", "description": "Quanti giorni indietro (predefinito 30)."}}},
     },
+    {
+        "name": "banca_movimenti",
+        "description": (
+            "Elenco dei singoli movimenti del conto di Andrea, uno per riga, con data di pagamento. Usalo quando chiede cosa ha speso un certo "
+            "giorno, 'ieri', 'giorno per giorno' o il dettaglio. Per 'ieri' usa giorni=3 e guarda solo la data di ieri: non dire che e' "
+            "impossibile solo perche' la banca registra alcuni pagamenti dopo. Somma tu per giorno e raggruppa in categorie. "
+            "Se manca il nome del negozio dillo una volta. " + _NOTA
+        ),
+        "input_schema": {"type": "object", "properties": {
+            "giorni": {"type": "integer", "description": "Quanti giorni indietro (predefinito 7)."},
+            "anche_entrate": {"type": "boolean", "description": "Includi anche le entrate (predefinito no)."}}},
+    },
 ]
 
 
@@ -22,4 +34,11 @@ def banca_riepilogo(giorni: int = 30) -> str:
         return f"Errore: {e}"
 
 
-HANDLERS = {"banca_riepilogo": banca_riepilogo}
+def banca_movimenti(giorni: int = 7, anche_entrate: bool = False) -> str:
+    try:
+        return banca.elenco(int(giorni), bool(anche_entrate))
+    except banca.BancaError as e:
+        return f"Errore: {e}"
+
+
+HANDLERS = {"banca_riepilogo": banca_riepilogo, "banca_movimenti": banca_movimenti}
