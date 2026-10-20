@@ -12,11 +12,12 @@ def main():
     if not config.TECNOSMART_TOKEN:
         return
     print("2. Chiedo all'app i numeri degli addetti del mese...")
-    try:
-        raw = addetti.leggi()
-    except negozi.NegoziError as e:
-        return print("   ERRORE:", e)
-    print(f"   OK: {len(raw.get('addetti') or {})} addetti con numeri nel mese {raw.get('mese')}")
+    for tipo, (etichetta, _) in addetti.RUN.items():
+        try:
+            raw = addetti.leggi(tipo=tipo)
+        except negozi.NegoziError as e:
+            return print("   ERRORE:", e)
+        print(f"   {etichetta}: {len(raw.get('addetti') or {})} addetti con numeri nel mese {raw.get('mese')}")
     print("\nTUTTO OK. Metti JARVIS_ADDETTI=true nel .env, riavvia Jarvis e chiedi: 'come sta andando <nome>?'")
 
 

@@ -54,7 +54,7 @@ function jarvisJson_(obj) {
 // FOCUS ADDETTI (Report normale) - SOLA LETTURA
 // Per ogni addetto: pezzi del mese per prodotto, sommati su tutti i negozi tranne Local Promoter
 // (come il "Focus addetti" dell'app). Chiave "categoria-prodotto" (es. "0-0"). Legge solo il foglio "Dati".
-// Uso: ?azione=jarvis_addetti&token=...&mese=AAAA-MM
+// Uso: ?azione=jarvis_addetti&token=...&mese=AAAA-MM&tipo=mono|multi  (multi = foglio "DatiMultibrand")
 // ----------------------------------------------------------------------------
 function jarvisAddetti_(e) {
   var p = (e && e.parameter) || {};
@@ -65,7 +65,8 @@ function jarvisAddetti_(e) {
   var oggi = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   var mese = String(p.mese || oggi.slice(0, 7)).slice(0, 7);
   var esclusi = { 'local-promoter': true };
-  var values = getReportSheet_(REPORT_SHEET_DATI).getDataRange().getValues();
+  var foglio = String(p.tipo || 'mono') === 'multi' ? getMultibrandSheet_(MULTIBRAND_SHEET_DATI) : getReportSheet_(REPORT_SHEET_DATI);
+  var values = foglio.getDataRange().getValues();
   var addetti = {};
   for (var i = 1; i < values.length; i++) {
     if (normalizeDate_(values[i][0]).slice(0, 7) !== mese) continue;
@@ -79,7 +80,7 @@ function jarvisAddetti_(e) {
       if (valori.hasOwnProperty(k)) a[k] = (a[k] || 0) + (Number(valori[k]) || 0);
     }
   }
-  return jarvisJson_({ ok: true, mese: mese, addetti: addetti });
+  return jarvisJson_({ ok: true, mese: mese, tipo: String(p.tipo || 'mono'), addetti: addetti });
 }
 
 // ----------------------------------------------------------------------------
