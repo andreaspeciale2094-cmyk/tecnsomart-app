@@ -9,6 +9,7 @@ SCHEMAS = [
             "Racconta a voce in modo naturale: andamento del gruppo, i negozi sotto target, chi recupera, le anomalie (dati mancanti), "
             "un giudizio e uno o due consigli concreti; per questo riepilogo puoi usare fino a 8 frasi brevi. "
             "Se hai anche lo strumento cassa_resoconto, a fine riepilogo serale aggiungi in una frase quanto contante resta in cassa. "
+            "Se Andrea chiede di un negozio in particolare e hai scheda_leggi, leggi anche la sua scheda (tipo negozio) per dire cosa e' gia' stato provato. "
             "Non salvare questi numeri in memoria (ne' con remember ne' con core_add): sono dati dei negozi."
         ),
         "input_schema": {
