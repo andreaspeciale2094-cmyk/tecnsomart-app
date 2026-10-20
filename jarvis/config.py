@@ -21,6 +21,7 @@ ENABLE_MAIL = _flag("JARVIS_MAIL")  # mail e calendario in lettura
 ENABLE_HOME = _flag("JARVIS_HOME")  # domotica Home Assistant
 ENABLE_NEGOZI = _flag("JARVIS_NEGOZI")  # riepilogo dei negozi TecnoSmart (RUN giornaliero)
 ENABLE_ADDETTI = _flag("JARVIS_ADDETTI")  # focus per addetto e schede dei ragazzi (usa la stessa chiave dei negozi)
+ENABLE_CASSA = _flag("JARVIS_CASSA")  # cassa dei contanti (prelievi e spese a voce, solo registro)
 ENABLE_AGENDA = _flag("JARVIS_AGENDA")  # briefing del mattino e impegni dai calendari Google (sola lettura)
 CALENDARIO_PERSONALE_ICS = os.getenv("CALENDARIO_PERSONALE_ICS", "")  # indirizzo segreto iCal: solo in .env
 CALENDARIO_LAVORO_ICS = os.getenv("CALENDARIO_LAVORO_ICS", "")

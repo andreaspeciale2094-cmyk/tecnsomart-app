@@ -8,6 +8,7 @@ SCHEMAS = [
             "verde/giallo/rosso dell'app, chi e' indietro, chi sta recuperando e chi non ha inserito i dati. Usalo per il riepilogo serale. "
             "Racconta a voce in modo naturale: andamento del gruppo, i negozi sotto target, chi recupera, le anomalie (dati mancanti), "
             "un giudizio e uno o due consigli concreti; per questo riepilogo puoi usare fino a 8 frasi brevi. "
+            "Se hai anche lo strumento cassa_resoconto, a fine riepilogo serale aggiungi in una frase quanto contante resta in cassa. "
             "Non salvare questi numeri in memoria (ne' con remember ne' con core_add): sono dati dei negozi."
         ),
         "input_schema": {
