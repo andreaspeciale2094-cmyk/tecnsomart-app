@@ -41,9 +41,42 @@ def _token() -> str:
                       algorithm="RS256", headers={"typ": "JWT", "kid": config.BANCA_APP_ID})
 
 
-def _chiama(metodo: str, percorso: str, **kw) -> dict:
+_psu: dict = {}
+
+
+def _intestazioni_presente() -> dict:
+    """Quando Andrea e' davanti a Jarvis, la banca va avvisata che l'utente e' presente (intestazioni PSU): le richieste
+    'con utente presente' non hanno il limite di circa 4 al giorno. Se la banca ne chiede una che non possiamo dare
+    sinceramente (es. posizione), non si manda niente."""
+    if not config.BANCA_PRESENTE:
+        return {}
+    if "h" in _psu:
+        return _psu["h"]
+    h: dict = {}
     try:
-        r = httpx.request(metodo, API + percorso, headers={"Authorization": f"Bearer {_token()}"}, timeout=40, **kw)
+        nome = _sessione().get("banca", "Intesa Sanpaolo")
+        banca = next((b for b in _chiama("GET", "/aspsps", params={"country": "IT"}).get("aspsps", []) if b.get("name") == nome), {})
+        richieste = [x.lower() for x in (banca.get("required_psu_headers") or ["psu-ip-address", "psu-user-agent"])]
+        ip = httpx.get("https://api.ipify.org", timeout=5).text.strip()
+        valori = {"psu-ip-address": ip, "psu-user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Jarvis/1.0",
+                  "psu-accept": "application/json", "psu-accept-charset": "utf-8", "psu-accept-encoding": "gzip, deflate",
+                  "psu-accept-language": "it-IT", "psu-http-method": "GET", "psu-referer": config.BANCA_RITORNO}
+        h = {k: valori[k] for k in richieste if k in valori} if all(k in valori for k in richieste) else {}
+    except (httpx.HTTPError, BancaError):
+        h = {}
+    _psu["h"] = h
+    return h
+
+
+def _chiama(metodo: str, percorso: str, presente: bool = False, **kw) -> dict:
+    intest = {"Authorization": f"Bearer {_token()}"}
+    if presente:
+        intest.update(_intestazioni_presente())
+    try:
+        r = httpx.request(metodo, API + percorso, headers=intest, timeout=40, **kw)
+        if presente and len(intest) > 1 and r.status_code in (400, 422):  # la banca non ha gradito le intestazioni: riprova senza
+            _psu["h"] = {}
+            r = httpx.request(metodo, API + percorso, headers={"Authorization": intest["Authorization"]}, timeout=40, **kw)
     except httpx.HTTPError:
         raise BancaError("Non riesco a raggiungere il servizio della banca. Controlla internet o riprova tra poco.")
     if r.status_code in (401, 403):
@@ -87,7 +120,7 @@ def completa_collegamento(indirizzo_o_codice: str) -> str:
     if not conti:
         raise BancaError("La banca non ha dato nessun conto da leggere.")
     CARTELLA.mkdir(parents=True, exist_ok=True)
-    SESSIONE.write_text(json.dumps({"session_id": r.get("session_id"), "conti": conti, "creata": date.today().isoformat(),
+    SESSIONE.write_text(json.dumps({"session_id": r.get("session_id"), "banca": (r.get("aspsp") or {}).get("name", "Intesa Sanpaolo"), "conti": conti, "creata": date.today().isoformat(),
                                     "scade": (date.today() + timedelta(days=GIORNI_PERMESSO)).isoformat()}), encoding="utf-8")
     return f"Collegato: {len(conti)} conto/i in sola lettura. Il permesso va rinnovato fra circa {GIORNI_PERMESSO} giorni."
 
@@ -132,7 +165,7 @@ def saldi() -> list[dict]:
     def leggi():
         out = []
         for uid in _sessione()["conti"]:
-            for b in _chiama("GET", f"/accounts/{uid}/balances").get("balances", []):
+            for b in _chiama("GET", f"/accounts/{uid}/balances", presente=True).get("balances", []):
                 a = b.get("balance_amount", {})
                 out.append({"tipo": b.get("balance_type"), "importo": float(a.get("amount", 0)), "valuta": a.get("currency", "EUR")})
         return out
@@ -158,13 +191,13 @@ def _scarica_movimenti() -> list[dict]:
         chiave = None
         for _ in range(20):  # pagine
             params = {"date_from": dal, **({"continuation_key": chiave} if chiave else {})}
-            r = _chiama("GET", f"/accounts/{uid}/transactions", params=params)
+            r = _chiama("GET", f"/accounts/{uid}/transactions", presente=True, params=params)
             out += [_converti(t, False) for t in r.get("transactions", []) if t.get("status") in (None, "BOOK")]
             chiave = r.get("continuation_key")
             if not chiave:
                 break
         try:  # pagamenti non ancora registrati: non tutte le banche li danno
-            r = _chiama("GET", f"/accounts/{uid}/transactions",
+            r = _chiama("GET", f"/accounts/{uid}/transactions", presente=True,
                         params={"date_from": (date.today() - timedelta(days=15)).isoformat(), "transaction_status": "PDNG"})
             out += [_converti(t, True) for t in r.get("transactions", []) if t.get("status") in (None, "PDNG")]
         except BancaError:

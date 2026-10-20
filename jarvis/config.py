@@ -26,6 +26,7 @@ ENABLE_BANCA = _flag("JARVIS_BANCA")  # conto personale in SOLA LETTURA (Enable 
 BANCA_APP_ID = os.getenv("ENABLE_BANKING_APP_ID", "")
 BANCA_CHIAVE = os.getenv("ENABLE_BANKING_KEY", "")  # percorso del file .pem (predefinito: memoria/banca/chiave.pem)
 BANCA_RITORNO = os.getenv("ENABLE_BANKING_RITORNO", "https://localhost:8000/banca/ritorno")
+BANCA_PRESENTE = _flag("ENABLE_BANKING_PRESENTE", True)  # avvisa la banca che Andrea e' presente (meno limiti)
 ENABLE_AGENDA = _flag("JARVIS_AGENDA")  # briefing del mattino e impegni dai calendari Google (sola lettura)
 CALENDARIO_PERSONALE_ICS = os.getenv("CALENDARIO_PERSONALE_ICS", "")  # indirizzo segreto iCal: solo in .env
 CALENDARIO_LAVORO_ICS = os.getenv("CALENDARIO_LAVORO_ICS", "")

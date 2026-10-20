@@ -10,7 +10,8 @@ client = anthropic.Anthropic()
 SERVER_TOOLS = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 5}] if config.ENABLE_WEB_SEARCH else []
 
 
-BLOCKED_UNATTENDED = {"run_shell", "write_file", "background_task", "schedule_task", "cancel_task"}
+BLOCKED_UNATTENDED = {"run_shell", "write_file", "background_task", "schedule_task", "cancel_task",
+                      "banca_riepilogo", "banca_movimenti"}  # la banca solo quando Andrea e' presente
 
 
 def _last_user_text(history: list[dict]) -> str:
