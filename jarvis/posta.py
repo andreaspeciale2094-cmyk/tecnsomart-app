@@ -32,6 +32,10 @@ def nuovo_turno():
     _turno += 1
 
 
+def turno() -> int:
+    return _turno
+
+
 def _dec(v) -> str:
     return str(make_header(decode_header(v or "")))
 
