@@ -6,7 +6,7 @@ import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs
 
 import httpx
 
@@ -15,7 +15,12 @@ from . import config
 API = "https://api.enablebanking.com"
 CARTELLA = Path(__file__).parent.parent / "memoria" / "banca"
 SESSIONE = CARTELLA / "sessione.json"
-GIORNI_PERMESSO = 90  # la banca chiede di rinnovare il permesso circa ogni 90 giorni
+GIORNI_PERMESSO = 90
+FINESTRA = 89  # le banche non danno piu' di 90 giorni di storico senza una nuova autorizzazione
+VALIDITA_CACHE = 30 * 60  # secondi: la banca limita le richieste al giorno, quindi si legge una volta e si riusa
+_cache: dict = {}  # solo in memoria (RAM): niente viene scritto su disco
+avviso = ""  # se i dati sono vecchi perche' la banca ha detto 'troppe richieste'
+  # la banca chiede di rinnovare il permesso circa ogni 90 giorni
 
 
 class BancaError(Exception):
@@ -43,6 +48,8 @@ def _chiama(metodo: str, percorso: str, **kw) -> dict:
         raise BancaError("Non riesco a raggiungere il servizio della banca. Controlla internet o riprova tra poco.")
     if r.status_code in (401, 403):
         raise BancaError("Il servizio della banca ha rifiutato la richiesta: controlla l'ID e la chiave nel .env, oppure il permesso e' scaduto.")
+    if r.status_code == 429:
+        raise BancaError("La banca ha un limite di richieste al giorno (circa 4 per conto, e' una regola europea): ho finito quelle di adesso. Riprova piu' tardi o domani.")
     if r.status_code == 422 or r.status_code == 400:
         raise BancaError("La banca non ha accettato la richiesta (codice " + str(r.status_code) + ").")
     if r.status_code >= 400:
@@ -72,7 +79,7 @@ def avvia_collegamento(nome_banca: str = "Intesa Sanpaolo") -> str:
 def completa_collegamento(indirizzo_o_codice: str) -> str:
     """Prende l'indirizzo (o il solo codice) su cui la banca ti riporta e apre la sessione di lettura."""
     t = indirizzo_o_codice.strip()
-    codice = (parse_qs(urlparse(t).query).get("code") or [""])[0] if "code=" in t else t
+    codice = (parse_qs(t.split("?", 1)[-1].split("#")[0]).get("code") or [""])[0] if "code=" in t else t
     if not codice:
         raise BancaError("Non trovo il codice: incolla tutto l'indirizzo che compare in alto nel browser, quello con 'code=' dentro.")
     r = _chiama("POST", "/sessions", json={"code": codice})
@@ -95,18 +102,45 @@ def _sessione() -> dict:
 
 
 # ---------------- lettura ----------------
+def _fresco(chiave: str):
+    c = _cache.get(chiave)
+    return c["dati"] if c and time.time() - c["t"] < VALIDITA_CACHE else None
+
+
+def _tieni(chiave: str, dati):
+    _cache[chiave] = {"t": time.time(), "dati": dati}
+    return dati
+
+
+def _o_vecchio(chiave: str, leggi_dati):
+    """Dati freschi dalla banca; se la banca rifiuta per il limite giornaliero, usa quelli gia' letti (avvisando)."""
+    global avviso
+    dati = _fresco(chiave)
+    if dati is not None:
+        return dati
+    try:
+        avviso = ""
+        return _tieni(chiave, leggi_dati())
+    except BancaError as e:
+        if chiave in _cache:
+            avviso = "Attenzione: dati non aggiornati (" + str(e) + ")"
+            return _cache[chiave]["dati"]
+        raise
+
+
 def saldi() -> list[dict]:
-    out = []
-    for uid in _sessione()["conti"]:
-        for b in _chiama("GET", f"/accounts/{uid}/balances").get("balances", []):
-            a = b.get("balance_amount", {})
-            out.append({"tipo": b.get("balance_type"), "importo": float(a.get("amount", 0)), "valuta": a.get("currency", "EUR")})
-    return out
+    def leggi():
+        out = []
+        for uid in _sessione()["conti"]:
+            for b in _chiama("GET", f"/accounts/{uid}/balances").get("balances", []):
+                a = b.get("balance_amount", {})
+                out.append({"tipo": b.get("balance_type"), "importo": float(a.get("amount", 0)), "valuta": a.get("currency", "EUR")})
+        return out
+    return _o_vecchio("saldi", leggi)
 
 
-def movimenti(giorni: int = 30) -> list[dict]:
-    """Movimenti registrati degli ultimi `giorni`: {data, importo (negativo = uscita), controparte, descrizione}."""
-    dal = (date.today() - timedelta(days=max(1, min(giorni, 365)))).isoformat()
+def _scarica_movimenti() -> list[dict]:
+    dal = (date.today() - timedelta(days=FINESTRA)).isoformat()
     out = []
     for uid in _sessione()["conti"]:
         chiave = None
@@ -130,8 +164,16 @@ def movimenti(giorni: int = 30) -> list[dict]:
     return sorted(out, key=lambda m: m["data"])
 
 
+def movimenti(giorni: int = 30) -> list[dict]:
+    """Movimenti degli ultimi `giorni` (massimo 89): {data, importo (negativo = uscita), controparte, descrizione}.
+    Si legge dalla banca una volta sola per 89 giorni e poi si filtra: cosi' si usano poche richieste."""
+    dal = (date.today() - timedelta(days=max(1, min(giorni, FINESTRA)))).isoformat()
+    return [m for m in _o_vecchio("movimenti", _scarica_movimenti) if m["data"] >= dal]
+
+
 def elenco(giorni: int = 7, tutti: bool = False) -> str:
     """Movimenti uno per uno, ordinati per giorno di pagamento (la banca a volte li registra dopo)."""
+    giorni = min(giorni, FINESTRA)
     mov = movimenti(giorni)
     if not mov:
         return f"Negli ultimi {giorni} giorni non ci sono movimenti registrati."
@@ -145,7 +187,7 @@ def elenco(giorni: int = 7, tutti: bool = False) -> str:
         righe.append(f"{m['data']}{reg} {_eur(m['importo'])} {nome}")
     if len(uscite) > 120:
         righe.append(f"... mostrati gli ultimi 120 di {len(uscite)}.")
-    return "\n".join(righe)
+    return "\n".join(([avviso] if avviso else []) + righe)
 
 
 def _eur(x: float) -> str:
@@ -154,6 +196,7 @@ def _eur(x: float) -> str:
 
 def riepilogo(giorni: int = 30) -> str:
     """Testo per il cervello: saldo, entrate/uscite, dove vanno i soldi, spese ripetute (abbonamenti), spese grosse."""
+    giorni = min(giorni, FINESTRA)  # la banca da' al massimo circa 90 giorni
     mov = movimenti(giorni)
     righe = []
     try:
@@ -163,7 +206,7 @@ def riepilogo(giorni: int = 30) -> str:
     except BancaError:
         pass
     if not mov:
-        return "\n".join(righe + [f"Negli ultimi {giorni} giorni non ci sono movimenti registrati."])
+        return "\n".join(([avviso] if avviso else []) + righe + [f"Negli ultimi {giorni} giorni non ci sono movimenti registrati."])
     entrate = sum(m["importo"] for m in mov if m["importo"] > 0)
     uscite = -sum(m["importo"] for m in mov if m["importo"] < 0)
     righe.append(f"Ultimi {giorni} giorni ({len(mov)} movimenti): entrate {_eur(entrate)}, uscite {_eur(uscite)}, differenza {_eur(entrate - uscite)}.")
@@ -179,4 +222,4 @@ def riepilogo(giorni: int = 30) -> str:
         righe.append("Spese che si ripetono su piu' mesi (possibili abbonamenti): " + "; ".join(ricorrenti[:10]))
     grosse = sorted((m for m in mov if m["importo"] < 0), key=lambda m: m["importo"])[:5]
     righe.append("Uscite piu' grosse: " + "; ".join(f"{m['data']} {m['controparte'] or m['descrizione'] or 'senza nome'} {_eur(-m['importo'])}" for m in grosse))
-    return "\n".join(righe)
+    return "\n".join(([avviso] if avviso else []) + righe)
