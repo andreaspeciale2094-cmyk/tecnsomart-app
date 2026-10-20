@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Legge SEMPRE il .env della cartella principale del progetto (mai uno finito per sbaglio dentro jarvis/).
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 MODEL = os.getenv("JARVIS_MODEL", "claude-sonnet-5-5")
 USER_NAME = os.getenv("JARVIS_USER_NAME", "signore")
