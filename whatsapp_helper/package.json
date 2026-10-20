@@ -1,0 +1,12 @@
+{
+  "name": "jarvis-whatsapp-helper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Piccolo programma di appoggio sul PC di Andrea: manda messaggi WhatsApp senza finestre (collegamento non ufficiale, solo invio). Ascolta solo su 127.0.0.1.",
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "9.5.0",
+    "qrcode-terminal": "0.12.0"
+  }
+}

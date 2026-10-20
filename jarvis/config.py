@@ -28,6 +28,7 @@ BANCA_CHIAVE = os.getenv("ENABLE_BANKING_KEY", "")  # percorso del file .pem (pr
 BANCA_RITORNO = os.getenv("ENABLE_BANKING_RITORNO", "https://localhost:8000/banca/ritorno")
 BANCA_PRESENTE = _flag("ENABLE_BANKING_PRESENTE", True)  # avvisa la banca che Andrea e' presente (meno limiti)
 ENABLE_WHATSAPP = _flag("JARVIS_WHATSAPP")  # prepara messaggi WhatsApp e apre l'app con il testo pronto (invia Andrea)
+ENABLE_WHATSAPP_INVIO = _flag("JARVIS_WHATSAPP_INVIO")  # invio senza finestre (eccezione regola 5); richiede JARVIS_WHATSAPP
 ENABLE_AGENDA = _flag("JARVIS_AGENDA")  # briefing del mattino e impegni dai calendari Google (sola lettura)
 CALENDARIO_PERSONALE_ICS = os.getenv("CALENDARIO_PERSONALE_ICS", "")  # indirizzo segreto iCal: solo in .env
 CALENDARIO_LAVORO_ICS = os.getenv("CALENDARIO_LAVORO_ICS", "")
