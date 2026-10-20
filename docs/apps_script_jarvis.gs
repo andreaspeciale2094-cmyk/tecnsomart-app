@@ -51,9 +51,43 @@ function jarvisJson_(obj) {
 }
 
 // ----------------------------------------------------------------------------
+// FOCUS ADDETTI (Report normale) - SOLA LETTURA
+// Per ogni addetto: pezzi del mese per prodotto, sommati su tutti i negozi tranne Local Promoter
+// (come il "Focus addetti" dell'app). Chiave "categoria-prodotto" (es. "0-0"). Legge solo il foglio "Dati".
+// Uso: ?azione=jarvis_addetti&token=...&mese=AAAA-MM
+// ----------------------------------------------------------------------------
+function jarvisAddetti_(e) {
+  var p = (e && e.parameter) || {};
+  var token = PropertiesService.getScriptProperties().getProperty('JARVIS_TOKEN');
+  if (!token || String(p.token || '') !== token) {
+    return jarvisJson_({ ok: false, errore: 'non autorizzato' });
+  }
+  var oggi = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var mese = String(p.mese || oggi.slice(0, 7)).slice(0, 7);
+  var esclusi = { 'local-promoter': true };
+  var values = getReportSheet_(REPORT_SHEET_DATI).getDataRange().getValues();
+  var addetti = {};
+  for (var i = 1; i < values.length; i++) {
+    if (normalizeDate_(values[i][0]).slice(0, 7) !== mese) continue;
+    var slug = String(values[i][1] || '').trim();
+    var nome = String(values[i][2] || '').trim();
+    if (!nome || esclusi[slug]) continue;           // riga di negozio o negozio escluso
+    var valori = {};
+    try { valori = JSON.parse(values[i][3] || '{}'); } catch (err) { valori = {}; }
+    var a = addetti[nome] || (addetti[nome] = {});
+    for (var k in valori) {
+      if (valori.hasOwnProperty(k)) a[k] = (a[k] || 0) + (Number(valori[k]) || 0);
+    }
+  }
+  return jarvisJson_({ ok: true, mese: mese, addetti: addetti });
+}
+
+// ----------------------------------------------------------------------------
 // In doGet esistente, come PRIMA riga dentro la funzione, aggiungere:
 //
 //   if (e && e.parameter && e.parameter.azione === 'jarvis') return jarvisRiepilogo_(e);
+//   if (e && e.parameter && e.parameter.azione === 'jarvis_addetti') return jarvisAddetti_(e);
 //
-// Il resto di doGet resta identico. Poi: Distribuisci > Gestisci distribuzioni > Modifica > Nuova versione.
+// (la prima c'e' gia': aggiungere solo la seconda). Il resto di doGet resta identico.
+// Poi: Distribuisci > Gestisci distribuzioni > Modifica > Nuova versione.
 // ----------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Registro dei tool. Ogni modulo espone SCHEMAS (per Claude) e HANDLERS (funzioni).
 I moduli extra si caricano solo se attivati in .env: quelli spenti non costano nulla."""
 from .. import config
-from . import agenda_tools, agents, home, mail_calendar, memory_tools, negozi_tools, pc, web
+from . import addetti_tools, agenda_tools, agents, home, mail_calendar, memory_tools, negozi_tools, pc, web
 
 _MODULES = [memory_tools, web]
 if config.PC_CONTROL:
@@ -14,6 +14,8 @@ if config.ENABLE_AGENTS:
     _MODULES.append(agents)
 if config.ENABLE_NEGOZI:
     _MODULES.append(negozi_tools)
+if config.ENABLE_ADDETTI:
+    _MODULES.append(addetti_tools)
 if config.ENABLE_AGENDA:
     _MODULES.append(agenda_tools)
 

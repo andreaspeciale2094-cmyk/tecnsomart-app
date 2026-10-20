@@ -26,11 +26,11 @@ def load_config() -> dict:
         raise NegoziError(f"Il file memoria\\negozi.json non e' valido ({e}).")
 
 
-def fetch(url: str, day: str) -> dict:
+def fetch(url: str, day: str = "", azione: str = "jarvis", **extra) -> dict:
     if not config.TECNOSMART_TOKEN:
         raise NegoziError("Manca la chiave TECNOSMART_TOKEN nel file .env.")
     try:
-        r = httpx.get(url, params={"azione": "jarvis", "token": config.TECNOSMART_TOKEN, "data": day}, follow_redirects=True, timeout=40)
+        r = httpx.get(url, params={"azione": azione, "token": config.TECNOSMART_TOKEN, **({"data": day} if day else {}), **extra}, follow_redirects=True, timeout=40)
         r.raise_for_status()
         data = r.json()
     except httpx.HTTPError:
