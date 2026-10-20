@@ -110,7 +110,7 @@ def synthesize_named(text: str) -> tuple[bytes, str]:
 
 
 def transcribe(audio: bytes, content_type: str) -> str:
-    ext = "mp4" if "mp4" in content_type else "ogg" if "ogg" in content_type else "webm"
+    ext = "mp4" if "mp4" in content_type else "ogg" if "ogg" in content_type else "wav" if "wav" in content_type else "webm"
     r = httpx.post(
         "https://api.openai.com/v1/audio/transcriptions",
         headers={"Authorization": f"Bearer {config.OPENAI_API_KEY}"},

@@ -6,11 +6,10 @@ import time
 
 import httpx
 
-from . import brain, config, logs, sessions, voice
+from . import config, dialogo, logs, voice
 
 SESSIONE = "telegram"
 ETA_MAX = 15 * 60  # secondi: un messaggio piu' vecchio non si esegue
-_lock = threading.Lock()
 _avvisato_sconosciuto = False
 
 
@@ -33,15 +32,7 @@ def _ascolta(file_id: str) -> str:
 
 
 def _rispondi(testo: str) -> str:
-    with _lock:  # una richiesta alla volta, come sulla pagina
-        history, before = sessions.start_request(SESSIONE, testo)
-        try:
-            reply, _ = brain.think(history, summary=sessions.summaries.get(SESSIONE, ""))
-        except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
-            del history[before:]
-            return logs.handle(e)
-        sessions.compact_in_background(SESSIONE)
-        return reply
+    return dialogo.rispondi(SESSIONE, testo)
 
 
 def gestisci(update: dict):

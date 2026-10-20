@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import auth, brain, config, logs, memory, pulizia, scheduler, sessions, telegram_bot, voice
+from . import ascolto, auth, brain, config, logs, memory, pulizia, scheduler, sessions, telegram_bot, voice
 
 
 @asynccontextmanager
@@ -20,6 +20,7 @@ async def lifespan(app):
     threading.Thread(target=voice.prepare_fixed, daemon=True).start()
     pulizia.avvia()
     telegram_bot.avvia()
+    ascolto.avvia()
     yield
     pulizia.alla_chiusura()
 
