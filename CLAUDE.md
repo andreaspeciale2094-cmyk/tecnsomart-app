@@ -16,7 +16,7 @@
 2. Jarvis non inserisce mai password o dati di carte e non paga mai da solo. Conto corrente SOLO in lettura.
 3. Prima di azioni che non si annullano (inviare messaggi o email, cancellare, pagare, confermare ordini, cambiare impostazioni): conferma a voce e attendi un si' chiaro. Conferma obbligatoria prima di qualunque spesa.
 4. CAPTCHA: fermarsi e avvisare.
-5. WhatsApp: di base solo canale ufficiale. ECCEZIONE decisa da Andrea il 20/10/2026, sapendo che rischia il blocco del numero: e' permesso un collegamento non ufficiale (tipo WhatsApp Web) solo per i messaggi che Andrea chiede, dopo il suo si', massimo 10 al giorno con pause, solo a chi ha gia' una chat con lui, mai in massa. Il contenuto dei messaggi non va mai nei registri (regola 6).
+5. WhatsApp: di base solo canale ufficiale. ECCEZIONE decisa da Andrea il 20/10/2026, sapendo che rischia il blocco del numero: e' permesso un collegamento non ufficiale (tipo WhatsApp Web) solo per i messaggi che Andrea chiede, dopo il suo si', solo a chi ha gia' una chat con lui, mai in massa. Nessun tetto giornaliero (tolto da Andrea il 20/10), restano le pause di qualche secondo tra un messaggio e l'altro. Il contenuto dei messaggi non va mai nei registri (regola 6).
 6. Non salvare nei registri il contenuto dei messaggi WhatsApp ne' password.
 7. Non modificare le impostazioni di Windows.
 8. Lavori grandi (siti, app): prima una stima del costo, parte solo dopo il si'.
