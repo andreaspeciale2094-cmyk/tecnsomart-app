@@ -46,6 +46,9 @@ HA_TOKEN = os.getenv("HA_TOKEN", "")
 IMAP_HOST = os.getenv("IMAP_HOST", "imap.gmail.com")
 IMAP_USER = os.getenv("IMAP_USER", "")
 IMAP_PASSWORD = os.getenv("IMAP_PASSWORD", "")
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
+ENABLE_POSTA = _flag("JARVIS_POSTA")  # leggere, preparare bozze e inviare email (solo dopo il si' di Andrea)
 CALENDAR_ICS_URL = os.getenv("CALENDAR_ICS_URL", "")
 
 # Sicurezza

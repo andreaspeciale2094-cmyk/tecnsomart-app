@@ -13,7 +13,7 @@ ESCAPE = "@@CLAUDE@@"
 _HARD = re.compile(
     r"\b(ricord\w*|dimentic\w*|memoria|cerca\w*|ricerc\w*|notizi\w*|meteo|che tempo|prezz\w*|costa|costano|treno|treni|amazon|"
     r"riassum\w*|riassunt\w*|scriv\w*|spieg\w*|perch[eé]|confront\w*|analizz\w*|consigli\w*|codice|programm\w*|"
-    r"mail|email|calendari\w*|whatsapp|telegram|file|cartella|crea\w*|genera\w*|calcol\w*|piano|strategia|"
+    r"mail|e-mail|email|posta|bozza|rispond\w*|calendari\w*|whatsapp|telegram|file|cartella|crea\w*|genera\w*|calcol\w*|piano|strategia|"
     r"negozi\w*|addett\w*|banc\w*|conto|conti|saldo|movimenti|abbonament\w*|cassa|contant\w*|prelev\w*|spes[aeio]\b|ragazz\w*|focus|report|giornalier\w*|target|colloqui\w*|impegn\w*|agenda|appuntament\w*|riunion\w*|briefing|chi (?:è|e'|ha)|quando (?:è|e'|ha)|oggi su|ultim[ei])\b",
     re.IGNORECASE,
 )

@@ -1,7 +1,7 @@
 """Il cervello: Claude + ciclo di tool use + memoria."""
 import anthropic
 
-from . import config, logs, router, tools
+from . import config, logs, posta, router, tools
 from .brain_prompts import STATIC_PROMPT, context_prompt, system_blocks, system_prompt  # noqa: F401
 
 client = anthropic.Anthropic()
@@ -11,7 +11,7 @@ SERVER_TOOLS = [{"type": "web_search_20260209", "name": "web_search", "max_uses"
 
 
 BLOCKED_UNATTENDED = {"run_shell", "write_file", "background_task", "schedule_task", "cancel_task",
-                      "banca_riepilogo", "banca_movimenti"}  # la banca solo quando Andrea e' presente
+                      "banca_riepilogo", "banca_movimenti", "mail_invia"}  # la banca solo quando Andrea e' presente
 
 
 def _last_user_text(history: list[dict]) -> str:
@@ -33,6 +33,8 @@ def think_stream(history: list[dict], unattended: bool = False, summary: str = "
     Il testo arriva man mano che Claude lo scrive, cosi' Jarvis puo' parlare subito."""
     log: list[str] = []
     query = _last_user_text(history)
+    if not unattended:
+        posta.nuovo_turno()  # serve a garantire che una mail parta solo dopo un messaggio di Andrea
     if not unattended:  # richieste semplici: prima Groq (economico), se non e' sicuro risponde Claude
         quick = router.route(history, query, summary)
         if quick:

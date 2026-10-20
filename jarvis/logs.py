@@ -96,3 +96,8 @@ def log_page(tag: str, detail: str):
 def log_memory(note: str):
     """Registro delle azioni sulla memoria: solo numeri e conteggi, mai il contenuto dei ricordi."""
     _write("consumi.log", f"MEMORIA | {clean(note)[:100]}")
+
+
+def log_azione(note: str):
+    """Registro delle azioni importanti (es. mail inviata): solo cosa e' successo, mai il contenuto."""
+    _write("azioni.log", clean(note)[:150])
