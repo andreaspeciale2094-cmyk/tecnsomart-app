@@ -17,7 +17,7 @@ Due liste separate: IDEE (non ancora in lavorazione) e IN CORSO. Le idee non si 
 2. Jarvis non inserisce mai password o dati di carte e non paga mai da solo. Conto corrente SOLO in lettura, mai pagamenti.
 3. Prima di azioni che non si annullano (inviare messaggi o email, cancellare, pagare, confermare ordini, cambiare impostazioni) conferma a voce e attende un sì chiaro. Conferma obbligatoria prima di qualunque spesa.
 4. Se trova un CAPTCHA si ferma e mi avvisa.
-5. Niente librerie non ufficiali per WhatsApp (rischio blocco numero).
+5. WhatsApp: di base solo canale ufficiale. Eccezione decisa il 20/10/2026 (rischio blocco numero accettato): collegamento non ufficiale solo per messaggi chiesti da me, dopo il mio si', massimo 10 al giorno con pause, solo a chi ha gia' una chat con me.
 6. Non salvare nei registri il contenuto dei messaggi WhatsApp né password.
 7. Non modificare le impostazioni di Windows.
 8. Lavori grandi (siti, app): prima una stima del costo, parte solo dopo il mio sì.
