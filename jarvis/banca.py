@@ -17,7 +17,7 @@ CARTELLA = Path(__file__).parent.parent / "memoria" / "banca"
 SESSIONE = CARTELLA / "sessione.json"
 GIORNI_PERMESSO = 90
 FINESTRA = 89  # le banche non danno piu' di 90 giorni di storico senza una nuova autorizzazione
-VALIDITA_CACHE = 30 * 60  # secondi: la banca limita le richieste al giorno, quindi si legge una volta e si riusa
+VALIDITA_CACHE = 60 * 60  # secondi: la banca limita le richieste al giorno, quindi si legge una volta e si riusa
 _cache: dict = {}  # solo in memoria (RAM): niente viene scritto su disco
 avviso = ""  # se i dati sono vecchi perche' la banca ha detto 'troppe richieste'
   # la banca chiede di rinnovare il permesso circa ogni 90 giorni
@@ -139,6 +139,18 @@ def saldi() -> list[dict]:
     return _o_vecchio("saldi", leggi)
 
 
+def _converti(t: dict, attesa: bool) -> dict:
+    imp = float((t.get("transaction_amount") or {}).get("amount", 0))
+    if t.get("credit_debit_indicator") == "DBIT":
+        imp = -abs(imp)
+    parte = (t.get("creditor") or {}).get("name") if imp < 0 else (t.get("debtor") or {}).get("name")
+    reg = t.get("booking_date") or t.get("value_date") or ""
+    desc = " ".join(t.get("remittance_information") or []) or t.get("note") or (t.get("bank_transaction_code") or {}).get("description") or ""
+    return {"data": t.get("transaction_date") or t.get("value_date") or reg,  # giorno in cui hai pagato, se la banca lo da'
+            "registrata": reg, "importo": imp, "controparte": (parte or "").strip(), "descrizione": " ".join(str(desc).split())[:80],
+            "attesa": attesa}
+
+
 def _scarica_movimenti() -> list[dict]:
     dal = (date.today() - timedelta(days=FINESTRA)).isoformat()
     out = []
@@ -147,20 +159,16 @@ def _scarica_movimenti() -> list[dict]:
         for _ in range(20):  # pagine
             params = {"date_from": dal, **({"continuation_key": chiave} if chiave else {})}
             r = _chiama("GET", f"/accounts/{uid}/transactions", params=params)
-            for t in r.get("transactions", []):
-                if t.get("status") not in (None, "BOOK"):
-                    continue
-                imp = float((t.get("transaction_amount") or {}).get("amount", 0))
-                if t.get("credit_debit_indicator") == "DBIT":
-                    imp = -abs(imp)
-                parte = (t.get("creditor") or {}).get("name") if imp < 0 else (t.get("debtor") or {}).get("name")
-                reg = t.get("booking_date") or t.get("value_date") or ""
-                desc = " ".join(t.get("remittance_information") or []) or t.get("note") or (t.get("bank_transaction_code") or {}).get("description") or ""
-                out.append({"data": t.get("transaction_date") or t.get("value_date") or reg,  # giorno in cui hai pagato, se la banca lo da'
-                            "registrata": reg, "importo": imp, "controparte": (parte or "").strip(), "descrizione": " ".join(str(desc).split())[:80]})
+            out += [_converti(t, False) for t in r.get("transactions", []) if t.get("status") in (None, "BOOK")]
             chiave = r.get("continuation_key")
             if not chiave:
                 break
+        try:  # pagamenti non ancora registrati: non tutte le banche li danno
+            r = _chiama("GET", f"/accounts/{uid}/transactions",
+                        params={"date_from": (date.today() - timedelta(days=15)).isoformat(), "transaction_status": "PDNG"})
+            out += [_converti(t, True) for t in r.get("transactions", []) if t.get("status") in (None, "PDNG")]
+        except BancaError:
+            pass
     return sorted(out, key=lambda m: m["data"])
 
 
@@ -183,7 +191,7 @@ def elenco(giorni: int = 7, tutti: bool = False) -> str:
              f"Dove manca il nome, la banca non l'ha dato."]
     for m in uscite[-120:]:
         nome = m["controparte"] or m["descrizione"] or "(nome non dato dalla banca)"
-        reg = f" (reg. {m['registrata']})" if m["registrata"] and m["registrata"] != m["data"] else ""
+        reg = " (IN ATTESA, non ancora registrato)" if m.get("attesa") else (f" (reg. {m['registrata']})" if m["registrata"] and m["registrata"] != m["data"] else "")
         righe.append(f"{m['data']}{reg} {_eur(m['importo'])} {nome}")
     if len(uscite) > 120:
         righe.append(f"... mostrati gli ultimi 120 di {len(uscite)}.")
@@ -194,17 +202,31 @@ def _eur(x: float) -> str:
     return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " euro"
 
 
+PREFERENZA_SALDO = ["CLAV", "ITAV", "XPCD", "ITBD", "CLBD"]
+
+
 def riepilogo(giorni: int = 30) -> str:
     """Testo per il cervello: saldo, entrate/uscite, dove vanno i soldi, spese ripetute (abbonamenti), spese grosse."""
     giorni = min(giorni, FINESTRA)  # la banca da' al massimo circa 90 giorni
-    mov = movimenti(giorni)
+    tutti = movimenti(giorni)
+    mov = [m for m in tutti if not m.get("attesa")]
+    attesa = [m for m in tutti if m.get("attesa")]
     righe = []
     try:
-        disp = [s for s in saldi() if s["tipo"] in ("CLAV", "ITAV", "CLBD", "ITBD", "XPCD")]
-        if disp:
-            righe.append(f"Saldo: {_eur(disp[0]['importo'])}.")
+        per_tipo = {s["tipo"]: s for s in saldi()}
+        for t in PREFERENZA_SALDO:
+            if t in per_tipo:
+                righe.append(f"Saldo ({'disponibile' if t in ('CLAV', 'ITAV', 'XPCD') else 'contabile'}, secondo l'ultima lettura della banca): {_eur(per_tipo[t]['importo'])}.")
+                if attesa:
+                    righe.append(f"Se i pagamenti in attesa verranno addebitati, il saldo scende a circa {_eur(per_tipo[t]['importo'] + sum(m['importo'] for m in attesa))}.")
+                break
     except BancaError:
         pass
+    if attesa:
+        righe.append(f"In attesa di registrazione ({len(attesa)} movimenti, {_eur(-sum(m['importo'] for m in attesa))} in uscita): "
+                     + "; ".join(f"{m['data']} {_eur(m['importo'])} {m['controparte'] or m['descrizione'] or 'nome non dato'}" for m in attesa[:10]))
+    else:
+        righe.append("Pagamenti in attesa: la banca non ne mostra (o non li fornisce a Jarvis).")
     if not mov:
         return "\n".join(([avviso] if avviso else []) + righe + [f"Negli ultimi {giorni} giorni non ci sono movimenti registrati."])
     entrate = sum(m["importo"] for m in mov if m["importo"] > 0)
