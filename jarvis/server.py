@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import auth, brain, config, logs, memory, scheduler, sessions, voice
+from . import auth, brain, config, logs, memory, pulizia, scheduler, sessions, voice
 
 
 @asynccontextmanager
@@ -18,7 +18,9 @@ async def lifespan(app):
     if config.ENABLE_AGENTS:
         scheduler.start()
     threading.Thread(target=voice.prepare_fixed, daemon=True).start()
+    pulizia.avvia()
     yield
+    pulizia.alla_chiusura()
 
 
 app = FastAPI(title="Jarvis", lifespan=lifespan)

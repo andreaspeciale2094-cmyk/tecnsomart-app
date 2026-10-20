@@ -8,6 +8,7 @@ histories: dict[str, list] = {}
 summaries: dict[str, str] = {}
 _lock = threading.Lock()
 _compacting: set[str] = set()
+_da_svuotare: set[str] = set()
 
 
 def text_turns(history: list) -> list[dict]:
@@ -32,6 +33,10 @@ def start_request(sid: str, message: str) -> tuple[list, int]:
     """Aggiunge il messaggio dell'utente. Rete di sicurezza: se la storia e' enorme riparte pulita."""
     with _lock:
         h = get(sid)
+        if sid in _da_svuotare:  # pulizia di fine giornata: si riparte da zero, ma solo ora, mai a meta' di una risposta
+            _da_svuotare.discard(sid)
+            h.clear()
+            summaries.pop(sid, None)
         if len(h) > config.HARD_MAX_MESSAGES:
             recent = text_turns(h)[-config.KEEP_RECENT:]
             while recent and recent[0]["role"] != "user":
@@ -85,6 +90,11 @@ def compact_session(sid: str) -> bool:
         summaries[sid] = summary
     logs.log_memory(f"compattazione: riassunti {len(old)} messaggi, {len(saved)} fatti nell'archivio")
     return True
+
+
+def svuota_al_prossimo_messaggio(sids: list[str]) -> None:
+    with _lock:
+        _da_svuotare.update(sids)
 
 
 def clear_summaries() -> None:
