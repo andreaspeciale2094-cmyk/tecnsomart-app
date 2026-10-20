@@ -7,3 +7,4 @@ edge-tts>=6.1
 icalendar>=5.0
 recurring-ical-events>=3.0
 tzdata>=2024.1
+pyjwt[crypto]>=2.8
