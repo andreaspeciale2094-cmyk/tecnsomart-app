@@ -7,20 +7,25 @@
   if (!wrap || !canvas) return;
   const g = canvas.getContext('2d');
   const orb = document.getElementById('orb');
-  const N = 120, BANDE = 48;
+  const BANDE = 48;
   const nodi = [], bordi = [], impulsi = [];
   let W = 0, H = 0, dpr = 1, ang = 0, tilt = 0.35, livello = 0, ultimo = performance.now();
   const dati = new Uint8Array(128);
 
-  // nodi su una sfera (distribuiti in modo uniforme) con un po' di disordine; ognuno ascolta una banda di frequenza
-  for (let i = 0; i < N; i++) {
-    const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
-    const j = 0.88 + Math.random() * 0.24;
-    nodi.push({ x: Math.cos(th) * r * j, y: y * j, z: Math.sin(th) * r * j, banda: Math.floor(Math.random() * BANDE), v: 0 });
+  // due gusci di nodi (esterno fitto e interno piu' piccolo) su sfere con un po' di disordine: la rete e' fitta e ha profondita'
+  function guscio(n, raggio, variazione) {
+    for (let i = 0; i < n; i++) {
+      const y = 1 - (i / (n - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
+      const j = raggio * (1 - variazione + Math.random() * variazione * 2);
+      nodi.push({ x: Math.cos(th) * r * j, y: y * j, z: Math.sin(th) * r * j, banda: Math.floor(Math.random() * BANDE), v: 0 });
+    }
   }
-  // ogni nodo si collega ai 3 piu' vicini
+  guscio(230, 1.0, 0.1);
+  guscio(100, 0.5, 0.18);
+  const N = nodi.length;
+  // ogni nodo si collega ai 4 piu' vicini (anche tra i due gusci)
   for (let i = 0; i < N; i++) {
-    const d = nodi.map((n, k) => [k, (n.x - nodi[i].x) ** 2 + (n.y - nodi[i].y) ** 2 + (n.z - nodi[i].z) ** 2]).filter(a => a[0] !== i).sort((a, b) => a[1] - b[1]).slice(0, 3);
+    const d = nodi.map((n, k) => [k, (n.x - nodi[i].x) ** 2 + (n.y - nodi[i].y) ** 2 + (n.z - nodi[i].z) ** 2]).filter(a => a[0] !== i).sort((a, b) => a[1] - b[1]).slice(0, 4);
     for (const [k] of d) if (!bordi.some(b => (b[0] === i && b[1] === k) || (b[0] === k && b[1] === i))) bordi.push([i, k]);
   }
 
@@ -67,7 +72,7 @@
 
     const colore = modo === 'ascolta' ? [255, 180, 84] : [255, 42, 61];
     ang += dt * (0.18 + livello * (modo === 'pensa' ? 2.2 : 0.9));
-    const cx = W / 2, cy = H / 2, R = Math.min(W * 0.34, H * 0.42);
+    const cx = W / 2, cy = H / 2 - (document.body.classList.contains('solovoce') ? H * 0.04 : 0), R = Math.min(W * 0.38, H * 0.355);
     const ca = Math.cos(ang), sa = Math.sin(ang), ct = Math.cos(tilt), st = Math.sin(tilt);
     const p = nodi.map(n => {
       const k = 1 + n.v * 0.38 + livello * 0.12;
@@ -88,13 +93,13 @@
     // collegamenti
     for (const [a, b] of bordi) {
       const A = p[a], B = p[b], prof = (A.z + B.z) / 2 * 0.5 + 0.5, forza = (A.v + B.v) / 2;
-      g.strokeStyle = `rgba(${colore},${Math.min(0.9, 0.06 + prof * 0.18 + forza * 0.7)})`;
-      g.lineWidth = 0.6 + forza * 1.6;
+      g.strokeStyle = `rgba(${colore},${Math.min(0.9, 0.05 + prof * 0.16 + forza * 0.65)})`;
+      g.lineWidth = 0.5 + forza * 1.4;
       g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke();
     }
     // impulsi che corrono lungo i collegamenti (piu' numerosi quando la voce e' forte)
     const nascita = modo === 'parla' ? livello * 0.9 : modo === 'pensa' ? 0.35 : modo === 'ascolta' ? 0.12 : 0.03;
-    if (Math.random() < nascita * (calmo ? 0.5 : 1) && impulsi.length < 60) impulsi.push({ e: Math.floor(Math.random() * bordi.length), t: 0, dir: Math.random() < 0.5 });
+    if (Math.random() < nascita * 1.6 * (calmo ? 0.5 : 1) && impulsi.length < 110) impulsi.push({ e: Math.floor(Math.random() * bordi.length), t: 0, dir: Math.random() < 0.5 });
     for (let i = impulsi.length - 1; i >= 0; i--) {
       const im = impulsi[i]; im.t += dt * (1.4 + livello * 2.5);
       if (im.t >= 1) { impulsi.splice(i, 1); continue; }
@@ -105,7 +110,7 @@
     }
     // nodi
     for (const n of p) {
-      const prof = n.z * 0.5 + 0.5, r = (1.2 + prof * 1.6 + n.v * 5) * n.f;
+      const prof = n.z * 0.5 + 0.5, r = (0.9 + prof * 1.2 + n.v * 4.2) * n.f;
       g.fillStyle = n.v > 0.55 ? 'rgba(255,235,220,0.95)' : `rgba(${colore},${0.35 + prof * 0.5 + n.v * 0.4})`;
       g.beginPath(); g.arc(n.x, n.y, r, 0, 6.283); g.fill();
       if (!calmo && n.v > 0.35) { g.fillStyle = `rgba(${colore},${n.v * 0.25})`; g.beginPath(); g.arc(n.x, n.y, r * 3.2, 0, 6.283); g.fill(); }
