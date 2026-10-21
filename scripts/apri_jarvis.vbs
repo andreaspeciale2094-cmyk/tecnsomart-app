@@ -16,7 +16,7 @@ End Function
 If Not acceso() Then
   sh.CurrentDirectory = cartella
   sh.Run """" & cartella & "\.venv\Scripts\python.exe"" -m uvicorn jarvis.server:app --port 8000", 0, False
-  For i = 1 To 40
+  For i = 1 To 120
     WScript.Sleep 500
     If acceso() Then Exit For
   Next
@@ -28,9 +28,9 @@ browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\c
 If browser = "" Then browser = sh.RegRead("HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe\")
 If browser = "" Then browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe\")
 On Error GoTo 0
-' a tutto schermo, subito, come un'app (F11 per uscire dal tutto schermo, Alt+F4 per chiudere la finestra)
+' finestra massimizzata come un'app (F11 per il vero tutto schermo, Alt+F4 per chiudere la finestra)
 If browser <> "" Then
-  sh.Run """" & browser & """ --app=http://localhost:8000 --start-fullscreen", 1, False
+  sh.Run """" & browser & """ --app=http://localhost:8000 --start-maximized", 1, False
 Else
   sh.Run "http://localhost:8000", 1, False
 End If

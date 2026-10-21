@@ -58,6 +58,17 @@
   /* modo voce (predefinito): la rete riempie la finestra, niente chat scritta; i sottotitoli mostrano cosa dice Jarvis */
   body.solovoce #visore { display:block; flex:1 1 auto; border-bottom:0; }
   body.solovoce #log, body.solovoce #f { display:none; }
+  /* riquadri informativi sulla rete: ora, impegni, posta, WhatsApp (il pulsante privacy li nasconde) */
+  #hud { position:absolute; inset:0; pointer-events:none; font-family:ui-monospace, "Cascadia Mono", Consolas, monospace; text-transform:uppercase; letter-spacing:.14em; }
+  body.privacy #hud { display:none; }
+  .box { position:absolute; padding:10px 14px; border-left:2px solid var(--red); background:linear-gradient(90deg, rgba(255,42,61,.10), transparent); font-size:11px; color:var(--dim); line-height:1.7; max-width:44%; }
+  .box b { color:#fff; font-weight:600; font-size:15px; letter-spacing:.06em; }
+  .box .t { color:var(--red); font-size:10px; display:block; }
+  #hud-sx, #hud-bs { display:none; }
+  #hud-sx { left:3%; top:5%; } #hud-dx { right:3%; top:5%; text-align:right; border-left:0; border-right:2px solid var(--red); background:linear-gradient(270deg, rgba(255,42,61,.10), transparent); }
+  #hud-bs { left:3%; bottom:5%; }
+  #ora { font-size:clamp(26px,4vw,52px); color:#fff; letter-spacing:.08em; text-shadow:0 0 18px rgba(255,42,61,.6); font-weight:300; }
+  body:not(.solovoce) #hud { display:none; }
   #didascalia { position:absolute; left:50%; bottom:4%; transform:translateX(-50%); width:min(820px,90%); text-align:center; pointer-events:none;
     font-size:clamp(15px,2.2vw,22px); line-height:1.45; color:#fff; text-shadow:0 0 18px rgba(255,42,61,.9), 0 2px 6px #000; max-height:30%; overflow:hidden; }
   #didascalia .tu { display:block; font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--red); margin-bottom:6px; font-family:ui-monospace, Consolas, monospace; }
@@ -100,11 +111,14 @@
   <button id="tts" class="on" title="Risposte vocali">🔊 voce</button>
   <button id="bell" title="Notifiche">📬 <span id="nb">0</span></button>
   <button id="wake" title="Ascolto continuo: di' 'Jarvis ...'">👂 sempre in ascolto</button>
+  <button id="priv" title="Nasconde i riquadri con impegni, posta e messaggi (se qualcuno guarda lo schermo)">🙈 privacy</button>
   <button id="chatbtn" title="Mostra o nasconde la chat scritta">💬 chat</button>
   <button id="vis" title="Mostra o nasconde la rete neurale (con la chat aperta)">🧠 rete</button>
   <button id="fx" title="Meno animazioni (per PC lenti)">✨ effetti</button>
 </header>
-<div id="visore"><canvas id="rete"></canvas><div id="didascalia"></div></div>
+<div id="visore"><canvas id="rete"></canvas>
+  <div id="hud"><div class="box" id="hud-sx"></div><div class="box" id="hud-dx"><div id="ora"></div><div id="data"></div></div><div class="box" id="hud-bs"></div></div>
+  <div id="didascalia"></div></div>
 <div id="log"></div>
 <form id="f">
   <button type="button" id="mic" title="Parla">🎤</button>
@@ -151,6 +165,19 @@ function setState(s, label) { orb.className = s; status.textContent = label; }
 setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.contains('thinking') && !orb.classList.contains('listening')), 200);
 { let rete = true; try { rete = localStorage.jarvisRete !== '0'; } catch (e) {} document.body.classList.toggle('conrete', rete); $('#vis').classList.toggle('on', rete);
   $('#vis').onclick = e => { const r = document.body.classList.toggle('conrete'); e.currentTarget.classList.toggle('on', r); try { localStorage.jarvisRete = r ? '1' : '0'; } catch (er) {} }; }
+{ let pv = false; try { pv = localStorage.jarvisPrivacy === '1'; } catch (e) {} document.body.classList.toggle('privacy', pv); $('#priv').classList.toggle('on', pv);
+  $('#priv').onclick = e => { const p = document.body.classList.toggle('privacy'); e.currentTarget.classList.toggle('on', p); try { localStorage.jarvisPrivacy = p ? '1' : '0'; } catch (er) {} };
+  // riquadri: orologio ogni secondo, dati (impegni, posta, WhatsApp) ogni minuto
+  const orologio = () => { const d = new Date(); $('#ora').textContent = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    $('#data').textContent = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }); };
+  orologio(); setInterval(orologio, 1000);
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  async function pannello() { try { const p = await (await api('/api/pannello')).json(); let sx = '', bs = '';
+    if (p.agenda) sx = `<span class="t">oggi</span><b>${p.agenda.n}</b> impegni` + (p.agenda.prossimo ? `<br>prossimo: <b>${esc(p.agenda.prossimo.ora)}</b> ${esc(p.agenda.prossimo.titolo)}` : '<br>nient\'altro per oggi');
+    if (p.mail) bs += `<span class="t">posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' · ');
+    if (p.whatsapp) bs += (bs ? '<br>' : '') + `<span class="t">whatsapp</span><b>${p.whatsapp.messaggi}</b> messaggi da ${p.whatsapp.chat} chat`;
+    $('#hud-sx').style.display = sx ? 'block' : 'none'; $('#hud-sx').innerHTML = sx; $('#hud-bs').style.display = bs ? 'block' : 'none'; $('#hud-bs').innerHTML = bs; } catch (e) {} }
+  setTimeout(pannello, 2500); setInterval(pannello, 60000); }
 { let sv = true; try { sv = localStorage.jarvisChat !== '1'; } catch (e) {} document.body.classList.toggle('solovoce', sv); $('#chatbtn').classList.toggle('on', !sv);
   const mostraChat = on => { document.body.classList.toggle('solovoce', !on); $('#chatbtn').classList.toggle('on', on); try { localStorage.jarvisChat = on ? '1' : '0'; } catch (er) {} if (on) { log.scrollTop = log.scrollHeight; $('#q').focus(); } };
   $('#chatbtn').onclick = () => mostraChat(document.body.classList.contains('solovoce'));

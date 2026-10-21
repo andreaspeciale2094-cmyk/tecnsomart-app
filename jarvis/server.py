@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import ascolto, auth, brain, config, fase, logs, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import ascolto, auth, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 @asynccontextmanager
@@ -92,6 +92,11 @@ def stato_ascolto(request: Request):
     if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
         return JSONResponse({"error": "non autorizzato"}, status_code=403)
     return {"fase": ascolto.stato["fase"] or fase.leggi(), "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"]}
+
+
+@app.get("/api/pannello")
+def get_pannello():
+    return pannello.dati()
 
 
 class Fase(BaseModel):
