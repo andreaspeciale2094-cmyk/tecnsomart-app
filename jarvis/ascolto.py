@@ -78,9 +78,12 @@ def _suona(mp3: bytes):
         with os.fdopen(fd, "wb") as f:
             f.write(mp3)
         mci = ctypes.windll.winmm.mciSendStringW
-        mci(f'open "{path}" type mpegvideo alias jarvisvoce', None, 0, None)
-        mci("play jarvisvoce wait", None, 0, None)
-        mci("close jarvisvoce", None, 0, None)
+        alias = f"jv{time.time_ns()}"
+        try:
+            mci(f'open "{path}" type mpegvideo alias {alias}', None, 0, None)
+            mci(f"play {alias} wait", None, 0, None)
+        finally:
+            mci(f"close {alias}", None, 0, None)
     finally:
         try:
             os.remove(path)
@@ -239,7 +242,13 @@ def _ciclo_vero():
                     if time.time() < _parlando_fino:  # Jarvis sta parlando: non si ascolta
                         continue
                     if model.predict(blocco).get(PAROLA, 0) >= config.ASCOLTO_SOGLIA and time.time() - ultimo > 2:
-                        gestisci_chiamata(leggi, vad)
+                        try:
+                            gestisci_chiamata(leggi, vad)
+                        except sd.PortAudioError:
+                            raise  # il microfono e' saltato: lo riapre il ciclo esterno
+                        except Exception as e:  # un errore nella conversazione non deve spegnere l'ascolto
+                            _fase("")
+                            logs.log_error(e, "ascolto: conversazione")
                         model.reset()
                         ultimo = time.time()
             stato["in_ascolto"] = False
