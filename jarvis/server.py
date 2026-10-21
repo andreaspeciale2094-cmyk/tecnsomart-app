@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import ascolto, auth, brain, config, logs, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import ascolto, auth, brain, config, fase, logs, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 @asynccontextmanager
@@ -91,7 +91,18 @@ def stato_ascolto(request: Request):
     """Solo la fase dell'ascolto (nessun testo), per lo sfondo animato del PC: accessibile solo da questo computer, senza login."""
     if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
         return JSONResponse({"error": "non autorizzato"}, status_code=403)
-    return {"fase": ascolto.stato["fase"], "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"]}
+    return {"fase": ascolto.stato["fase"] or fase.leggi(), "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"]}
+
+
+class Fase(BaseModel):
+    fase: str = ""
+
+
+@app.post("/api/fase")
+def imposta_fase(body: Fase):
+    """La pagina dice cosa sta facendo (ti ascolto, penso, parlo), cosi' lo sfondo del PC si muove anche per la voce della pagina."""
+    fase.imposta(body.fase)
+    return {"ok": True}
 
 
 @app.get("/api/ascolto")

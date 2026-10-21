@@ -1,7 +1,7 @@
 """Una conversazione con Jarvis da un canale diverso dalla pagina (Telegram, ascolto in stanza): una richiesta alla volta."""
 import threading
 
-from . import brain, logs, sessions
+from . import brain, fase, logs, sessions
 
 _lock = threading.Lock()
 
@@ -9,6 +9,7 @@ _lock = threading.Lock()
 def rispondi(sid: str, testo: str) -> str:
     with _lock:
         history, before = sessions.start_request(sid, testo)
+        fase.imposta("capisco")
         try:
             reply, _ = brain.think(history, summary=sessions.summaries.get(sid, ""))
         except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
@@ -23,8 +24,10 @@ def rispondi_stream(sid: str, testo: str):
     with _lock:
         history, before = sessions.start_request(sid, testo)
         try:
+            fase.imposta("capisco")
             for ev in brain.think_stream(history, summary=sessions.summaries.get(sid, "")):
                 if ev["type"] == "text" and ev.get("delta"):
+                    fase.imposta("rispondo")
                     yield ev["delta"]
         except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
             del history[before:]

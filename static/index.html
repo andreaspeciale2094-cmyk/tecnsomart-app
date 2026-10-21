@@ -125,6 +125,12 @@ function add(text, cls, tools) {
 }
 // Analizzatore del suono: la rete neurale si muove a ritmo della voce. Si collega a una voce solo se l'audio e' gia' sbloccato dal browser
 // (altrimenti la voce suonerebbe muta): in quel caso la rete simula il ritmo.
+// Dice al server cosa sta facendo la pagina, per lo sfondo animato del PC (solo etichette, mai testi)
+{ let ultima = '', ultimoInvio = 0; const NOMI = { listening: 'ti ascolto', thinking: 'capisco', speaking: 'rispondo' };
+  const invia = () => { const c = ['speaking', 'thinking', 'listening'].find(k => orb.classList.contains(k)); const f = NOMI[c] || '';
+    if (f === ultima && (!f || performance.now() - ultimoInvio < 2000)) return; ultima = f; ultimoInvio = performance.now();
+    fetch('/api/fase', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fase: f }), credentials: 'same-origin' }).catch(() => {}); };
+  setInterval(invia, 500); }
 let actx = null, hooked = new WeakSet();
 function unlockAudio() {
   try {
