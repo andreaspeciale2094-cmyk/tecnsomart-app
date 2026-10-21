@@ -1,6 +1,6 @@
 """Saluto quando torni al PC: la prima volta del giorno 'Buongiorno Andrea' (o 'Buonasera' dal primo pomeriggio),
-le volte dopo 'Bentornato Andrea'. Capisce che sei tornato quando il PC si risveglia dallo standby o quando ricominci a usare
-mouse e tastiera dopo qualche minuto di assenza (schermo spento o bloccato). Il giorno cambia alle 5 del mattino.
+le volte dopo 'Bentornato Andrea'. Capisce che sei tornato quando accendi il PC o quando si risveglia dallo standby (opzionale: anche dopo
+BENVENUTO_ASSENZA secondi di PC fermo, spento di default). Il giorno cambia alle 5 del mattino.
 Ricorda solo la data dell'ultimo saluto (memoria/benvenuto.json)."""
 import json
 import sys
@@ -86,9 +86,9 @@ def ciclo(idle=secondi_di_inattivita, dormi=time.sleep, adesso=time.time, parla=
         ritorno = False
         if salto > 45:  # il PC e' stato in standby
             ritorno, assente = True, False
-        elif i >= config.BENVENUTO_ASSENZA:
+        elif config.BENVENUTO_ASSENZA and i >= config.BENVENUTO_ASSENZA:
             assente = True
-        elif assente and i < 6:
+        elif config.BENVENUTO_ASSENZA and assente and i < 6:
             ritorno, assente = True, False
         if ritorno and t - ultimo_saluto > PAUSA_MIN:
             try:

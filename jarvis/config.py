@@ -40,7 +40,8 @@ ASCOLTO_FINESTRA = int(os.getenv("ASCOLTO_FINESTRA", "45"))  # secondi di conver
 ASCOLTO_DISPOSITIVO = os.getenv("ASCOLTO_DISPOSITIVO", "")  # numero o nome del microfono (vuoto = quello predefinito)
 ENABLE_WHATSAPP_LEGGI = _flag("JARVIS_WHATSAPP_LEGGI")  # legge i messaggi in arrivo (chat singole, solo in memoria); richiede JARVIS_WHATSAPP_INVIO
 ENABLE_BENVENUTO = _flag("JARVIS_BENVENUTO", True)  # saluto quando torni al PC (Buongiorno la prima volta del giorno, poi Bentornato)
-BENVENUTO_ASSENZA = int(os.getenv("BENVENUTO_ASSENZA", "300"))  # secondi di assenza dopo cui il rientro viene salutato
+BENVENUTO_ASSENZA = int(os.getenv("BENVENUTO_ASSENZA", "0"))  # 0 = spento (predefinito): saluta solo all'accensione e dopo lo standby; se > 0, saluta anche dopo tanti secondi di PC fermo
+ENABLE_PC_COMANDI = _flag("JARVIS_PC")  # apri app e giochi, volume, blocco; spegni/riavvia/chiudi solo dopo il si'
 ENABLE_AGENDA = _flag("JARVIS_AGENDA")  # briefing del mattino e impegni dai calendari Google (sola lettura)
 CALENDARIO_PERSONALE_ICS = os.getenv("CALENDARIO_PERSONALE_ICS", "")  # indirizzo segreto iCal: solo in .env
 CALENDARIO_LAVORO_ICS = os.getenv("CALENDARIO_LAVORO_ICS", "")

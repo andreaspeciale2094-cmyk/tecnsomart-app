@@ -282,6 +282,35 @@ def _scarta_audio_della_voce(leggi):
         leggi()
 
 
+_APRI = re.compile(r"^\W*(?:apri|avvia|lancia|fammi partire)(?:mi)?\W+(?:l[ao']\s*|il\s+|un[ao]?\s+|gli\s+)?(.+?)\W*$", re.IGNORECASE)
+_VOLUME = re.compile(r"^\W*(?:(?:alza|aumenta|metti piu' alto)\s+(?:il\s+)?volume|volume\s+(?:su|piu'? alto)|(?:abbassa|diminuisci)\s+(?:il\s+)?volume|volume\s+(?:giu'?|piu'? basso)|muto|togli l'audio|metti il muto)\W*$", re.IGNORECASE)
+
+
+def comando_veloce(testo: str) -> str | None:
+    """Comandi semplici e innocui (apri un'app, volume, blocca, desktop): partono subito, senza aspettare il cervello.
+    Ritorna cosa dire, oppure None se non e' un comando semplice."""
+    if not config.ENABLE_PC_COMANDI:
+        return None
+    from . import pc_comandi as pc
+
+    t = testo.strip()
+    try:
+        m = _APRI.match(t)
+        if m:
+            nome = re.sub(r"\s+(?:per favore|per piacere|grazie|subito|adesso|ora)$", "", m.group(1).strip(), flags=re.IGNORECASE)
+            return pc.apri(nome)
+        if _VOLUME.match(t):
+            tl = t.lower()
+            return pc.volume("muto" if ("muto" in tl or "audio" in tl) else "su" if any(w in tl for w in ("alza", "aumenta", "alto", "su")) else "giu")
+        if re.match(r"^\W*(?:mostra(?:mi)? il desktop|minimizza tutto)\W*$", t, re.IGNORECASE):
+            return pc.mostra_desktop()
+        if re.match(r"^\W*blocca(?: il)?(?: pc| computer| schermo)?\W*$", t, re.IGNORECASE):
+            return pc.blocca()
+    except pc.PcError as e:
+        return str(e)
+    return None
+
+
 def saluto(ora=None) -> str:
     """'Buongiorno Andrea, dimmi cosa posso fare per te.' (di mattina) oppure 'Buonasera ...' (dal primo pomeriggio)."""
     from datetime import datetime
@@ -322,6 +351,12 @@ def gestisci_chiamata(leggi, vad):
             return
         if primo and not resto:  # ha detto solo il nome: lo saluta e aspetta il comando
             parla(saluto())
+            _scarta_audio_della_voce(leggi)
+            primo = False
+            continue
+        rapido = comando_veloce(resto or testo)
+        if rapido is not None:
+            parla(rapido)
             _scarta_audio_della_voce(leggi)
             primo = False
             continue
