@@ -1,4 +1,7 @@
 """Il cervello: Claude + ciclo di tool use + memoria."""
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 import anthropic
 
 from . import config, logs, posta, router, tools
@@ -27,6 +30,45 @@ def _without_thinking(content: list) -> list:
     Sono firmati sul testo di partenza (system, strumenti, messaggi): noi lo cambiamo a ogni richiesta (ora, ricordi,
     riassunto), quindi rimandarli indietro darebbe errore 400 ("bound to a different conversation"). Non servono."""
     return [b for b in content if getattr(b, "type", None) not in ("thinking", "redacted_thinking")]
+
+
+# Strumenti che SOLO leggono: se in una risposta Claude ne chiede piu' di uno, partono tutti nello stesso momento (agenda, posta, WhatsApp, negozi...).
+# Appena c'e' anche uno strumento che scrive o fa qualcosa, si torna a uno alla volta, nell'ordine (stesse regole di prima).
+SOLO_LETTURA = {"briefing_mattino", "riepilogo_negozi", "focus_addetto", "scheda_leggi", "mail_non_lette", "mail_leggi", "unread_emails", "upcoming_events",
+                "whatsapp_non_lette", "whatsapp_leggi", "whatsapp_rubrica", "banca_riepilogo", "banca_movimenti", "cassa_resoconto", "pc_elenco_app",
+                "fetch_url", "recall", "core_show", "list_tasks", "home_state", "read_file"}
+
+
+SERIALI = {"banca_riepilogo", "banca_movimenti"}  # solo lettura, ma mai due insieme
+
+
+def esegui_strumenti(blocchi: list, unattended: bool, log: list[str]) -> list[dict]:
+    """Esegue gli strumenti chiesti da Claude e ritorna i risultati nello stesso ordine."""
+    def uno(b):
+        if unattended and b.name in BLOCKED_UNATTENDED:
+            return "Errore: tool non consentito in background."
+        return tools.run_tool(b.name, b.input)
+
+    for b in blocchi:
+        log.append(f"{b.name}({b.input})")
+    if len(blocchi) > 1 and all(b.name in SOLO_LETTURA for b in blocchi):
+        # la banca ha un limite di letture al giorno: le sue chiamate vanno una dopo l'altra (in un solo gruppo), il resto parte insieme
+        gruppi = [[i] for i, b in enumerate(blocchi) if b.name not in SERIALI]
+        if any(b.name in SERIALI for b in blocchi):
+            gruppi.append([i for i, b in enumerate(blocchi) if b.name in SERIALI])
+        outs = [""] * len(blocchi)
+
+        def gruppo(indici):
+            for i in indici:
+                outs[i] = uno(blocchi[i])
+
+        t0 = time.time()
+        with ThreadPoolExecutor(max_workers=min(len(gruppi), 6)) as ex:
+            list(ex.map(gruppo, gruppi))
+        log.append(f"letti insieme: {len(blocchi)} strumenti in {time.time() - t0:.1f} s")
+    else:
+        outs = [uno(b) for b in blocchi]
+    return [{"type": "tool_result", "tool_use_id": b.id, "content": out} for b, out in zip(blocchi, outs)]
 
 
 def think_stream(history: list[dict], unattended: bool = False, summary: str = ""):
@@ -68,13 +110,7 @@ def think_stream(history: list[dict], unattended: bool = False, summary: str = "
             yield {"type": "done", "reply": "".join(b.text for b in resp.content if b.type == "text").strip(), "tools": log}
             return
 
-        results = []
-        for b in resp.content:
-            if b.type == "tool_use":
-                log.append(f"{b.name}({b.input})")
-                out = "Errore: tool non consentito in background." if unattended and b.name in BLOCKED_UNATTENDED else tools.run_tool(b.name, b.input)
-                results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
-        history.append({"role": "user", "content": results})
+        history.append({"role": "user", "content": esegui_strumenti([b for b in resp.content if b.type == "tool_use"], unattended, log)})
     msg = "Ho raggiunto il limite di passaggi su questa richiesta, signore."
     yield {"type": "text", "delta": msg}
     yield {"type": "done", "reply": msg, "tools": log}

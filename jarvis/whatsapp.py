@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import sys
 import time
 import uuid
@@ -129,8 +130,16 @@ def _stato() -> dict | None:
         return None
 
 
+_blocco_avvio = threading.Lock()  # due richieste insieme non devono accendere il programma due volte
+
+
 def _avvia_helper() -> dict:
     """Avvia il programma di appoggio nascosto (si chiude insieme a Jarvis) e aspetta che sia pronto."""
+    with _blocco_avvio:
+        return _avvia_helper_senza_blocco()
+
+
+def _avvia_helper_senza_blocco() -> dict:
     global _figlio
     st = _stato()
     if st is not None:
