@@ -17,7 +17,11 @@ SESSIONE = "ascolto"
 RATE = 16000
 BLOCCO = 1280  # 80 ms
 PAROLA = "hey_jarvis"
-stato = {"attivo": True, "risvegli": 0, "errore": "", "in_ascolto": False}
+stato = {"attivo": True, "risvegli": 0, "errore": "", "in_ascolto": False, "fase": "", "ultimo_errore_log": 0.0}
+
+
+def _fase(f: str):
+    stato["fase"] = f
 _parlando_fino = 0.0
 
 
@@ -147,9 +151,13 @@ def togli_chiamata(testo: str) -> str:
 
 
 def _ascolta(leggi, vad, attesa: float) -> str | None:
+    _fase("ti ascolto")
     frames = registra_frase(leggi, vad, attesa)
     if not frames:
+        logs.log_route("ASCOLTO: nessuna frase captata (silenzio o voce troppo bassa)")
         return None
+    _fase("capisco")
+    logs.log_route(f"ASCOLTO: frase registrata ({len(frames) * 80 // 1000} s)")
     if not voice.stt_available():
         logs.log_route("ASCOLTO: manca il riconoscimento vocale (chiave Groq o OpenAI)")
         parla("Non riesco a capirti: manca il riconoscimento vocale.")
@@ -159,6 +167,7 @@ def _ascolta(leggi, vad, attesa: float) -> str | None:
     except Exception as e:
         logs.log_error(e, "ascolto: trascrizione")
         return None
+    logs.log_route(f"ASCOLTO: capito {len(testo)} caratteri")
     return testo if len(testo) >= 2 else None
 
 
@@ -177,6 +186,7 @@ def gestisci_chiamata(leggi, vad):
     while True:
         testo = _ascolta(leggi, vad, 5.0 if primo else 7.0)  # dopo una risposta aspetta un po' di piu'
         if testo is None:
+            _fase("")
             return
         resto = togli_chiamata(testo)
         if primo and not resto:  # ha detto solo il nome
@@ -184,7 +194,10 @@ def gestisci_chiamata(leggi, vad):
             _scarta_audio_della_voce(leggi)
             primo = False
             continue
-        parla(dialogo.rispondi(SESSIONE, resto or testo))
+        _fase("penso")
+        risposta = dialogo.rispondi(SESSIONE, resto or testo)
+        _fase("parlo")
+        parla(risposta)
         _scarta_audio_della_voce(leggi)
         primo = False
 
@@ -230,11 +243,13 @@ def _ciclo_vero():
                         model.reset()
                         ultimo = time.time()
             stato["in_ascolto"] = False
-        except Exception as e:  # microfono scollegato o occupato: riprova senza fermare Jarvis
+        except Exception as e:  # microfono scollegato o occupato (con le cuffie bluetooth capita al cambio audio): riprova subito
             stato["in_ascolto"] = False
             stato["errore"] = type(e).__name__
-            logs.log_error(e, "ascolto: microfono")
-            time.sleep(15)
+            if time.time() - stato["ultimo_errore_log"] > 60:
+                stato["ultimo_errore_log"] = time.time()
+                logs.log_error(e, "ascolto: microfono")
+            time.sleep(2)
 
 
 def avvia():

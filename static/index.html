@@ -403,9 +403,9 @@ async function init() {
     const aggiorna = async () => { try { const a = await (await api('/api/ascolto')).json();
       if (a.errore) { asc.textContent = 'ascolto: problema (' + a.errore + ')'; asc.className = 'no'; }
       else if (!a.attivo) { asc.textContent = 'ascolto: spento'; asc.className = 'no'; }
-      else if (a.in_ascolto) { asc.textContent = a.stt ? 'ascolto in stanza: acceso' : 'ascolto acceso, manca il riconoscimento vocale'; asc.className = a.stt ? 'ok' : 'no'; }
+      else if (a.in_ascolto) { asc.textContent = a.stt ? 'ascolto in stanza: ' + (a.fase || 'acceso') : 'ascolto acceso, manca il riconoscimento vocale'; asc.className = a.stt ? 'ok' : 'no'; }
       else { asc.textContent = 'ascolto: sto avviando…'; asc.className = ''; } } catch (e) {} };
-    aggiorna(); setInterval(aggiorna, 4000); }
+    aggiorna(); setInterval(aggiorna, 1500); }
 }
 speechSynthesis?.getVoices();
 (async () => { const a = await (await fetch('/api/auth')).json(); a.required && !a.ok ? showLogin() : init(); })();
