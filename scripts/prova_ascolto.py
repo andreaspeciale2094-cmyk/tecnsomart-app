@@ -6,10 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import sounddevice as sd  # noqa: E402
-from openwakeword.model import Model  # noqa: E402
-from openwakeword.utils import download_models  # noqa: E402
-
 from jarvis import config  # noqa: E402
+from jarvis._oww import Model, download_models  # noqa: E402
 
 
 def main():

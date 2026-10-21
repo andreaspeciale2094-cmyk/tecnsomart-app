@@ -169,9 +169,7 @@ def _ciclo_vero():
     global _parlando_fino
     import numpy as np
     import sounddevice as sd
-    from openwakeword.model import Model
-    from openwakeword.utils import download_models
-    from openwakeword.vad import VAD
+    from ._oww import VAD, Model, download_models
 
     try:
         model = Model(wakeword_models=[PAROLA], inference_framework="onnx")
