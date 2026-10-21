@@ -1,4 +1,4 @@
-"""Saluto quando torni al PC: la prima volta del giorno 'Buongiorno Andrea' (o 'Buonasera' dal primo pomeriggio),
+"""Saluto quando torni al PC: la prima volta del giorno 'Buongiorno Andrea' (o 'Buonasera' dopo le 18),
 le volte dopo 'Bentornato Andrea'. Capisce che sei tornato quando accendi il PC o quando si risveglia dallo standby (opzionale: anche dopo
 BENVENUTO_ASSENZA secondi di PC fermo, spento di default). Il giorno cambia alle 5 del mattino.
 Ricorda solo la data dell'ultimo saluto (memoria/benvenuto.json)."""
@@ -38,7 +38,7 @@ def giorno_di(adesso: datetime) -> str:
 def frase(adesso: datetime, stato: dict) -> str:
     nome = f" {config.USER_NAME}" if config.USER_NAME else ""
     if stato.get("giorno") != giorno_di(adesso):
-        return f"{'Buongiorno' if 5 <= adesso.hour < 14 else 'Buonasera'}{nome}."
+        return f"{'Buongiorno' if 5 <= adesso.hour < 18 else 'Buonasera'}{nome}."
     return f"Bentornato{nome}."
 
 

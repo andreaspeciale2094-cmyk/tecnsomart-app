@@ -312,12 +312,12 @@ def comando_veloce(testo: str) -> str | None:
 
 
 def saluto(ora=None) -> str:
-    """'Buongiorno Andrea, dimmi cosa posso fare per te.' (di mattina) oppure 'Buonasera ...' (dal primo pomeriggio)."""
+    """'Buongiorno Andrea, dimmi cosa posso fare per te.' (di mattina) oppure 'Buonasera ...' (dopo le 18)."""
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
     h = (ora or datetime.now(ZoneInfo(config.FUSO))).hour
-    parte = "Buongiorno" if 5 <= h < 14 else "Buonasera"
+    parte = "Buongiorno" if 5 <= h < 18 else "Buonasera"
     nome = f" {config.USER_NAME}" if config.USER_NAME else ""
     return f"{parte}{nome}, dimmi cosa posso fare per te."
 
