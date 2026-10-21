@@ -47,7 +47,7 @@ def _edge_synthesize(text: str) -> bytes:
 
 
 def stt_available() -> bool:
-    return bool(config.OPENAI_API_KEY)
+    return bool(config.GROQ_API_KEY or config.OPENAI_API_KEY)  # riconoscimento vocale: Groq (veloce, economico) oppure OpenAI
 
 
 _down: dict[str, float] = {}  # voce -> fino a quando saltarla dopo un errore
@@ -110,16 +110,24 @@ def synthesize_named(text: str) -> tuple[bytes, str]:
 
 
 def transcribe(audio: bytes, content_type: str) -> str:
+    """Voce -> testo. Prima Groq (whisper, economico e veloce) se c'e' la chiave, altrimenti o se non risponde OpenAI."""
     ext = "mp4" if "mp4" in content_type else "ogg" if "ogg" in content_type else "wav" if "wav" in content_type else "webm"
-    r = httpx.post(
-        "https://api.openai.com/v1/audio/transcriptions",
-        headers={"Authorization": f"Bearer {config.OPENAI_API_KEY}"},
-        files={"file": (f"audio.{ext}", audio, content_type)},
-        data={"model": "whisper-1", "language": "it"},
-        timeout=60,
-    )
-    r.raise_for_status()
-    return r.json()["text"].strip()
+    ultimo = None
+    for nome, url, chiave, modello in (
+        ("groq", "https://api.groq.com/openai/v1/audio/transcriptions", config.GROQ_API_KEY, config.GROQ_STT_MODEL),
+        ("openai", "https://api.openai.com/v1/audio/transcriptions", config.OPENAI_API_KEY, "whisper-1"),
+    ):
+        if not chiave:
+            continue
+        try:
+            r = httpx.post(url, headers={"Authorization": f"Bearer {chiave}"}, files={"file": (f"audio.{ext}", audio, content_type)},
+                           data={"model": modello, "language": "it"}, timeout=60)
+            r.raise_for_status()
+            return r.json()["text"].strip()
+        except Exception as e:  # ripiega sull'altro servizio
+            ultimo = e
+            logs.log_voice(f"riconoscimento {nome}", e)
+    raise ultimo or RuntimeError("nessun servizio di riconoscimento vocale configurato")
 
 
 # ---- Frasi fisse: create una volta, salvate su disco, riprodotte subito mentre Jarvis pensa ----
