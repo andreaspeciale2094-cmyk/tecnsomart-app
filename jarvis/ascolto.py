@@ -118,7 +118,7 @@ def parla(testo: str):
         testo = testo[:700].rsplit(".", 1)[0] + ". Il resto lo trovi sulla pagina."
     _parlando_fino = time.time() + 600
     try:
-        if len(testo) <= 40:  # frasi brevi e ripetute ("Dimmi."): si preparano una volta sola e poi partono subito
+        if len(testo) <= 70:  # frasi brevi e ripetute (saluto, "Va bene."): si preparano una volta sola e poi partono subito
             if testo not in _cache_frasi:
                 _cache_frasi[testo] = voice.synthesize(testo)
             _suona(_cache_frasi[testo])
@@ -273,9 +273,20 @@ def _scarta_audio_della_voce(leggi):
         leggi()
 
 
+def saluto(ora=None) -> str:
+    """'Buongiorno Andrea, dimmi cosa posso fare per te.' (di mattina) oppure 'Buonasera ...' (dal primo pomeriggio)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    h = (ora or datetime.now(ZoneInfo(config.FUSO))).hour
+    parte = "Buongiorno" if 5 <= h < 14 else "Buonasera"
+    nome = f" {config.USER_NAME}" if config.USER_NAME else ""
+    return f"{parte}{nome}, dimmi cosa posso fare per te."
+
+
 def gestisci_chiamata(leggi, vad):
     """Dopo il risveglio: ascolta, risponde a voce, e RESTA in conversazione: finche' continui a parlare entro qualche secondo
-    non serve ripetere 'Hey Jarvis'. Se dici solo 'Hey Jarvis', risponde 'Dimmi'."""
+    non serve ripetere 'Hey Jarvis'. Se dici solo 'Hey Jarvis', saluta e chiede cosa serve."""
     stato["risvegli"] += 1
     _bip()
     primo = True
@@ -292,8 +303,8 @@ def gestisci_chiamata(leggi, vad):
             _scarta_audio_della_voce(leggi)
             _fase("")
             return
-        if primo and not resto:  # ha detto solo il nome
-            parla("Dimmi.")
+        if primo and not resto:  # ha detto solo il nome: lo saluta e aspetta il comando
+            parla(saluto())
             _scarta_audio_della_voce(leggi)
             primo = False
             continue
