@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import ascolto, auth, barra, benvenuto, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import ascolto, auth, barra, benvenuto, meteo, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 @asynccontextmanager
@@ -134,6 +134,24 @@ def cerca_pc(q: str, request: Request):
     if not (barra.disponibile() and _dal_pc(request)):
         return {"attiva": False, "voci": []}
     return {"attiva": True, **barra.cerca(q[:80])}
+
+
+class Posizione(BaseModel):
+    lat: float
+    lon: float
+
+
+@app.post("/api/posizione")
+def posizione(body: Posizione, request: Request):
+    """La posizione del PC (la manda la pagina, col permesso del browser) serve solo per il meteo. Dal telefono non si accetta."""
+    if not _dal_pc(request):
+        return JSONResponse({"error": "non disponibile"}, status_code=403)
+    try:
+        meteo.imposta_posizione(body.lat, body.lon)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    pannello.azzera("meteo")
+    return {"ok": True}
 
 
 class Voce(BaseModel):

@@ -1,9 +1,17 @@
-"""Meteo per il riquadro dell'ora (Open-Meteo: gratuito, senza chiave). Serve solo il nome della citta' in .env (METEO_CITTA); non si salva niente."""
+"""Meteo per il riquadro dell'ora (Open-Meteo: gratuito, senza chiave). La posizione viene dal PC (la pagina la chiede al browser, con il tuo permesso);
+se manca, dall'indirizzo internet (solo la citta', approssimata); METEO_CITTA in .env, se c'e', vince su tutto. Posizione solo sul PC (memoria/posizione.json),
+arrotondata a circa 1 km, mai nei registri ne' in GitHub."""
+import json
+from pathlib import Path
+
 import httpx
 
 from . import config
 
+FILE_POS = Path(__file__).parent.parent / "memoria" / "posizione.json"
 _posto: dict = {}
+_pos: dict = {}      # {"lat":..,"lon":..,"citta":..} dal browser
+_ip: dict = {}       # ricavata dall'indirizzo internet, rifatta ogni tanto
 
 # codice meteo internazionale -> (parola, categoria per il disegno)
 _CODICI = {0: ("sereno", "sole"), 1: ("quasi sereno", "sole"), 2: ("poco nuvoloso", "nuvole"), 3: ("coperto", "nuvole"), 45: ("nebbia", "nebbia"), 48: ("nebbia", "nebbia"),
@@ -21,11 +29,62 @@ def _trova(citta: str):
     return _posto[citta]
 
 
+def imposta_posizione(lat: float, lon: float):
+    """Posizione data dal browser del PC (con permesso): arrotondata, salvata solo in locale."""
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError("posizione non valida")
+    _pos.clear()
+    _pos.update({"lat": round(lat, 2), "lon": round(lon, 2)})
+    try:
+        FILE_POS.parent.mkdir(parents=True, exist_ok=True)
+        FILE_POS.write_text(json.dumps(_pos), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _carica():
+    if not _pos and FILE_POS.exists():
+        try:
+            _pos.update(json.loads(FILE_POS.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            pass
+
+
+def _nome_luogo(lat: float, lon: float) -> str:
+    chiave = f"{lat},{lon}"
+    if chiave not in _posto:
+        try:
+            r = httpx.get("https://api.bigdatacloud.net/data/reverse-geocode-client", params={"latitude": lat, "longitude": lon, "localityLanguage": "it"}, timeout=8).json()
+            _posto[chiave] = r.get("city") or r.get("locality") or r.get("principalSubdivision") or "qui"
+        except (httpx.HTTPError, ValueError):
+            return "qui"
+    return _posto[chiave]
+
+
+def _da_internet():
+    """Ripiego: citta' approssimata dall'indirizzo internet (non e' preciso, ma non chiede permessi)."""
+    if "lat" not in _ip:
+        r = httpx.get("https://ipwho.is/", timeout=8).json()
+        if r.get("success") is False or "latitude" not in r:
+            return None
+        _ip.update({"lat": r["latitude"], "lon": r["longitude"], "citta": r.get("city") or "qui"})
+    return _ip
+
+
+def _dove():
+    if config.METEO_CITTA:
+        p = _trova(config.METEO_CITTA)
+        return (p[0], p[1], p[2]) if p else None
+    _carica()
+    if "lat" in _pos:
+        return (_pos["lat"], _pos["lon"], _nome_luogo(_pos["lat"], _pos["lon"]))
+    ip = _da_internet()
+    return (ip["lat"], ip["lon"], ip["citta"]) if ip else None
+
+
 def oggi():
-    """Temperatura adesso, minima/massima di oggi e probabilita' di pioggia. None se manca la citta' o internet."""
-    if not config.METEO_CITTA:
-        return None
-    p = _trova(config.METEO_CITTA)
+    """Temperatura adesso, minima/massima di oggi e probabilita' di pioggia. None se non si sa dove sei o manca internet."""
+    p = _dove()
     if not p:
         return None
     d = httpx.get("https://api.open-meteo.com/v1/forecast", timeout=8, params={

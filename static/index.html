@@ -565,6 +565,10 @@ speechSynthesis?.getVoices();
   $('#picker').onclick = e => { if (e.target.id === 'picker') chiudiPicker(); };
   addEventListener('keydown', e => { if (e.key === 'Escape') chiudiPicker(); });
   disegnaDesk(); setInterval(disegnaDesk, 3000); }
+// posizione per il meteo: la chiede il browser (con il tuo permesso) solo sul PC, ogni 3 ore; se la neghi si usa la citta' dall'indirizzo internet
+{ const manda = () => { if (!document.body.classList.contains('conbarra') || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(p => api('/api/posizione', { method: 'POST', body: JSON.stringify({ lat: p.coords.latitude, lon: p.coords.longitude }) }).then(() => pannello()).catch(() => {}), () => {}, { maximumAge: 3600000, timeout: 15000 }); };
+  setTimeout(manda, 5000); setInterval(manda, 3 * 3600 * 1000); }
 // ricerca nel PC dalla barra: app, giochi, file, cartelle; se non trovi, chiedi a Jarvis (invio sull'ultima riga)
 { const q = $('#b-q'), R = $('#b-ris'); let voci = [], sel = 0, tim = 0, num = 0;
   const KIND = { app: 'app', file: 'file', cartella: 'cartella', jarvis: 'jarvis' };
