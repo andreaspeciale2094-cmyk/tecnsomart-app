@@ -26,6 +26,41 @@ def imposta(attivo: bool):
     logs.log_azione(f"ASCOLTO {'acceso' if attivo else 'spento'} (interruttore)")
 
 
+def pausa(minuti: int) -> str:
+    """Smette di ascoltare per un po' e riprende da solo (per riunioni e telefonate)."""
+    minuti = max(1, min(int(minuti), 480))
+    imposta(False)
+
+    def riprendi():
+        imposta(True)
+
+    t = threading.Timer(minuti * 60, riprendi)
+    t.daemon = True
+    t.start()
+    return f"Ascolto in pausa per {minuti} minuti: poi riprendo da solo. Per riprendere subito: Ctrl+Alt+J o 'ascolto on' su Telegram."
+
+
+def _scorciatoia():
+    """Ctrl+Alt+J accende/spegne l'ascolto (solo Windows). Un tono basso = spento, uno alto = acceso."""
+    import ctypes
+    from ctypes import wintypes
+
+    u = ctypes.windll.user32
+    if not u.RegisterHotKey(None, 1, 0x0001 | 0x0002, ord("J")):  # Alt + Ctrl + J
+        logs.log_route("ASCOLTO: scorciatoia da tastiera non disponibile (gia' usata da un altro programma)")
+        return
+    msg = wintypes.MSG()
+    while u.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+        if msg.message == 0x0312:  # WM_HOTKEY
+            imposta(not stato["attivo"])
+            try:
+                import winsound
+
+                winsound.Beep(880 if stato["attivo"] else 440, 150)
+            except Exception:
+                pass
+
+
 # ---------------- uscita audio: la voce di Jarvis, senza finestre ----------------
 def _suona(mp3: bytes):
     """Riproduce un mp3 con Windows (MCI), senza programmi esterni. Altrove non fa niente."""
@@ -161,3 +196,5 @@ def _ciclo():
 def avvia():
     if config.ENABLE_ASCOLTO:
         threading.Thread(target=_ciclo, daemon=True).start()
+        if sys.platform == "win32":
+            threading.Thread(target=_scorciatoia, daemon=True).start()

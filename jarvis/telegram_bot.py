@@ -6,7 +6,7 @@ import time
 
 import httpx
 
-from . import config, dialogo, logs, voice
+from . import ascolto, config, dialogo, logs, voice
 
 SESSIONE = "telegram"
 ETA_MAX = 15 * 60  # secondi: un messaggio piu' vecchio non si esegue
@@ -56,6 +56,11 @@ def gestisci(update: dict):
         return
     try:
         _api("sendChatAction", chat_id=chat, action="typing")
+        if m.get("text") and m["text"].strip().lower().rstrip("!. ") in ("ascolto off", "/ascolto_off", "ascolto spento", "ascolto on", "/ascolto_on", "ascolto acceso"):
+            acceso = m["text"].strip().lower().rstrip("!. ") in ("ascolto on", "/ascolto_on", "ascolto acceso")
+            ascolto.imposta(acceso)
+            _scrivi(chat, "Ascolto in stanza acceso." if acceso else "Ascolto in stanza spento: il microfono e' libero. Scrivi 'ascolto on' per riaccenderlo.")
+            return
         if m.get("text"):
             testo = m["text"]
         elif m.get("voice") or m.get("audio"):

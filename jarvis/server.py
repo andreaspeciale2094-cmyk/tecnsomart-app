@@ -1,3 +1,5 @@
+import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import ascolto, auth, brain, config, logs, memory, pulizia, scheduler, sessions, telegram_bot, voice
+from . import ascolto, auth, brain, config, logs, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 @asynccontextmanager
@@ -18,6 +20,8 @@ async def lifespan(app):
     if config.ENABLE_AGENTS:
         scheduler.start()
     threading.Thread(target=voice.prepare_fixed, daemon=True).start()
+    CHIUDI_TOKEN.parent.mkdir(parents=True, exist_ok=True)
+    CHIUDI_TOKEN.write_text(secrets.token_hex(24), encoding="utf-8")
     pulizia.avvia()
     telegram_bot.avvia()
     ascolto.avvia()
@@ -25,10 +29,11 @@ async def lifespan(app):
     pulizia.alla_chiusura()
 
 
+CHIUDI_TOKEN = Path(__file__).parent.parent / "memoria" / "chiudi.token"
 app = FastAPI(title="Jarvis", lifespan=lifespan)
 _sessions = sessions.histories
 STATIC = Path(__file__).parent.parent / "static"
-PUBLIC = {"/api/login", "/api/auth"}
+PUBLIC = {"/api/login", "/api/auth", "/api/chiudi"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
 
 
 @app.middleware("http")
@@ -37,6 +42,24 @@ async def guard(request: Request, call_next):
         if not auth.valid(request.cookies.get(auth.COOKIE)):
             return JSONResponse({"error": "login richiesto"}, status_code=401)
     return await call_next(request)
+
+
+@app.post("/api/chiudi")
+def chiudi(request: Request):
+    """Spegne Jarvis con calma (usato da spegni_jarvis.bat): solo da questo PC e con la chiave in memoria/chiudi.token."""
+    chiave = CHIUDI_TOKEN.read_text(encoding="utf-8").strip() if CHIUDI_TOKEN.exists() else ""
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1") or not chiave or not secrets.compare_digest(request.headers.get("x-chiudi", ""), chiave):
+        return JSONResponse({"error": "non autorizzato"}, status_code=403)
+
+    def fine():
+        try:
+            pulizia.alla_chiusura()
+            whatsapp.chiudi_helper()
+        finally:
+            os._exit(0)
+
+    threading.Timer(0.5, fine).start()
+    return {"ok": True}
 
 
 class Login(BaseModel):
