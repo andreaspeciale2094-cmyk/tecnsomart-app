@@ -94,17 +94,17 @@
   #mic.on { background:var(--gold); color:#2a1700; animation:respira 1.2s infinite; }
   body.calmo #mic.on { animation:none; }
   /* app sul desktop di Jarvis: nello stesso stile dei riquadri (barra rossa, scritte in maiuscolo), divise tra sinistra e destra */
-  .desk { position:absolute; display:flex; gap:8px; pointer-events:none; z-index:6; max-width:30%; font-family:ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  .desk { position:absolute; display:flex; gap:6px; pointer-events:none; z-index:6; max-width:30%; font-family:ui-monospace, "Cascadia Mono", Consolas, monospace; }
   #desk-sx { left:3%; top:25%; bottom:21%; flex-flow:column wrap; align-content:flex-start; }
   #desk-dx { right:3%; top:34%; bottom:12%; flex-flow:column wrap-reverse; align-content:flex-start; align-items:flex-end; }
   body:not(.solovoce) .desk { display:none; }
-  .ico { pointer-events:auto; position:relative; width:206px; display:flex; align-items:center; gap:12px; padding:8px 14px; border:0; border-left:2px solid var(--red); text-align:left; cursor:pointer;
-    background:linear-gradient(90deg, rgba(255,42,61,.10), transparent); color:#fff; font-size:12px; letter-spacing:.12em; text-transform:uppercase; transition:background .15s, box-shadow .15s, transform .15s, border-color .15s; }
+  .ico { pointer-events:auto; position:relative; width:158px; display:flex; align-items:center; gap:9px; padding:5px 10px; border:0; border-left:2px solid var(--red); text-align:left; cursor:pointer;
+    background:linear-gradient(90deg, rgba(255,42,61,.10), transparent); color:#fff; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; transition:background .15s, box-shadow .15s, transform .15s, border-color .15s; }
   .ico.dx { flex-direction:row-reverse; text-align:right; border-left:0; border-right:2px solid var(--red); background:linear-gradient(270deg, rgba(255,42,61,.10), transparent); }
-  .ico .logo { flex:none; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:1px solid var(--red-dim); background:rgba(255,42,61,.07); }
-  .ico .logo img { width:28px; height:28px; object-fit:contain; }
-  .ico .logo svg { width:20px; height:20px; fill:none; stroke:var(--red); stroke-width:1.8; stroke-linecap:round; }
-  .ico .logo .let { font-weight:700; font-size:14px; color:var(--red); }
+  .ico .logo { flex:none; width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:1px solid var(--red-dim); background:rgba(255,42,61,.07); }
+  .ico .logo img { width:22px; height:22px; object-fit:contain; }
+  .ico .logo svg { width:16px; height:16px; fill:none; stroke:var(--red); stroke-width:1.8; stroke-linecap:round; }
+  .ico .logo .let { font-weight:700; font-size:11px; color:var(--red); }
   .ico .et { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ico.piu { color:var(--dim); }
   .ico:hover { background:linear-gradient(90deg, rgba(255,42,61,.30), rgba(255,42,61,.04)); box-shadow:0 0 18px rgba(255,42,61,.4); transform:translateX(4px); color:#fff; border-color:#ff7a86; }
