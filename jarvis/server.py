@@ -129,6 +129,29 @@ def desk_catalogo(request: Request):
     return {"nomi": barra.catalogo()}
 
 
+@app.get("/api/cerca")
+def cerca_pc(q: str, request: Request):
+    if not (barra.disponibile() and _dal_pc(request)):
+        return {"attiva": False, "voci": []}
+    return {"attiva": True, **barra.cerca(q[:80])}
+
+
+class Voce(BaseModel):
+    tipo: str
+    id: str
+
+
+@app.post("/api/cerca/apri")
+def cerca_apri(body: Voce, request: Request):
+    if not (barra.disponibile() and _dal_pc(request)):
+        return JSONResponse({"error": "non disponibile"}, status_code=403)
+    try:
+        barra.apri_voce(body.tipo, body.id)
+    except (ValueError, OSError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"ok": True}
+
+
 class BarraAzione(BaseModel):
     nome: str = ""
     id: int = 0

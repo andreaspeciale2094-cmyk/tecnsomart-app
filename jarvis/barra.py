@@ -267,3 +267,96 @@ def schermo_intero_alterna() -> str:
         raise ValueError("Funziona solo sul PC Windows.")
     _tasto(0x7A)
     return "ok"
+
+
+# ---------------- ricerca nel PC (app, giochi, file, cartelle) ----------------
+CARTELLE_RICERCA = ("Desktop", "Documents", "Documenti", "Downloads", "Download", "Pictures", "Immagini", "Videos", "Video", "Music", "Musica")
+NON_APRIRE = {".exe", ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".msi", ".scr", ".com", ".reg", ".hta", ".jar", ".lnk", ".dll", ".sys"}
+SALTA = {"node_modules", ".git", "__pycache__", "appdata", "$recycle.bin", "_da_eliminare"}
+_file: dict = {"voci": [], "t": 0.0, "pronto": False, "lavora": False}
+
+
+def _costruisci_indice_file():
+    voci = []
+    casa = Path(os.path.expanduser("~"))
+    radici = []
+    for base in (casa, casa / "OneDrive"):
+        radici += [base / c for c in CARTELLE_RICERCA if (base / c).is_dir()]
+    for radice in dict.fromkeys(radici):
+        base_livello = len(radice.parts)
+        for cur, dirs, files in os.walk(radice):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in SALTA]
+            if len(Path(cur).parts) - base_livello >= 4:
+                dirs[:] = []
+            for d in dirs:
+                voci.append((d, str(Path(cur) / d), True))
+            for f in files:
+                if not f.startswith(".") and Path(f).suffix.lower() not in NON_APRIRE:
+                    voci.append((f, str(Path(cur) / f), False))
+            if len(voci) > 250000:
+                break
+    _file["voci"] = voci
+    _file["t"] = time.time()
+    _file["pronto"] = True
+    _file["lavora"] = False
+
+
+def _prepara_file():
+    if _file["lavora"] or (_file["pronto"] and time.time() - _file["t"] < 900):
+        return
+    _file["lavora"] = True
+    threading.Thread(target=_costruisci_indice_file, daemon=True).start()
+
+
+def cerca(q: str) -> dict:
+    """Cerca per nome tra app e giochi (menu Start, Steam, Desktop) e tra i file e le cartelle di Desktop, Documenti, Download, Immagini, Video, Musica.
+    Nomi solo in RAM. Gli eseguibili e gli script non si aprono da qui."""
+    from . import pc_comandi
+    _prepara_file()
+    qn = pc_comandi._norm(q)
+    if not qn:
+        return {"voci": [], "file_pronti": _file["pronto"]}
+    parole = qn.split()
+    app_ok, visti = [], set()
+    for a in pc_comandi.indice():
+        n = pc_comandi._norm(a["nome"])
+        if a["nome"] in visti or pc_comandi._vietata(a["nome"]):
+            continue
+        if all(t in n for t in parole):
+            visti.add(a["nome"])
+            app_ok.append((0 if n.startswith(qn) else 1, len(n), a["nome"]))
+    for a in pc_comandi.cerca(q):  # anche i nomi che il riconoscimento o gli alias correggono
+        if a["nome"] not in visti and not pc_comandi._vietata(a["nome"]):
+            visti.add(a["nome"])
+            app_ok.append((2, len(a["nome"]), a["nome"]))
+    voci = [{"tipo": "app", "nome": n, "id": n} for _, _, n in sorted(app_ok)[:6]]
+    trovati = []
+    for nome, perc, cartella in _file["voci"]:
+        nn = pc_comandi._norm(nome)
+        if all(t in nn for t in parole):
+            trovati.append((0 if nn.startswith(qn) else 1, 0 if cartella else 1, len(nn), nome, perc, cartella))
+    for _, _, _, nome, perc, cartella in sorted(trovati)[:8]:
+        voci.append({"tipo": "cartella" if cartella else "file", "nome": nome, "id": perc, "dove": str(Path(perc).parent.name)})
+    return {"voci": voci, "file_pronti": _file["pronto"]}
+
+
+def apri_voce(tipo: str, id_: str) -> str:
+    """Apre il risultato scelto: solo cio' che la ricerca ha davvero trovato (mai un percorso o un nome inventato da fuori)."""
+    from . import pc_comandi
+    if tipo == "app":
+        for a in pc_comandi.indice():
+            if a["nome"] == id_ and not pc_comandi._vietata(a["nome"]):
+                if a["come"] == "appid":
+                    subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{a['valore']}"], creationflags=NASCONDI)
+                else:
+                    os.startfile(a["valore"])
+                logs.log_azione(f"RICERCA: aperta app '{a['nome']}'")
+                return a["nome"]
+        raise ValueError("Non trovo piu' questa app.")
+    if tipo in ("file", "cartella"):
+        if any(perc == id_ and cart == (tipo == "cartella") for _, perc, cart in _file["voci"]) and os.path.exists(id_):
+            os.startfile(id_)
+            logs.log_azione(f"RICERCA: aperto un {tipo}")  # il nome del file resta fuori dai registri
+            return Path(id_).name
+        raise ValueError("Non trovo piu' questo elemento.")
+    raise ValueError("Tipo sconosciuto.")

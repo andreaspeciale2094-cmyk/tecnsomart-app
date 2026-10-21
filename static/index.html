@@ -136,6 +136,17 @@
   #barra .vb.aperta.attiva { background:rgba(255,42,61,.12); border-color:var(--red-dim); }
   #barra .vb.aperta.attiva::after { width:22px; margin-left:-11px; background:var(--red); box-shadow:0 0 8px var(--red); }
   #barra .vb.ridotta img { opacity:.55; }
+  #b-cerca { position:relative; flex:none; width:clamp(210px,26vw,360px); margin-left:6px; }
+  #b-cerca > svg { position:absolute; left:11px; top:50%; width:16px; height:16px; margin-top:-8px; fill:none; stroke:var(--red); stroke-width:2; stroke-linecap:round; pointer-events:none; }
+  #b-q { width:100%; height:36px; padding:0 12px 0 34px; font:12px ui-monospace, Consolas, monospace; letter-spacing:.06em; color:#fff; background:rgba(255,42,61,.06); border:1px solid var(--red-dim); border-radius:2px; outline:none; clip-path:none; transition:.15s; }
+  #b-q::placeholder { color:#7d5a60; } #b-q:hover { border-color:var(--red); background:rgba(255,42,61,.12); } #b-q:focus { border-color:var(--red); box-shadow:0 0 16px rgba(255,42,61,.35); background:rgba(255,42,61,.12); }
+  #b-ris { display:none; position:absolute; left:0; bottom:calc(100% + 10px); width:max(100%,420px); max-height:60vh; overflow-y:auto; background:linear-gradient(0deg, rgba(14,5,8,.98), rgba(24,7,11,.98)); border:1px solid var(--red-dim); border-bottom:2px solid var(--red); box-shadow:0 0 28px rgba(255,42,61,.28); z-index:40; }
+  #b-ris.on { display:block; }
+  #b-ris button { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:transparent; border:0; border-left:2px solid transparent; color:var(--text); padding:8px 12px; font:13px "Segoe UI", system-ui, sans-serif; cursor:pointer; transition:.1s; }
+  #b-ris button .k { flex:none; width:58px; font:10px ui-monospace, Consolas, monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--red); }
+  #b-ris button .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #b-ris button .d { flex:none; max-width:35%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:10px ui-monospace, Consolas, monospace; color:var(--dim); }
+  #b-ris button:hover, #b-ris button.sel { background:rgba(255,42,61,.16); border-left-color:var(--red); color:#fff; }
+  #b-ris .nota { padding:7px 12px; font:10px ui-monospace, Consolas, monospace; letter-spacing:.1em; color:var(--dim); text-transform:uppercase; }
   #barra .sep { flex:none; width:1px; height:28px; margin:0 6px; background:var(--line); }
   #barra .gruppo { display:flex; align-items:center; gap:4px; min-width:0; }
   #barra .molla { flex:1; }
@@ -183,6 +194,7 @@
 </form>
 <nav id="barra" aria-label="Barra delle applicazioni">
   <button class="vb" id="b-start" data-tip="Menu Start di Windows"><svg viewBox="0 0 24 24"><path d="M3 4.5 11 3.4v7.8H3zM12 3.3 21 2v9.2h-9zM3 12.2h8v7.9L3 19zM12 12.2h9V22l-9-1.3z"/></svg></button>
+  <div id="b-cerca"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><input id="b-q" placeholder="Cerca nel PC o chiedi a Jarvis…  (Ctrl+K)" autocomplete="off" spellcheck="false"><div id="b-ris"></div></div>
   <span class="sep"></span>
   <div class="gruppo" id="b-fin"></div>
   <div class="molla"></div>
@@ -249,7 +261,7 @@ setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.
   const mostraChat = on => { document.body.classList.toggle('solovoce', !on); $('#chatbtn').classList.toggle('on', on); try { localStorage.jarvisChat = on ? '1' : '0'; } catch (er) {} if (on) { log.scrollTop = log.scrollHeight; $('#q').focus(); } };
   $('#chatbtn').onclick = () => mostraChat(document.body.classList.contains('solovoce'));
   // scrivendo sulla tastiera si apre la chat (il pulsante chat la richiude)
-  addEventListener('keydown', e => { if ($('#login').style.display === 'flex') return; if (document.body.classList.contains('solovoce') && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) mostraChat(true); });
+  addEventListener('keydown', e => { if ($('#login').style.display === 'flex' || /^(INPUT|TEXTAREA)$/.test((e.target || {}).tagName || '')) return; if (document.body.classList.contains('solovoce') && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) mostraChat(true); });
   // sottotitoli: l'ultima risposta di Jarvis (e cosa hai detto) sopra la rete
   const did = $('#didascalia');
   new MutationObserver(() => {
@@ -540,6 +552,30 @@ speechSynthesis?.getVoices();
   $('#picker').onclick = e => { if (e.target.id === 'picker') chiudiPicker(); };
   addEventListener('keydown', e => { if (e.key === 'Escape') chiudiPicker(); });
   disegnaDesk(); setInterval(disegnaDesk, 3000); }
+// ricerca nel PC dalla barra: app, giochi, file, cartelle; se non trovi, chiedi a Jarvis (invio sull'ultima riga)
+{ const q = $('#b-q'), R = $('#b-ris'); let voci = [], sel = 0, tim = 0, num = 0;
+  const KIND = { app: 'app', file: 'file', cartella: 'cartella', jarvis: 'jarvis' };
+  const chiudi = () => { R.classList.remove('on'); sel = 0; };
+  const disegna = (nota) => { const t = q.value.trim(); if (!t) return chiudi();
+    const tutte = [...voci, { tipo: 'jarvis', nome: 'Chiedi a Jarvis: ' + t, id: t }];
+    R.replaceChildren(...tutte.map((v, i) => { const b = document.createElement('button'); if (i === sel) b.className = 'sel';
+      b.innerHTML = `<span class="k">${KIND[v.tipo]}</span><span class="n"></span>` + (v.dove ? '<span class="d"></span>' : ''); b.querySelector('.n').textContent = v.nome; if (v.dove) b.querySelector('.d').textContent = v.dove;
+      b.onmouseenter = () => { sel = i; R.querySelectorAll('button').forEach((x, k) => x.classList.toggle('sel', k === i)); }; b.onmousedown = e => { e.preventDefault(); scegli(v); }; return b; }),
+      ...(nota ? [Object.assign(document.createElement('div'), { className: 'nota', textContent: nota })] : []));
+    R.classList.add('on'); };
+  function scegli(v) { chiudi(); if (v.tipo === 'jarvis') { q.value = ''; q.blur(); interrupted = false; lastUserText = v.id; submit(v.id, v.id); return; }
+    api('/api/cerca/apri', { method: 'POST', body: JSON.stringify({ tipo: v.tipo, id: v.id }) }).then(() => { q.value = ''; q.blur(); }).catch(() => {}); }
+  async function cerca() { const t = q.value.trim(); if (!t) return chiudi(); const mio = ++num;
+    try { const d = await (await api('/api/cerca?q=' + encodeURIComponent(t))).json(); if (mio !== num) return; voci = d.voci || []; sel = 0; disegna(d.file_pronti ? '' : 'sto ancora leggendo i file del PC…'); } catch (e) {} }
+  q.oninput = () => { clearTimeout(tim); tim = setTimeout(cerca, 150); };
+  q.onfocus = () => { if (q.value.trim()) cerca(); };
+  q.onblur = () => setTimeout(chiudi, 120);
+  q.onkeydown = e => { const n = voci.length + 1;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); sel = (sel + (e.key === 'ArrowDown' ? 1 : n - 1)) % n; disegna(); }
+    else if (e.key === 'Enter') { e.preventDefault(); const t = q.value.trim(); if (!t) return; scegli(sel < voci.length ? voci[sel] : { tipo: 'jarvis', id: t }); }
+    else if (e.key === 'Escape') { q.value = ''; chiudi(); q.blur(); } };
+  addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && document.body.classList.contains('conbarra')) { e.preventDefault(); q.focus(); q.select(); } }); }
+
 // barra in basso: compare solo sul PC Windows (dal telefono no). App del Desktop, finestre aperte, Start, uscita dal tutto schermo.
 { const B = $('#barra'); let ultimaFirma = '';
   const orologioBarra = () => { const d = new Date(); $('#b-h').textContent = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
