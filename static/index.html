@@ -93,30 +93,27 @@
   #mic { background:#2a0d12; color:var(--red); border:1px solid var(--red-dim); padding:0 16px; }
   #mic.on { background:var(--gold); color:#2a1700; animation:respira 1.2s infinite; }
   body.calmo #mic.on { animation:none; }
-  /* desktop di Jarvis: colonna di icone a sinistra (impegni, posta, WhatsApp e le tue app), ognuna col suo logo */
-  #desk { position:absolute; left:2.2%; top:5%; bottom:5%; max-width:44%; display:flex; flex-flow:column wrap; align-content:flex-start; gap:10px 12px; pointer-events:none; z-index:6; }
-  #desk-info, #desk-app { display:contents; }
-  body:not(.solovoce) #desk, body:not(.solovoce) #pop { display:none; }
-  body.privacy .ico.info, body.privacy #pop { display:none; }
-  .ico { pointer-events:auto; position:relative; width:82px; display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 4px 6px; background:transparent; border:1px solid transparent; border-radius:3px;
-    cursor:pointer; color:var(--dim); font:10px ui-monospace, Consolas, monospace; letter-spacing:.1em; text-transform:uppercase; text-align:center; line-height:1.25; transition:background .15s, border-color .15s, box-shadow .15s, transform .15s, color .15s; }
-  .ico .logo { position:relative; width:50px; height:50px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, rgba(255,42,61,.14), rgba(255,42,61,.03)); border:1px solid var(--red-dim);
-    clip-path:polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); }
-  .ico .logo svg { width:26px; height:26px; fill:none; stroke:var(--red); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 4px rgba(255,42,61,.6)); }
-  .ico .logo img { width:34px; height:34px; object-fit:contain; }
-  .ico .logo .let { font:700 17px ui-monospace, Consolas, monospace; color:var(--red); }
-  .ico .et { max-width:100%; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word; }
-  .ico:hover { background:rgba(255,42,61,.13); border-color:var(--red); box-shadow:0 0 16px rgba(255,42,61,.4); color:#fff; transform:translateY(-2px); }
+  /* app sul desktop di Jarvis: nello stesso stile dei riquadri (barra rossa, scritte in maiuscolo), divise tra sinistra e destra */
+  .desk { position:absolute; display:flex; gap:8px; pointer-events:none; z-index:6; max-width:30%; font-family:ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  #desk-sx { left:3%; top:25%; bottom:21%; flex-flow:column wrap; align-content:flex-start; }
+  #desk-dx { right:3%; top:34%; bottom:12%; flex-flow:column wrap-reverse; align-content:flex-start; align-items:flex-end; }
+  body:not(.solovoce) .desk { display:none; }
+  .ico { pointer-events:auto; position:relative; width:206px; display:flex; align-items:center; gap:12px; padding:8px 14px; border:0; border-left:2px solid var(--red); text-align:left; cursor:pointer;
+    background:linear-gradient(90deg, rgba(255,42,61,.10), transparent); color:#fff; font-size:12px; letter-spacing:.12em; text-transform:uppercase; transition:background .15s, box-shadow .15s, transform .15s, border-color .15s; }
+  .ico.dx { flex-direction:row-reverse; text-align:right; border-left:0; border-right:2px solid var(--red); background:linear-gradient(270deg, rgba(255,42,61,.10), transparent); }
+  .ico .logo { flex:none; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:1px solid var(--red-dim); background:rgba(255,42,61,.07); }
+  .ico .logo img { width:28px; height:28px; object-fit:contain; }
+  .ico .logo svg { width:20px; height:20px; fill:none; stroke:var(--red); stroke-width:1.8; stroke-linecap:round; }
+  .ico .logo .let { font-weight:700; font-size:14px; color:var(--red); }
+  .ico .et { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ico.piu { color:var(--dim); }
+  .ico:hover { background:linear-gradient(90deg, rgba(255,42,61,.30), rgba(255,42,61,.04)); box-shadow:0 0 18px rgba(255,42,61,.4); transform:translateX(4px); color:#fff; border-color:#ff7a86; }
+  .ico.dx:hover { background:linear-gradient(270deg, rgba(255,42,61,.30), rgba(255,42,61,.04)); transform:translateX(-4px); }
   .ico:hover .logo { border-color:var(--red); }
-  .ico:active { transform:translateY(0); background:rgba(255,42,61,.26); }
-  .ico .bd { position:absolute; top:2px; right:10px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:var(--red); color:#fff; font:700 11px ui-monospace, Consolas, monospace; letter-spacing:0; display:flex; align-items:center; justify-content:center; box-shadow:0 0 10px rgba(255,42,61,.8); }
-  .ico .x { display:none; position:absolute; top:0; left:4px; width:18px; height:18px; border-radius:50%; background:#1a0a0e; border:1px solid var(--red); color:#fff; font:700 12px/1 sans-serif; align-items:center; justify-content:center; cursor:pointer; z-index:2; }
-  .ico:hover .x { display:flex; }
-  .ico .x:hover { background:var(--red); }
-  .ico[data-tip]:hover::before { content:attr(data-tip); position:absolute; left:calc(100% + 6px); top:14px; white-space:nowrap; padding:5px 10px; font:11px ui-monospace, Consolas, monospace; letter-spacing:.06em; text-transform:none; color:#fff; background:#12060a; border:1px solid var(--red-dim); box-shadow:0 0 12px rgba(255,42,61,.3); pointer-events:none; z-index:40; }
-  #pop { display:none; position:absolute; left:max(270px, 22%); top:5%; max-width:min(380px,40%); padding:14px 18px; z-index:12; font:12px/1.7 ui-monospace, Consolas, monospace; color:var(--dim); text-transform:uppercase; letter-spacing:.1em;
-    background:linear-gradient(135deg, rgba(30,8,12,.97), rgba(12,5,8,.97)); border:1px solid var(--red-dim); border-left:2px solid var(--red); box-shadow:0 0 28px rgba(255,42,61,.25); }
-  #pop.on { display:block; } #pop b { color:#fff; } #pop .t { display:block; color:var(--red); font-size:10px; margin-bottom:4px; }
+  .ico:active { background:rgba(255,42,61,.38); }
+  .ico .x { display:none; position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%; background:#1a0a0e; border:1px solid var(--red); color:#fff; font:700 12px/1 sans-serif; align-items:center; justify-content:center; cursor:pointer; z-index:2; }
+  .ico.dx .x { right:auto; left:-7px; }
+  .ico:hover .x { display:flex; } .ico .x:hover { background:var(--red); }
   #picker { display:none; position:fixed; inset:0; z-index:35; background:rgba(2,2,5,.82); align-items:center; justify-content:center; } #picker.on { display:flex; }
   #picker .pk { width:min(460px,92%); max-height:80vh; display:flex; flex-direction:column; gap:10px; padding:18px; background:linear-gradient(135deg, #1c0a0e, #0c0508); border:1px solid var(--red-dim); border-top:2px solid var(--red); box-shadow:0 0 40px rgba(255,42,61,.25); }
   #picker .pkt { letter-spacing:.2em; text-transform:uppercase; color:#fff; font-size:13px; } #picker .pkn { font-size:11px; color:var(--dim); }
@@ -173,9 +170,8 @@
   <button id="fx" title="Meno animazioni (per PC lenti)">✨ effetti</button>
 </header>
 <div id="visore"><canvas id="rete"></canvas>
-  <div id="hud"><div class="box" id="hud-dx"><div id="ora"></div><div id="data"></div></div></div>
-  <div id="desk"><div id="desk-info"></div><div id="desk-app"></div><button class="ico" id="desk-piu" data-tip="Aggiungi un'app a questa schermata"><span class="logo"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="et">aggiungi</span></button></div>
-  <div id="pop"></div>
+  <div id="hud"><div class="box" id="hud-sx"></div><div class="box" id="hud-dx"><div id="ora"></div><div id="data"></div></div><div class="box" id="hud-bs"></div></div>
+  <div id="desk-sx" class="desk"></div><div id="desk-dx" class="desk"></div>
   <div id="didascalia"></div></div>
 <div id="picker"><div class="pk"><div class="pkt">Aggiungi alla schermata di Jarvis</div><input id="pk-q" placeholder="Cerca un'app o un gioco…" autocomplete="off"><div id="pk-l"></div><div class="pkn">Non cambia niente in Windows: l'app resta dov'è. Puoi anche dire: «aggiungi Spotify al desktop».</div></div></div>
 <div id="log"></div>
@@ -239,19 +235,11 @@ setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.
     $('#data').textContent = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }); };
   orologio(); setInterval(orologio, 1000);
   const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  let pan = {};
-  const IC = { cal: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
-    mail: '<svg viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m3.5 7 8.5 6.5L20.5 7"/></svg>',
-    wa: '<svg viewBox="0 0 24 24"><path d="M4 20l1.2-4.1A8 8 0 1 1 8.2 19z"/><path d="M9 9.2c.3 2.6 2.4 4.8 5.6 5.6l1.3-1.4-2-1-.8.7c-1-.4-1.8-1.2-2.2-2.2l.7-.8-1-2z"/></svg>' };
-  function disegnaInfo() {
-    const T = [];
-    if (pan.agenda) T.push(['impegni', IC.cal, pan.agenda.n, `<span class="t">impegni di oggi</span><b>${pan.agenda.n}</b> in agenda` + (pan.agenda.prossimo ? `<br>prossimo: <b>${esc(pan.agenda.prossimo.ora)}</b> ${esc(pan.agenda.prossimo.titolo)}` : '<br>nient\'altro per oggi')]);
-    if (pan.mail) { const n = Object.values(pan.mail).reduce((a, b) => a + b, 0); T.push(['posta', IC.mail, n, '<span class="t">posta non letta</span>' + Object.entries(pan.mail).map(([k, v]) => `${esc(k)}: <b>${v}</b>`).join('<br>')]); }
-    if (pan.whatsapp) T.push(['whatsapp', IC.wa, pan.whatsapp.messaggi, `<span class="t">whatsapp</span><b>${pan.whatsapp.messaggi}</b> messaggi da ${pan.whatsapp.chat} chat`]);
-    $('#desk-info').replaceChildren(...T.map(([nome, svg, n, html]) => { const l = document.createElement('span'); l.className = 'logo'; l.innerHTML = svg;
-      return window.tessera('info', nome, l, n, () => { const p = $('#pop'); const stessa = p.dataset.k === nome && p.classList.contains('on'); p.dataset.k = nome; p.innerHTML = html; p.classList.toggle('on', !stessa); }); }));
-  }
-  async function pannello() { try { pan = await (await api('/api/pannello')).json(); disegnaInfo(); } catch (e) {} }
+  async function pannello() { try { const p = await (await api('/api/pannello')).json(); let sx = '', bs = '';
+    if (p.agenda) sx = `<span class="t">oggi</span><b>${p.agenda.n}</b> impegni` + (p.agenda.prossimo ? `<br>prossimo: <b>${esc(p.agenda.prossimo.ora)}</b> ${esc(p.agenda.prossimo.titolo)}` : '<br>nient\'altro per oggi');
+    if (p.mail) bs += `<span class="t">posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' · ');
+    if (p.whatsapp) bs += (bs ? '<br>' : '') + `<span class="t">whatsapp</span><b>${p.whatsapp.messaggi}</b> messaggi da ${p.whatsapp.chat} chat`;
+    $('#hud-sx').style.display = sx ? 'block' : 'none'; $('#hud-sx').innerHTML = sx; $('#hud-bs').style.display = bs ? 'block' : 'none'; $('#hud-bs').innerHTML = bs; } catch (e) {} }
   setTimeout(pannello, 2500); setInterval(pannello, 60000); }
 { let sv = true; try { sv = localStorage.jarvisChat !== '1'; } catch (e) {} document.body.classList.toggle('solovoce', sv); $('#chatbtn').classList.toggle('on', !sv);
   const mostraChat = on => { document.body.classList.toggle('solovoce', !on); $('#chatbtn').classList.toggle('on', on); try { localStorage.jarvisChat = on ? '1' : '0'; } catch (er) {} if (on) { log.scrollTop = log.scrollHeight; $('#q').focus(); } };
@@ -519,21 +507,24 @@ speechSynthesis?.getVoices();
 (async () => { const a = await (await fetch('/api/auth')).json(); a.required && !a.ok ? showLogin() : init(); })();
 
 
-// desktop di Jarvis: tessera generica, app che si aggiungono/tolgono, finestra per scegliere
-window.tessera = (cls, nome, logo, badge, onclick, tip) => { const b = document.createElement('button'); b.className = 'ico ' + cls; if (tip) b.dataset.tip = tip;
-  b.append(logo); if (badge) { const d = document.createElement('span'); d.className = 'bd'; d.textContent = badge > 99 ? '99+' : badge; b.append(d); }
-  const e = document.createElement('span'); e.className = 'et'; e.textContent = nome; b.append(e); b.onclick = onclick; return b; };
+// desktop di Jarvis: app a sinistra e a destra (nello stile dei riquadri), si aggiungono e si tolgono
 { let firmaDesk = '';
   const postD = (a, nome) => api('/api/desk/' + a, { method: 'POST', body: JSON.stringify({ nome }) });
+  const tessera = (dx, nome, logo, onclick, extra) => { const b = document.createElement('button'); b.className = 'ico' + (dx ? ' dx' : '') + (extra ? ' ' + extra : ''); b.append(logo);
+    const e = document.createElement('span'); e.className = 'et'; e.textContent = nome; b.title = nome; b.append(e); b.onclick = onclick; return b; };
   async function disegnaDesk() {
     if (document.hidden) return;
-    try { const d = await (await api('/api/desk')).json(); $('#desk').style.display = d.attiva ? '' : 'none'; if (!d.attiva) return;
+    try { const d = await (await api('/api/desk')).json(); document.querySelectorAll('.desk').forEach(x => x.style.display = d.attiva ? '' : 'none'); if (!d.attiva) return;
       const f = JSON.stringify(d.app.map(a => [a.nome, !!a.icona])); if (f === firmaDesk) return; firmaDesk = f;
-      $('#desk-app').replaceChildren(...d.app.map(a => { const l = document.createElement('span'); l.className = 'logo';
-        if (a.icona) { const i = document.createElement('img'); i.src = a.icona; i.alt = ''; l.append(i); } else { const t = document.createElement('span'); t.className = 'let'; t.textContent = a.nome.slice(0, 2).toUpperCase(); l.append(t); }
-        const t = window.tessera('app', a.nome, l, 0, () => postD('apri', a.nome).catch(() => {}), a.nome);
+      const sx = [], dx = [];
+      d.app.forEach((a, i) => { const lato = i % 2 === 1; const l = document.createElement('span'); l.className = 'logo';
+        if (a.icona) { const im = document.createElement('img'); im.src = a.icona; im.alt = ''; l.append(im); } else { const t = document.createElement('span'); t.className = 'let'; t.textContent = a.nome.slice(0, 2).toUpperCase(); l.append(t); }
+        const t = tessera(lato, a.nome, l, () => postD('apri', a.nome).catch(() => {}));
         const x = document.createElement('span'); x.className = 'x'; x.textContent = '×'; x.title = 'Togli da questa schermata (l\'app resta sul PC)';
-        x.onclick = e => { e.stopPropagation(); postD('togli', a.nome).then(() => { firmaDesk = ''; disegnaDesk(); }).catch(() => {}); }; t.append(x); return t; }));
+        x.onclick = e => { e.stopPropagation(); postD('togli', a.nome).then(() => { firmaDesk = ''; disegnaDesk(); }).catch(() => {}); }; t.append(x); (lato ? dx : sx).push(t); });
+      const l = document.createElement('span'); l.className = 'logo'; l.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+      const lato = d.app.length % 2 === 1; (lato ? dx : sx).push(tessera(lato, 'aggiungi', l, apriPicker, 'piu'));
+      $('#desk-sx').replaceChildren(...sx); $('#desk-dx').replaceChildren(...dx);
     } catch (e) {}
   }
   const chiudiPicker = () => $('#picker').classList.remove('on');
@@ -542,8 +533,8 @@ window.tessera = (cls, nome, logo, badge, onclick, tip) => { const b = document.
         $('#pk-l').replaceChildren(...nomi.filter(n => n.toLowerCase().includes(q)).slice(0, 80).map(n => { const b = document.createElement('button'); b.textContent = n;
           b.onclick = () => postD('aggiungi', n).then(() => { chiudiPicker(); firmaDesk = ''; disegnaDesk(); }).catch(() => { b.textContent = n + ' — non riesco ad aggiungerla'; }); return b; })); };
       $('#pk-q').oninput = mostra; mostra(); } catch (e) { $('#pk-l').textContent = 'Non riesco a leggere l\'elenco delle app.'; } }
-  $('#desk-piu').onclick = apriPicker; $('#picker').onclick = e => { if (e.target.id === 'picker') chiudiPicker(); };
-  addEventListener('keydown', e => { if (e.key === 'Escape') { chiudiPicker(); $('#pop').classList.remove('on'); } });
+  $('#picker').onclick = e => { if (e.target.id === 'picker') chiudiPicker(); };
+  addEventListener('keydown', e => { if (e.key === 'Escape') chiudiPicker(); });
   disegnaDesk(); setInterval(disegnaDesk, 3000); }
 // barra in basso: compare solo sul PC Windows (dal telefono no). App del Desktop, finestre aperte, Start, uscita dal tutto schermo.
 { const B = $('#barra'); let ultimaFirma = '';
