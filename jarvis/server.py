@@ -35,7 +35,7 @@ CHIUDI_TOKEN = Path(__file__).parent.parent / "memoria" / "chiudi.token"
 app = FastAPI(title="Jarvis", lifespan=lifespan)
 _sessions = sessions.histories
 STATIC = Path(__file__).parent.parent / "static"
-PUBLIC = {"/api/login", "/api/auth", "/api/chiudi"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
+PUBLIC = {"/api/login", "/api/auth", "/api/chiudi", "/api/stato_ascolto"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
 
 
 @app.middleware("http")
@@ -84,6 +84,14 @@ def login(body: Login, request: Request, response: Response):
 @app.get("/api/config")
 def get_config():
     return {"tts": voice.tts_available(), "stt": voice.stt_available(), "user": config.USER_NAME, "ascolto_stanza": config.ENABLE_ASCOLTO}
+
+
+@app.get("/api/stato_ascolto")
+def stato_ascolto(request: Request):
+    """Solo la fase dell'ascolto (nessun testo), per lo sfondo animato del PC: accessibile solo da questo computer, senza login."""
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return JSONResponse({"error": "non autorizzato"}, status_code=403)
+    return {"fase": ascolto.stato["fase"], "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"]}
 
 
 @app.get("/api/ascolto")

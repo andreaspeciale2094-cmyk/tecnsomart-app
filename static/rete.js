@@ -66,7 +66,7 @@
   function disegna(adesso) {
     requestAnimationFrame(disegna);
     const calmo = document.body.classList.contains('calmo');
-    if (document.hidden || wrap.offsetParent === null) return;
+    if (document.hidden || wrap.getClientRects().length === 0) return;
     if (calmo && adesso - ultimo < 33) return;  // effetti ridotti: meta' dei fotogrammi
     const dt = Math.min(0.05, (adesso - ultimo) / 1000); ultimo = adesso;
     const modo = stato();
@@ -76,7 +76,7 @@
 
     const colore = modo === 'ascolta' ? [255, 180, 84] : [255, 42, 61];
     ang += dt * (0.18 + livello * (modo === 'pensa' ? 2.2 : 0.9));
-    const cx = W / 2, cy = H / 2 - (document.body.classList.contains('solovoce') ? H * 0.04 : 0), R = Math.min(W * 0.38, H * 0.355);
+    const cx = W / 2, cy = H / 2 - (document.body.classList.contains('solovoce') ? H * 0.04 : 0), R = Math.min(W * 0.38, H * 0.355) * (window.RETE_SCALA || 1);
     const ca = Math.cos(ang), sa = Math.sin(ang), ct = Math.cos(tilt), st = Math.sin(tilt);
     const p = nodi.map(n => {
       const k = 1 + n.v * 0.38 + livello * 0.12;
