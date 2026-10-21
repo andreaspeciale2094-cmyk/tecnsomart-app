@@ -81,7 +81,14 @@ def login(body: Login, request: Request, response: Response):
 
 @app.get("/api/config")
 def get_config():
-    return {"tts": voice.tts_available(), "stt": voice.stt_available(), "user": config.USER_NAME}
+    return {"tts": voice.tts_available(), "stt": voice.stt_available(), "user": config.USER_NAME, "ascolto_stanza": config.ENABLE_ASCOLTO}
+
+
+@app.get("/api/ascolto")
+def ascolto_stato():
+    """Stato vero dell'ascolto in stanza (il programma che sente 'Hey Jarvis' anche a pagina chiusa)."""
+    return {"abilitato": config.ENABLE_ASCOLTO, "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"],
+            "risvegli": ascolto.stato["risvegli"], "errore": ascolto.stato["errore"], "stt": voice.stt_available()}
 
 
 class Chat(BaseModel):

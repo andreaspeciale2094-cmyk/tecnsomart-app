@@ -39,6 +39,8 @@
   body.calmo #orb, body.calmo #orb::before, body.calmo #orb::after { animation:none !important; }
   h1 { font-size:15px; letter-spacing:.5em; margin:0; font-weight:600; color:#fff; text-shadow:0 0 14px rgba(255,42,61,.6); }
   #status { color:var(--red); font-size:11px; letter-spacing:.18em; text-transform:uppercase; font-family:ui-monospace, "Cascadia Mono", Consolas, monospace; margin-top:3px; }
+  #asc { font-size:10px; letter-spacing:.14em; text-transform:uppercase; font-family:ui-monospace, Consolas, monospace; margin-top:3px; color:var(--dim); }
+  #asc.ok { color:var(--gold); } #asc.no { color:#ff8a8a; }
   .spacer { flex:1; }
   header button { background:rgba(255,42,61,.04); border:1px solid var(--red-dim); color:var(--dim); border-radius:4px; padding:7px 11px; cursor:pointer; font-size:11px;
     letter-spacing:.06em; font-family:ui-monospace, "Cascadia Mono", Consolas, monospace; text-transform:uppercase; transition:.2s;
@@ -87,7 +89,7 @@
 <div id="login"><form id="lf"><h2>J.A.R.V.I.S.</h2><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button>Accedi</button><div id="err"></div></form></div>
 <header>
   <div id="orb"></div>
-  <div><h1>J.A.R.V.I.S.</h1><div id="status">pronto</div></div>
+  <div><h1>J.A.R.V.I.S.</h1><div id="status">pronto</div><div id="asc" title="Stato vero dell'ascolto in stanza"></div></div>
   <div class="spacer"></div>
   <button id="stopbtn" title="Ferma la voce (anche: di' stop)">⏹ stop</button>
   <button id="tts" class="on" title="Risposte vocali">🔊 voce</button>
@@ -366,7 +368,7 @@ $('#mic').onclick = () => {
   if (!SR) return alert('Riconoscimento vocale non supportato: usa Chrome o Edge.');
   recActive ? rec.stop() : startRec();
 };
-$('#wake').onclick = e => { if (!SR) return alert('Usa Chrome o Edge.'); wakeOn = !wakeOn; e.target.classList.toggle('on', wakeOn); wakeOn ? startRec() : rec?.stop(); };
+$('#wake').onclick = e => { if (cfg.ascolto_stanza) return alert("L'ascolto in stanza e' gia' attivo in sottofondo (anche a pagina chiusa): dici 'Hey Jarvis' e risponde. Questo pulsante non serve, e usarlo insieme farebbe rispondere Jarvis due volte."); if (!SR) return alert('Usa Chrome o Edge.'); wakeOn = !wakeOn; e.target.classList.toggle('on', wakeOn); wakeOn ? startRec() : rec?.stop(); };
 
 // ---- Notifiche proattive (briefing, agenti in background, promemoria) ----
 async function pollInbox() {
@@ -392,6 +394,13 @@ async function init() {
   if (cfg.stt) $('#mic').title = 'Premi per parlare, premi ancora per inviare (Whisper)';
   add(`Buongiorno${cfg.user ? ', ' + cfg.user : ''}. Tutti i sistemi sono operativi. Come posso esserle utile?`, 'jarvis');
   loadFillers(); pollInbox(); setInterval(pollInbox, 15000);
+  if (cfg.ascolto_stanza) { $('#wake').textContent = '👂 ascolto in stanza'; const asc = $('#asc');
+    const aggiorna = async () => { try { const a = await (await api('/api/ascolto')).json();
+      if (a.errore) { asc.textContent = 'ascolto: problema (' + a.errore + ')'; asc.className = 'no'; }
+      else if (!a.attivo) { asc.textContent = 'ascolto: spento'; asc.className = 'no'; }
+      else if (a.in_ascolto) { asc.textContent = a.stt ? 'ascolto in stanza: acceso' : 'ascolto acceso, manca il riconoscimento vocale'; asc.className = a.stt ? 'ok' : 'no'; }
+      else { asc.textContent = 'ascolto: sto avviando…'; asc.className = ''; } } catch (e) {} };
+    aggiorna(); setInterval(aggiorna, 4000); }
 }
 speechSynthesis?.getVoices();
 (async () => { const a = await (await fetch('/api/auth')).json(); a.required && !a.ok ? showLogin() : init(); })();

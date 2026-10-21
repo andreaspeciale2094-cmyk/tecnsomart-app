@@ -16,7 +16,7 @@ SESSIONE = "ascolto"
 RATE = 16000
 BLOCCO = 1280  # 80 ms
 PAROLA = "hey_jarvis"
-stato = {"attivo": True, "risvegli": 0, "errore": ""}
+stato = {"attivo": True, "risvegli": 0, "errore": "", "in_ascolto": False}
 _parlando_fino = 0.0
 
 
@@ -157,6 +157,15 @@ def gestisci_chiamata(leggi, vad):
 
 
 def _ciclo():
+    try:
+        _ciclo_vero()
+    except Exception as e:  # per esempio componenti non installati: si vede nella pagina e nel registro
+        stato["errore"] = "non parte: " + type(e).__name__
+        stato["in_ascolto"] = False
+        logs.log_error(e, "ascolto: avvio")
+
+
+def _ciclo_vero():
     global _parlando_fino
     import numpy as np
     import sounddevice as sd
@@ -173,11 +182,13 @@ def _ciclo():
     ultimo = 0.0
     while True:
         if not stato["attivo"]:
+            stato["in_ascolto"] = False
             time.sleep(1)
             continue
         try:
             with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=BLOCCO, device=config.ASCOLTO_DISPOSITIVO or None) as s:
                 stato["errore"] = ""
+                stato["in_ascolto"] = True
                 leggi = lambda: s.read(BLOCCO)[0][:, 0].copy()
                 while stato["attivo"]:
                     blocco = leggi()
@@ -187,7 +198,9 @@ def _ciclo():
                         gestisci_chiamata(leggi, vad)
                         model.reset()
                         ultimo = time.time()
+            stato["in_ascolto"] = False
         except Exception as e:  # microfono scollegato o occupato: riprova senza fermare Jarvis
+            stato["in_ascolto"] = False
             stato["errore"] = type(e).__name__
             logs.log_error(e, "ascolto: microfono")
             time.sleep(15)
