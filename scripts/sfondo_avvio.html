@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>J.A.R.V.I.S. sfondo (avvio)</title>
+<style>
+  html, body { margin:0; height:100%; background:#03040a; overflow:hidden; cursor:none; }
+  iframe { position:fixed; inset:0; width:100%; height:100%; border:0; display:none; }
+  #att { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#ff2a3d;
+    font-family:ui-monospace, Consolas, monospace; letter-spacing:.5em; font-size:14px; text-transform:uppercase; }
+  #att span { margin-top:14px; font-size:10px; opacity:.6; letter-spacing:.3em; }
+</style>
+</head>
+<body>
+<!-- Da usare come sfondo animato (Lively Wallpaper). All'accensione del PC Jarvis ci mette qualche secondo a partire:
+     questa pagina aspetta che sia pronto e poi mostra la rete. Se Jarvis si ferma e riparte, la ritrova da sola. -->
+<div id="att">J.A.R.V.I.S.<span>mi sto svegliando…</span></div>
+<iframe id="f"></iframe>
+<script>
+  const porta = new URLSearchParams(location.search).get('porta') || '8000';
+  const effetti = location.search.includes('effetti=1') ? '?effetti=1' : '';
+  const base = `http://127.0.0.1:${porta}`;
+  const f = document.getElementById('f'), att = document.getElementById('att');
+  let acceso = false;
+  async function controlla() {
+    let su = false;
+    try { await fetch(base + '/api/auth', { mode: 'no-cors', cache: 'no-store' }); su = true; } catch (e) {}
+    if (su && !acceso) { f.src = base + '/static/sfondo.html' + effetti; f.style.display = 'block'; att.style.display = 'none'; acceso = true; }
+    if (!su && acceso) { acceso = false; f.style.display = 'none'; att.style.display = 'flex'; f.src = 'about:blank'; }
+  }
+  controlla(); setInterval(controlla, 2500);
+</script>
+</body>
+</html>
