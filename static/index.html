@@ -68,10 +68,10 @@
   #hud-sx, #hud-bs { display:none; }
   #hud-sx { left:3%; top:5%; } #hud-dx { right:3%; top:5%; text-align:right; border-left:0; border-right:2px solid var(--red); background:linear-gradient(270deg, rgba(255,42,61,.10), transparent); }
   #hud-bs { left:3%; bottom:5%; }
-  #hud-dx { display:flex; align-items:center; gap:22px; max-width:70%; }
-  #meteo { display:none; white-space:nowrap; padding-right:22px; border-right:1px solid var(--line); text-align:right; font-size:11px; color:var(--dim); line-height:1.6; }
-  #meteo .gr { display:flex; align-items:center; justify-content:flex-end; gap:10px; } #meteo b { color:#fff; font-size:22px; font-weight:300; letter-spacing:.04em; text-shadow:0 0 14px rgba(255,42,61,.55); }
-  #meteo svg { width:30px; height:30px; fill:none; stroke:var(--red); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 5px rgba(255,42,61,.6)); }
+  #hud-dx { display:flex; align-items:center; gap:16px; max-width:70%; }
+  #meteo { display:none; white-space:nowrap; padding-right:16px; border-right:1px solid var(--line); text-align:right; font-size:9px; letter-spacing:.1em; color:var(--dim); line-height:1.5; }
+  #meteo .gr { display:flex; align-items:center; justify-content:flex-end; gap:6px; } #meteo b { color:#fff; font-size:15px; font-weight:300; letter-spacing:.04em; text-shadow:0 0 10px rgba(255,42,61,.5); }
+  #meteo svg { width:20px; height:20px; fill:none; stroke:var(--red); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 4px rgba(255,42,61,.6)); }
   #ora { font-size:clamp(26px,4vw,52px); color:#fff; letter-spacing:.08em; text-shadow:0 0 18px rgba(255,42,61,.6); font-weight:300; }
   body:not(.solovoce) #hud { display:none; }
   #didascalia { position:absolute; left:50%; bottom:4%; transform:translateX(-50%); width:min(820px,90%); text-align:center; pointer-events:none;
@@ -262,7 +262,8 @@ setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.
     neve: '<svg viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/></svg>',
     nebbia: '<svg viewBox="0 0 24 24"><path d="M4 9h16M3 13h18M5 17h14"/></svg>' };
   function disegnaMeteo(m) { const e = $('#meteo'); if (!m) { e.style.display = 'none'; return; } e.style.display = 'block';
-    e.innerHTML = `<div class="gr">${MT[m.cat] || MT.nuvole}<b>${m.temp}°</b></div>${esc(m.cond)} · ${esc(m.citta)}<br><b style="font-size:12px">${m.min}°</b> / <b style="font-size:12px">${m.max}°</b>` + (m.pioggia >= 30 ? ` · pioggia ${m.pioggia}%` : ''); }
+    e.title = `${m.cond}, ${m.citta}` + (m.pioggia >= 30 ? ` · pioggia ${m.pioggia}%` : '');
+    e.innerHTML = `<div class="gr">${MT[m.cat] || MT.nuvole}<b>${m.temp}°</b></div>${esc(m.citta)} · ${m.min}° / ${m.max}°`; }
   async function pannello() { try { const p = await (await api('/api/pannello')).json(); let sx = '', bs = ''; disegnaMeteo(p.meteo);
     if (p.agenda) sx = `<span class="t">${IC.cal}oggi</span><b>${p.agenda.n}</b> impegni` + (p.agenda.prossimo ? `<br>prossimo: <b>${esc(p.agenda.prossimo.ora)}</b> ${esc(p.agenda.prossimo.titolo)}` : '<br>nient\'altro per oggi');
     if (p.mail) bs += `<span class="t">${IC.mail}posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' · ');
