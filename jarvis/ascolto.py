@@ -5,6 +5,7 @@ registri: resta in memoria (RAM) il tempo della frase. Mentre Jarvis parla non a
 import io
 import os
 import queue
+import random
 import re
 import sys
 import tempfile
@@ -145,9 +146,9 @@ def parla(testo: str):
 _FRASE = re.compile(r"(.+?[.!?])(?:\s+|$)", re.S)
 
 
-def parla_stream(frammenti, filler: str = "attesa3"):
+def parla_stream(frammenti, filler: str = ""):
     """Parla MENTRE Claude scrive: ogni frase completa va subito alla voce, e mentre una si sente le successive si preparano.
-    Se la prima frase tarda piu' di 0,8 secondi parte una frase fissa gia' registrata ('Subito.'): mai silenzio."""
+    Se la prima frase tarda piu' di ASCOLTO_ATTESA secondi (predefinito 2,5) parte una frase fissa gia' registrata, scelta a caso: mai silenzio, ma senza ripetere sempre la stessa."""
     global _parlando_fino
     _parlando_fino = time.time() + 600
     q_testi, q_audio = queue.Queue(), queue.Queue()
@@ -177,14 +178,14 @@ def parla_stream(frammenti, filler: str = "attesa3"):
     def riempitivo():
         if not primo.is_set():
             try:
-                q_audio.put(voice.fixed_audio(filler))
+                q_audio.put(voice.fixed_audio(filler or random.choice(("attesa1", "attesa2", "attesa3", "attesa4"))))
             except Exception:
                 pass
 
     th = [threading.Thread(target=sintetizza, daemon=True), threading.Thread(target=suona, daemon=True)]
     for t in th:
         t.start()
-    timer = threading.Timer(0.8, riempitivo)
+    timer = threading.Timer(config.ASCOLTO_ATTESA, riempitivo)
     timer.daemon = True
     timer.start()
     buf, parlato = "", 0

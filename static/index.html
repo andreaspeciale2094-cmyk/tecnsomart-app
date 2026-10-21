@@ -404,7 +404,7 @@ async function send(text, label) {
   const bubble = add('', 'jarvis'), t0 = performance.now();
   const token = beginSpeech(); let buf = '', shown = '', tools = [], timeNote = '';
   let toolKey = 'stato_ancora', ended = false; lastActivity = sendStart = performance.now();
-  const fillerTimer = setTimeout(() => { if (!shown) playFiller(token); }, 700);
+  const fillerTimer = setTimeout(() => { if (!shown) playFiller(token); }, 2500);  // prima frase lenta: solo dopo 2,5 s dice "Un attimo..." (prima 0,7 s: lo diceva sempre)
   // Mai silenzio: se per 3 secondi non si sente niente, dice cosa sta facendo (ripete ogni 3 s di silenzio)
   const silenceTimer = setInterval(() => {
     if (ended || token !== speakToken || audioActive || queue.length) return;

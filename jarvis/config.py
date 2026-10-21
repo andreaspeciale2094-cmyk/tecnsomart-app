@@ -38,6 +38,7 @@ ENABLE_ASCOLTO = _flag("JARVIS_ASCOLTO")  # ascolto in stanza: risponde solo se 
 ASCOLTO_SOGLIA = float(os.getenv("ASCOLTO_SOGLIA", "0.5"))  # piu' bassa = si sveglia piu' facilmente (anche per errore)
 ASCOLTO_PAUSA_FINE = int(os.getenv("ASCOLTO_PAUSA_FINE", "9"))  # blocchi da 80 ms di silenzio che chiudono la frase (9 = 0,7 s; piu' basso = piu' veloce ma puo' tagliarti)
 ASCOLTO_FINESTRA = int(os.getenv("ASCOLTO_FINESTRA", "45"))  # secondi di conversazione aperta dopo una risposta, senza ripetere "Hey Jarvis"
+ASCOLTO_ATTESA = float(os.getenv("ASCOLTO_ATTESA", "2.5"))  # secondi di attesa prima di dire "Un attimo / Ci penso io / Subito" (piu' bassa = lo dice piu' spesso)
 ASCOLTO_DISPOSITIVO = os.getenv("ASCOLTO_DISPOSITIVO", "")  # numero o nome del microfono (vuoto = quello predefinito)
 ENABLE_WHATSAPP_LEGGI = _flag("JARVIS_WHATSAPP_LEGGI")  # legge i messaggi in arrivo (chat singole, solo in memoria); richiede JARVIS_WHATSAPP_INVIO
 ENABLE_BENVENUTO = _flag("JARVIS_BENVENUTO", True)  # saluto quando torni al PC (Buongiorno la prima volta del giorno, poi Bentornato)
