@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import ascolto, auth, benvenuto, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import ascolto, auth, barra, benvenuto, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 @asynccontextmanager
@@ -98,6 +98,45 @@ def stato_ascolto(request: Request):
 @app.get("/api/pannello")
 def get_pannello():
     return pannello.dati()
+
+
+def _dal_pc(request: Request) -> bool:
+    """Vero solo se la richiesta arriva da questo PC (non dal telefono tramite Tailscale, che passa da 127.0.0.1 ma aggiunge queste intestazioni)."""
+    return (request.client.host if request.client else "") in ("127.0.0.1", "::1") and not any(
+        h in request.headers for h in ("x-forwarded-for", "tailscale-user-login", "forwarded"))
+
+
+@app.get("/api/barra")
+def barra_dati(request: Request):
+    """Barra in basso: app del Desktop e finestre aperte. Solo sul PC Windows e solo dal PC."""
+    if not (barra.disponibile() and _dal_pc(request)):
+        return {"attiva": False}
+    return {"attiva": True, "app": [{"nome": a["nome"], "icona": barra._icone.get(a["percorso"])} for a in barra.app_desktop()], "finestre": barra.finestre()}
+
+
+class BarraAzione(BaseModel):
+    nome: str = ""
+    id: int = 0
+
+
+@app.post("/api/barra/{azione}")
+def barra_azione(azione: str, body: BarraAzione, request: Request):
+    if not (barra.disponibile() and _dal_pc(request)):
+        return JSONResponse({"error": "non disponibile"}, status_code=403)
+    try:
+        if azione == "apri":
+            barra.apri_desktop(body.nome)
+        elif azione == "porta":
+            barra.porta_davanti(body.id)
+        elif azione == "start":
+            barra.apri_start()
+        elif azione == "schermo":
+            barra.schermo_intero_alterna()
+        else:
+            return JSONResponse({"error": "azione sconosciuta"}, status_code=404)
+    except (ValueError, OSError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"ok": True}
 
 
 class Fase(BaseModel):

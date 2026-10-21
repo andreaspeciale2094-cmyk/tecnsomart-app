@@ -28,9 +28,9 @@ browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\c
 If browser = "" Then browser = sh.RegRead("HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe\")
 If browser = "" Then browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe\")
 On Error GoTo 0
-' vero tutto schermo (kiosk): niente bordi, niente barra in alto, copre anche la barra di Windows. Per uscire: Alt+F4 oppure "Spegni Jarvis"
+' tutto schermo vero (senza bordi, copre la barra di Windows): F11 o il pulsante nella barra di Jarvis per uscire; la barra di Jarvis in basso sostituisce quella di Windows
 If browser <> "" Then
-  sh.Run """" & browser & """ --kiosk --app=http://localhost:8000 --user-data-dir=""" & cartella & "\memoria\finestra_jarvis"" --no-first-run", 1, False
+  sh.Run """" & browser & """ --start-fullscreen --app=http://localhost:8000 --user-data-dir=""" & cartella & "\memoria\finestra_jarvis"" --no-first-run", 1, False
 Else
   sh.Run "http://localhost:8000", 1, False
 End If

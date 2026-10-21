@@ -93,6 +93,32 @@
   #mic { background:#2a0d12; color:var(--red); border:1px solid var(--red-dim); padding:0 16px; }
   #mic.on { background:var(--gold); color:#2a1700; animation:respira 1.2s infinite; }
   body.calmo #mic.on { animation:none; }
+  /* barra in basso (come quella di Windows, ma nello stile di Jarvis): Start, app del Desktop, finestre aperte, uscita dal tutto schermo, ora */
+  #barra { display:none; flex:none; align-items:center; gap:4px; height:54px; padding:0 10px; position:relative; z-index:25;
+    background:linear-gradient(0deg, rgba(14,5,8,.97), rgba(24,7,11,.92)); border-top:1px solid var(--red-dim); box-shadow:0 -6px 24px rgba(255,42,61,.10); }
+  body.conbarra #barra { display:flex; }
+  #barra::before { content:""; position:absolute; left:0; top:-1px; width:220px; height:2px; background:linear-gradient(90deg, var(--red), transparent); }
+  #barra .vb { position:relative; flex:none; width:42px; height:42px; display:flex; align-items:center; justify-content:center; background:transparent; border:1px solid transparent; border-radius:3px;
+    cursor:pointer; padding:0; color:var(--text); transition:background .15s, border-color .15s, box-shadow .15s, transform .15s; }
+  #barra .vb:hover { background:rgba(255,42,61,.14); border-color:var(--red); box-shadow:0 0 14px rgba(255,42,61,.45); transform:translateY(-2px); }
+  #barra .vb:active { transform:translateY(0); background:rgba(255,42,61,.28); }
+  #barra .vb img { width:28px; height:28px; object-fit:contain; pointer-events:none; }
+  #barra .vb .let { font:700 15px ui-monospace, Consolas, monospace; color:var(--red); pointer-events:none; }
+  #barra .vb.aperta::after { content:""; position:absolute; left:50%; bottom:2px; width:14px; height:3px; margin-left:-7px; border-radius:2px; background:var(--red-dim); }
+  #barra .vb.aperta.attiva { background:rgba(255,42,61,.12); border-color:var(--red-dim); }
+  #barra .vb.aperta.attiva::after { width:22px; margin-left:-11px; background:var(--red); box-shadow:0 0 8px var(--red); }
+  #barra .vb.ridotta img { opacity:.55; }
+  #barra .sep { flex:none; width:1px; height:28px; margin:0 6px; background:var(--line); }
+  #barra .gruppo { display:flex; align-items:center; gap:4px; min-width:0; }
+  #barra .molla { flex:1; }
+  #barra #b-start svg { width:22px; height:22px; fill:var(--red); filter:drop-shadow(0 0 5px rgba(255,42,61,.7)); }
+  #barra #b-esci { width:auto; padding:0 12px; font:600 11px ui-monospace, Consolas, monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); border-color:var(--line); }
+  #barra #b-esci:hover { color:#fff; }
+  #barra #b-ora { flex:none; text-align:right; padding:0 8px 0 14px; font-family:ui-monospace, Consolas, monospace; line-height:1.25; color:var(--dim); letter-spacing:.08em; }
+  #barra #b-ora b { display:block; color:#fff; font-size:16px; font-weight:500; text-shadow:0 0 10px rgba(255,42,61,.55); }
+  #barra #b-ora span { font-size:10px; text-transform:uppercase; }
+  #barra .vb[data-tip]:hover::before { content:attr(data-tip); position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); white-space:nowrap; max-width:320px; overflow:hidden; text-overflow:ellipsis;
+    padding:5px 10px; font:11px ui-monospace, Consolas, monospace; letter-spacing:.06em; color:#fff; background:#12060a; border:1px solid var(--red-dim); box-shadow:0 0 12px rgba(255,42,61,.3); pointer-events:none; z-index:40; }
   #login { position:fixed; inset:0; background:rgba(4,5,10,.97); display:none; align-items:center; justify-content:center; z-index:30; }
   #login form { flex-direction:column; width:min(320px,86%); padding:0; border:0; background:none; }
   #login h2 { letter-spacing:.45em; font-size:16px; text-align:center; color:#fff; text-shadow:0 0 16px rgba(255,42,61,.8); }
@@ -125,6 +151,16 @@
   <input id="q" placeholder="Scrivi o parla…" autocomplete="off" autofocus>
   <button>Invia</button>
 </form>
+<nav id="barra" aria-label="Barra delle applicazioni">
+  <button class="vb" id="b-start" data-tip="Menu Start di Windows"><svg viewBox="0 0 24 24"><path d="M3 4.5 11 3.4v7.8H3zM12 3.3 21 2v9.2h-9zM3 12.2h8v7.9L3 19zM12 12.2h9V22l-9-1.3z"/></svg></button>
+  <span class="sep"></span>
+  <div class="gruppo" id="b-app"></div>
+  <span class="sep" id="b-sep2" style="display:none"></span>
+  <div class="gruppo" id="b-fin"></div>
+  <div class="molla"></div>
+  <button class="vb" id="b-esci" data-tip="Esce dal tutto schermo senza chiudere Jarvis (o rientra)">⤢ schermo</button>
+  <div id="b-ora"><b id="b-h"></b><span id="b-d"></span></div>
+</nav>
 <script>
 const $ = s => document.querySelector(s);
 const log = $('#log'), orb = $('#orb'), status = $('#status');
@@ -442,6 +478,30 @@ async function init() {
 }
 speechSynthesis?.getVoices();
 (async () => { const a = await (await fetch('/api/auth')).json(); a.required && !a.ok ? showLogin() : init(); })();
+
+// barra in basso: compare solo sul PC Windows (dal telefono no). App del Desktop, finestre aperte, Start, uscita dal tutto schermo.
+{ const B = $('#barra'); let ultimaFirma = '';
+  const orologioBarra = () => { const d = new Date(); $('#b-h').textContent = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    $('#b-d').textContent = d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' }); };
+  orologioBarra(); setInterval(orologioBarra, 1000);
+  const post = (a, corpo) => api('/api/barra/' + a, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }).catch(() => {});
+  const tasto = (cls, tip, icona, nome, onclick) => { const b = document.createElement('button'); b.className = 'vb ' + cls; b.dataset.tip = tip;
+    if (icona) { const i = document.createElement('img'); i.src = icona; i.alt = ''; b.append(i); } else { const l = document.createElement('span'); l.className = 'let'; l.textContent = (nome || '?').slice(0, 2).toUpperCase(); b.append(l); }
+    b.onclick = onclick; return b; };
+  async function aggiornaBarra() {
+    if (document.hidden) return;
+    try { const r = await api('/api/barra'); if (!r.ok) return; const d = await r.json();
+      document.body.classList.toggle('conbarra', !!d.attiva); if (!d.attiva) return;
+      const firma = JSON.stringify([d.app.map(a => [a.nome, !!a.icona]), d.finestre.map(f => [f.id, f.attiva, f.ridotta, !!f.icona, f.titolo])]);
+      if (firma === ultimaFirma) return; ultimaFirma = firma;
+      $('#b-app').replaceChildren(...d.app.map(a => tasto('', a.nome, a.icona, a.nome, () => post('apri', { nome: a.nome }))));
+      $('#b-fin').replaceChildren(...d.finestre.map(f => tasto('aperta' + (f.attiva ? ' attiva' : '') + (f.ridotta ? ' ridotta' : ''), f.titolo || f.nome, f.icona, f.nome, () => { post('porta', { id: f.id }); setTimeout(aggiornaBarra, 400); })));
+      $('#b-sep2').style.display = d.finestre.length && d.app.length ? '' : 'none';
+    } catch (e) {}
+  }
+  $('#b-start').onclick = () => post('start');
+  $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
+  aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
 <script src="/static/rete.js"></script>
 </body>
