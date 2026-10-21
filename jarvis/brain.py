@@ -15,7 +15,7 @@ SERVER_TOOLS = [{"type": "web_search_20260209", "name": "web_search", "max_uses"
 
 BLOCKED_UNATTENDED = {"run_shell", "write_file", "background_task", "schedule_task", "cancel_task",
                       "banca_riepilogo", "banca_movimenti", "mail_invia", "whatsapp_apri", "whatsapp_invia", "whatsapp_non_lette", "whatsapp_leggi",
-                      "pc_apri", "pc_volume", "pc_blocca", "pc_mostra_desktop", "pc_azione_prepara", "pc_azione_conferma", "pc_annulla_spegnimento", "pc_alias", "desktop_aggiungi", "desktop_togli", "desktop_importa_barra"}  # la banca solo quando Andrea e' presente
+                      "pc_apri", "pc_volume", "pc_blocca", "pc_mostra_desktop", "pc_azione_prepara", "pc_azione_conferma", "pc_annulla_spegnimento", "pc_alias", "desktop_aggiungi", "desktop_togli", "desktop_importa_barra", "delega_agenti"}  # la banca solo quando Andrea e' presente
 
 
 def _last_user_text(history: list[dict]) -> str:
@@ -36,7 +36,7 @@ def _without_thinking(content: list) -> list:
 # Appena c'e' anche uno strumento che scrive o fa qualcosa, si torna a uno alla volta, nell'ordine (stesse regole di prima).
 SOLO_LETTURA = {"briefing_mattino", "riepilogo_negozi", "focus_addetto", "scheda_leggi", "mail_non_lette", "mail_leggi", "unread_emails", "upcoming_events",
                 "whatsapp_non_lette", "whatsapp_leggi", "whatsapp_rubrica", "banca_riepilogo", "banca_movimenti", "cassa_resoconto", "pc_elenco_app",
-                "fetch_url", "recall", "core_show", "list_tasks", "home_state", "read_file"}
+                "fetch_url", "recall", "core_show", "list_tasks", "home_state", "read_file", "delega_agenti"}
 
 
 SERIALI = {"banca_riepilogo", "banca_movimenti"}  # solo lettura, ma mai due insieme

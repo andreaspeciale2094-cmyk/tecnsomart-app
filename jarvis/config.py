@@ -52,6 +52,8 @@ TECNOSMART_TOKEN = os.getenv("TECNOSMART_TOKEN", "")  # chiave segreta dell'indi
 WORKDIR = Path(os.getenv("JARVIS_WORKDIR", "./workspace")).resolve()
 DB_PATH = os.getenv("JARVIS_DB", "jarvis.db")
 MAX_TOOL_ROUNDS = 12
+ENABLE_AGENTI = _flag("JARVIS_AGENTI", True)  # agenti specializzati che lavorano insieme per le richieste ampie (quadro di oggi, briefing...)
+AGENTI_MODEL = os.getenv("JARVIS_AGENTI_MODEL", "claude-haiku-5-5")  # modello piu' leggero per gli agenti: costano meno del cervello
 MAX_HISTORY = 40
 # Memoria della conversazione: ultimi 10 messaggi interi; quando i vecchi superano 20, vengono riassunti.
 KEEP_RECENT = 10
