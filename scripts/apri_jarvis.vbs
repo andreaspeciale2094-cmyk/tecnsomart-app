@@ -1,4 +1,4 @@
-' Apre Jarvis come una finestra "app" (senza barra degli indirizzi). Se Jarvis non e' acceso lo accende prima, nascosto: nessuna finestra nera.
+' Apre Jarvis a TUTTO SCHERMO, come un'app (senza barra degli indirizzi). Se Jarvis non e' acceso lo accende prima, nascosto: nessuna finestra nera.
 Set fso = CreateObject("Scripting.FileSystemObject")
 cartella = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))
 Set sh = CreateObject("WScript.Shell")
@@ -22,13 +22,15 @@ If Not acceso() Then
   Next
 End If
 
-chrome = ""
+browser = ""
 On Error Resume Next
-chrome = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe\")
-If chrome = "" Then chrome = sh.RegRead("HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe\")
+browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe\")
+If browser = "" Then browser = sh.RegRead("HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe\")
+If browser = "" Then browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe\")
 On Error GoTo 0
-If chrome <> "" Then
-  sh.Run """" & chrome & """ --app=http://localhost:8000", 1, False
+' a tutto schermo, subito, come un'app (F11 per uscire dal tutto schermo, Alt+F4 per chiudere la finestra)
+If browser <> "" Then
+  sh.Run """" & browser & """ --app=http://localhost:8000 --start-fullscreen", 1, False
 Else
   sh.Run "http://localhost:8000", 1, False
 End If

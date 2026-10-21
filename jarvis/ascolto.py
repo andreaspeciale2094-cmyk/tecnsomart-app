@@ -55,9 +55,18 @@ def _scorciatoia():
     if not u.RegisterHotKey(None, 1, 0x0001 | 0x0002, ord("J")):  # Alt + Ctrl + J
         logs.log_route("ASCOLTO: scorciatoia da tastiera non disponibile (gia' usata da un altro programma)")
         return
+    u.RegisterHotKey(None, 2, 0x0001 | 0x0002, ord("V"))  # Alt + Ctrl + V: apre Jarvis a tutto schermo, da qualunque programma
     msg = wintypes.MSG()
     while u.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-        if msg.message == 0x0312:  # WM_HOTKEY
+        if msg.message == 0x0312 and msg.wParam == 2:  # Ctrl+Alt+V: apre la finestra di Jarvis
+            try:
+                import subprocess
+                from pathlib import Path
+
+                subprocess.Popen(["wscript.exe", str(Path(__file__).parent.parent / "scripts" / "apri_jarvis.vbs")])
+            except Exception:
+                pass
+        elif msg.message == 0x0312:  # WM_HOTKEY
             imposta(not stato["attivo"])
             try:
                 import winsound
