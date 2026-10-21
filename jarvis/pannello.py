@@ -5,7 +5,7 @@ from datetime import datetime
 
 import httpx
 
-from . import agenda, config, posta, whatsapp
+from . import agenda, config, meteo, posta, whatsapp
 
 _cache: dict[str, tuple[float, object]] = {}
 
@@ -60,4 +60,4 @@ def _whatsapp():
 
 
 def dati() -> dict:
-    return {"agenda": _con_cache("agenda", 600, _agenda), "mail": _con_cache("mail", 300, _mail), "whatsapp": _con_cache("whatsapp", 20, _whatsapp)}
+    return {"agenda": _con_cache("agenda", 600, _agenda), "mail": _con_cache("mail", 300, _mail), "whatsapp": _con_cache("whatsapp", 20, _whatsapp), "meteo": _con_cache("meteo", 1800, meteo.oggi)}

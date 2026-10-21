@@ -7,6 +7,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 MODEL = os.getenv("JARVIS_MODEL", "claude-sonnet-5-5")
 USER_NAME = os.getenv("JARVIS_USER_NAME", "signore")
+METEO_CITTA = os.getenv("METEO_CITTA", "").strip()  # per il meteo accanto all'ora (solo il nome della citta')
 
 
 def _flag(name: str, default: bool = False) -> bool:
