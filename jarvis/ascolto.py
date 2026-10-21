@@ -82,8 +82,17 @@ def _suona(mp3: bytes):
         alias = f"jv{time.time_ns()}"
         try:
             mci(f'open "{path}" type mpegvideo alias {alias}', None, 0, None)
-            mci(f"play {alias} wait", None, 0, None)
+            mci(f"play {alias}", None, 0, None)
+            fine = time.time() + 120  # mai oltre due minuti, anche se la scheda audio (cuffie bluetooth) si pianta
+            buf = ctypes.create_unicode_buffer(32)
+            time.sleep(0.15)
+            while time.time() < fine:
+                mci(f"status {alias} mode", buf, 31, None)
+                if buf.value != "playing":
+                    break
+                time.sleep(0.1)
         finally:
+            mci(f"stop {alias}", None, 0, None)
             mci(f"close {alias}", None, 0, None)
     finally:
         try:
@@ -226,6 +235,9 @@ def registra_frase(leggi, vad, attesa: float = 5.0) -> list | None:
             return None
 
 
+_CHIUSURA = re.compile(r"^\W*(?:ok\W+|va bene\W+)?(?:grazie(?: mille)?|basta(?: cos[iì])?|a dopo|ci sentiamo|per ora (?:basta|nient'altro)|nient'altro|puoi smettere|ciao)\W*$", re.IGNORECASE)
+_INVENTATE = re.compile(r"sottotitoli|amara\.org|iscriviti|grazie a tutti|alla prossima|ci vediamo al prossimo|buona visione", re.IGNORECASE)  # frasi che Whisper inventa sul silenzio
+
 _CHIAMATA = re.compile(r"^\W*(?:(?:hey|hei|ehi|ei|ehi|ciao|ok|okay)\W+)?(?:jarvis|j\.a\.r\.v\.i\.s\.?|giarvis|garvis|giarvi[sz])\b\W*", re.IGNORECASE)
 
 
@@ -268,11 +280,18 @@ def gestisci_chiamata(leggi, vad):
     _bip()
     primo = True
     while True:
-        testo = _ascolta(leggi, vad, 5.0 if primo else 7.0)  # dopo una risposta aspetta un po' di piu'
+        testo = _ascolta(leggi, vad, 5.0 if primo else float(config.ASCOLTO_FINESTRA))  # dopo una risposta resta in conversazione a lungo
         if testo is None:
             _fase("")
             return
+        if not primo and _INVENTATE.search(testo) and len(testo) < 60:
+            continue  # frase inventata dal riconoscimento sul silenzio o sul rumore: la scarta e continua ad ascoltare
         resto = togli_chiamata(testo)
+        if not primo and _CHIUSURA.match(resto or testo):  # "grazie", "basta cosi'", "a dopo": chiude la conversazione
+            parla("Va bene.")
+            _scarta_audio_della_voce(leggi)
+            _fase("")
+            return
         if primo and not resto:  # ha detto solo il nome
             parla("Dimmi.")
             _scarta_audio_della_voce(leggi)
@@ -338,6 +357,11 @@ def _ciclo_vero():
             if time.time() - stato["ultimo_errore_log"] > 60:
                 stato["ultimo_errore_log"] = time.time()
                 logs.log_error(e, "ascolto: microfono")
+            try:  # le cuffie bluetooth cambiano numero di dispositivo: si rilegge l'elenco prima di riprovare
+                sd._terminate()
+                sd._initialize()
+            except Exception:
+                pass
             time.sleep(2)
 
 
