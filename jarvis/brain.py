@@ -12,7 +12,7 @@ SERVER_TOOLS = [{"type": "web_search_20260209", "name": "web_search", "max_uses"
 
 BLOCKED_UNATTENDED = {"run_shell", "write_file", "background_task", "schedule_task", "cancel_task",
                       "banca_riepilogo", "banca_movimenti", "mail_invia", "whatsapp_apri", "whatsapp_invia", "whatsapp_non_lette", "whatsapp_leggi",
-                      "pc_apri", "pc_volume", "pc_blocca", "pc_mostra_desktop", "pc_azione_prepara", "pc_azione_conferma", "pc_annulla_spegnimento", "pc_alias", "desktop_aggiungi", "desktop_togli"}  # la banca solo quando Andrea e' presente
+                      "pc_apri", "pc_volume", "pc_blocca", "pc_mostra_desktop", "pc_azione_prepara", "pc_azione_conferma", "pc_annulla_spegnimento", "pc_alias", "desktop_aggiungi", "desktop_togli", "desktop_importa_barra"}  # la banca solo quando Andrea e' presente
 
 
 def _last_user_text(history: list[dict]) -> str:

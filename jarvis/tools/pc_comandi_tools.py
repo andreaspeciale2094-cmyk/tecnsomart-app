@@ -46,6 +46,11 @@ SCHEMAS = [
         "input_schema": {"type": "object", "properties": {"nome": {"type": "string"}}, "required": ["nome"]},
     },
     {
+        "name": "desktop_importa_barra",
+        "description": "Mette sul desktop di Jarvis le app che Andrea ha fissato sulla barra di Windows (non duplica quelle gia' presenti).",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "desktop_togli",
         "description": "Toglie un'icona dal desktop di Jarvis ('togli Steam dal desktop'). Non cancella l'app dal PC.",
         "input_schema": {"type": "object", "properties": {"nome": {"type": "string"}}, "required": ["nome"]},
@@ -63,6 +68,7 @@ def _prova(fn, *a):
 
 HANDLERS = {
     "desktop_aggiungi": lambda nome: _prova(barra.aggiungi, nome),
+    "desktop_importa_barra": lambda: _prova(barra.importa_barra_windows),
     "desktop_togli": lambda nome: _prova(barra.togli, nome),
     "pc_apri": lambda nome: _prova(pc_comandi.apri, nome),
     "pc_elenco_app": lambda filtro="": _prova(pc_comandi.elenco, filtro),

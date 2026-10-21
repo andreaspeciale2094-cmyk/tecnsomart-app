@@ -83,8 +83,42 @@ def _da_windows() -> list[dict]:
     return list(trovati.values())
 
 
+PINNATE = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar"
+FLAG_IMPORT = Path(__file__).parent.parent / "memoria" / "desktop_jarvis_importato.flag"
+
+
+def _pinnate() -> list[dict]:
+    """Le app fissate sulla barra di Windows (i loro collegamenti stanno in una cartella di Windows: si leggono soltanto)."""
+    from . import pc_comandi
+    out = []
+    if PINNATE.is_dir():
+        for f in sorted(PINNATE.glob("*.lnk")):
+            if not pc_comandi._vietata(f.stem) and f.stem.strip().lower() not in ("jarvis", "spegni jarvis"):
+                out.append({"nome": f.stem, "come": "file", "valore": str(f)})
+    return out
+
+
+def _unisci(app: list[dict], nuove: list[dict]) -> tuple[list[dict], int]:
+    nomi = {a["nome"].lower() for a in app}
+    aggiunte = [n for n in nuove if n["nome"].lower() not in nomi]
+    return app + aggiunte, len(aggiunte)
+
+
+def importa_barra_windows() -> str:
+    """Mette sul desktop di Jarvis le app che hai fissato sulla barra di Windows (quelle gia' presenti non si duplicano)."""
+    app = scrivania()
+    nuove, n = _unisci(app, _pinnate())
+    if not n:
+        return "Non ho trovato altre app fissate sulla barra di Windows da aggiungere."
+    with _lock:
+        _salva(nuove)
+    logs.log_azione(f"DESKTOP JARVIS: importate {n} app dalla barra di Windows")
+    return f"Ho aggiunto {n} app prese dalla barra di Windows."
+
+
 def scrivania() -> list[dict]:
-    """Le icone sul desktop di Jarvis (lista tua in memoria/desktop_jarvis.json, solo sul PC). Si aggiungono e si tolgono quando vuoi."""
+    """Le icone sul desktop di Jarvis (lista tua in memoria/desktop_jarvis.json, solo sul PC). Si aggiungono e si tolgono quando vuoi.
+    La prima volta parte dal Desktop di Windows e dalle app fissate sulla barra di Windows."""
     with _lock:
         if not FILE_SCRIVANIA.exists():
             _salva(_da_windows())
@@ -92,6 +126,12 @@ def scrivania() -> list[dict]:
             app = json.loads(FILE_SCRIVANIA.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             app = []
+        if not FLAG_IMPORT.exists():
+            FLAG_IMPORT.parent.mkdir(parents=True, exist_ok=True)
+            app, n = _unisci(app, _pinnate())
+            if n:
+                _salva(app)
+            FLAG_IMPORT.write_text("1", encoding="utf-8")
     _estrai_icone([a["valore"] for a in app if a.get("come") == "file"])
     return app
 
