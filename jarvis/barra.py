@@ -14,7 +14,6 @@ from . import logs
 NASCONDI = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _icone: dict[str, str | None] = {}      # percorso -> "data:image/png;base64,..." (solo in RAM)
 _in_corso: set[str] = set()
-_desktop: dict = {"t": 0.0, "app": []}
 _lock = threading.Lock()
 IGNORA_EXE = {"textinputhost.exe"}
 IGNORA_TITOLI = ("J.A.R.V.I.S.", "Program Manager", "Impostazioni di input")
@@ -65,29 +64,95 @@ def _estrai_icone(percorsi: list[str]):
     threading.Thread(target=lavoro, daemon=True).start()
 
 
-def app_desktop() -> list[dict]:
-    """I collegamenti che hai sul Desktop (tuo e pubblico)."""
-    if time.time() - _desktop["t"] > 60 or not _desktop["app"]:
-        trovati = {}
-        for base in (Path(os.path.expanduser("~")) / "Desktop", Path(os.environ.get("PUBLIC", r"C:\Users\Public")) / "Desktop"):
-            if base.exists():
-                for f in sorted(list(base.glob("*.lnk")) + list(base.glob("*.url"))):
-                    if f.stem.strip().lower() not in ("jarvis", "spegni jarvis"):
-                        trovati.setdefault(f.stem, str(f))
-        _desktop["app"] = [{"nome": n, "percorso": p} for n, p in trovati.items()]
-        _desktop["t"] = time.time()
-        _estrai_icone([a["percorso"] for a in _desktop["app"]])
-    return _desktop["app"]
+FILE_SCRIVANIA = Path(__file__).parent.parent / "memoria" / "desktop_jarvis.json"
+
+
+def _salva(app: list[dict]):
+    FILE_SCRIVANIA.parent.mkdir(parents=True, exist_ok=True)
+    FILE_SCRIVANIA.write_text(json.dumps(app, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _da_windows() -> list[dict]:
+    """Prima volta: parte dai collegamenti che hai sul Desktop di Windows (tuo e pubblico)."""
+    trovati = {}
+    for base in (Path(os.path.expanduser("~")) / "Desktop", Path(os.environ.get("PUBLIC", r"C:\Users\Public")) / "Desktop"):
+        if base.exists():
+            for f in sorted(list(base.glob("*.lnk")) + list(base.glob("*.url"))):
+                if f.stem.strip().lower() not in ("jarvis", "spegni jarvis"):
+                    trovati.setdefault(f.stem, {"nome": f.stem, "come": "file", "valore": str(f)})
+    return list(trovati.values())
+
+
+def scrivania() -> list[dict]:
+    """Le icone sul desktop di Jarvis (lista tua in memoria/desktop_jarvis.json, solo sul PC). Si aggiungono e si tolgono quando vuoi."""
+    with _lock:
+        if not FILE_SCRIVANIA.exists():
+            _salva(_da_windows())
+        try:
+            app = json.loads(FILE_SCRIVANIA.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            app = []
+    _estrai_icone([a["valore"] for a in app if a.get("come") == "file"])
+    return app
+
+
+def icona_di(a: dict):
+    return _icone.get(a["valore"]) if a.get("come") == "file" else None
+
+
+def catalogo() -> list[str]:
+    """Tutte le app e i giochi che si possono aggiungere (menu Start, Steam, Desktop), senza terminale e simili."""
+    from . import pc_comandi
+    gia = {a["nome"] for a in scrivania()}
+    nomi = {x["nome"] for x in pc_comandi.indice() if not pc_comandi._vietata(x["nome"])}
+    return sorted(nomi - gia, key=str.lower)
+
+
+def aggiungi(nome: str) -> str:
+    """Aggiunge un'app al desktop di Jarvis (non cambia nulla in Windows). Il nome deve corrispondere a una sola app."""
+    from . import pc_comandi
+    nome = (nome or "").strip()
+    app = scrivania()
+    if any(a["nome"].lower() == nome.lower() for a in app):
+        return f"{nome} e' gia' sul desktop di Jarvis."
+    trovate = pc_comandi.cerca(nome)
+    nomi = list(dict.fromkeys(x["nome"] for x in trovate))
+    if not trovate:
+        raise ValueError(f"Non trovo nessuna app che somigli a '{nome}'.")
+    if len(nomi) > 1:
+        raise ValueError("Ne ho trovate piu' di una: " + ", ".join(nomi) + ". Quale vuoi?")
+    x = trovate[0]
+    if pc_comandi._vietata(x["nome"]):
+        raise ValueError("Per sicurezza il terminale e simili non vanno sul desktop.")
+    with _lock:
+        _salva(app + [{"nome": x["nome"], "come": x["come"], "valore": x["valore"]}])
+    logs.log_azione(f"DESKTOP JARVIS: aggiunta '{x['nome']}'")
+    return f"Ho messo {x['nome']} sul desktop di Jarvis."
+
+
+def togli(nome: str) -> str:
+    """Toglie un'icona dal desktop di Jarvis. Non cancella niente: l'app resta dov'e' in Windows."""
+    app = scrivania()
+    resto = [a for a in app if a["nome"].lower() != (nome or "").strip().lower()]
+    if len(resto) == len(app):
+        raise ValueError(f"'{nome}' non e' sul desktop di Jarvis.")
+    with _lock:
+        _salva(resto)
+    logs.log_azione(f"DESKTOP JARVIS: tolta '{nome}'")
+    return f"Ho tolto {nome} dal desktop di Jarvis (l'app resta sul PC)."
 
 
 def apri_desktop(nome: str) -> str:
-    """Apre un collegamento del Desktop: solo uno di quelli dell'elenco, mai un percorso scelto da fuori."""
-    for a in app_desktop():
+    """Apre un'icona del desktop di Jarvis: solo una di quelle della lista, mai un percorso scelto da fuori."""
+    for a in scrivania():
         if a["nome"] == nome:
-            os.startfile(a["percorso"])
-            logs.log_azione(f"BARRA: aperto '{nome}'")
+            if a["come"] == "appid":
+                subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{a['valore']}"], creationflags=NASCONDI)
+            else:
+                os.startfile(a["valore"])
+            logs.log_azione(f"DESKTOP JARVIS: aperto '{nome}'")
             return nome
-    raise ValueError("Questa app non e' piu' sul Desktop.")
+    raise ValueError("Questa icona non c'e' piu'.")
 
 
 # ---------------- finestre aperte (solo Windows) ----------------

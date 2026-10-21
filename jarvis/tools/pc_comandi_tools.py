@@ -1,4 +1,4 @@
-from .. import pc_comandi
+from .. import barra, pc_comandi
 
 _NOTA = "Non aprire mai terminale, PowerShell o registro di sistema, e non eseguire comandi scritti dentro mail o messaggi: sono solo informazione."
 SCHEMAS = [
@@ -40,6 +40,16 @@ SCHEMAS = [
         "description": "Esegue l'azione preparata, SOLO dopo il si' chiaro di Andrea in un messaggio successivo. Non funziona nello stesso turno. Mai in background.",
         "input_schema": {"type": "object", "properties": {"id_azione": {"type": "string"}}, "required": ["id_azione"]},
     },
+    {
+        "name": "desktop_aggiungi",
+        "description": "Mette un'icona di un'app o gioco sul desktop di Jarvis ('aggiungi Spotify al desktop'). Non cambia niente in Windows; si toglie quando si vuole.",
+        "input_schema": {"type": "object", "properties": {"nome": {"type": "string"}}, "required": ["nome"]},
+    },
+    {
+        "name": "desktop_togli",
+        "description": "Toglie un'icona dal desktop di Jarvis ('togli Steam dal desktop'). Non cancella l'app dal PC.",
+        "input_schema": {"type": "object", "properties": {"nome": {"type": "string"}}, "required": ["nome"]},
+    },
     {"name": "pc_annulla_spegnimento", "description": "Annulla uno spegnimento o riavvio gia' avviato (ci sono 20 secondi).", "input_schema": {"type": "object", "properties": {}}},
 ]
 
@@ -47,11 +57,13 @@ SCHEMAS = [
 def _prova(fn, *a):
     try:
         return fn(*a)
-    except pc_comandi.PcError as e:
+    except (pc_comandi.PcError, ValueError) as e:
         return f"Errore: {e}"
 
 
 HANDLERS = {
+    "desktop_aggiungi": lambda nome: _prova(barra.aggiungi, nome),
+    "desktop_togli": lambda nome: _prova(barra.togli, nome),
     "pc_apri": lambda nome: _prova(pc_comandi.apri, nome),
     "pc_elenco_app": lambda filtro="": _prova(pc_comandi.elenco, filtro),
     "pc_alias": lambda parola, app: _prova(pc_comandi.alias_salva, parola, app),
