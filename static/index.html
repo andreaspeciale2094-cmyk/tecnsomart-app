@@ -45,6 +45,10 @@
     clip-path:polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
   header button:hover { color:#fff; border-color:var(--red); background:rgba(255,42,61,.12); }
   header button.on { color:#fff; border-color:var(--red); background:rgba(255,42,61,.18); box-shadow:0 0 12px rgba(255,42,61,.35) inset; }
+  #visore { display:none; flex:0 0 42%; min-height:180px; position:relative; border-bottom:1px solid var(--line);
+    background:radial-gradient(ellipse 60% 80% at 50% 50%, rgba(255,42,61,.07), transparent 70%); }
+  body.conrete #visore { display:block; }
+  #rete { position:absolute; inset:0; width:100%; height:100%; }
   #log { flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:12px; scrollbar-width:thin; scrollbar-color:var(--red-dim) transparent; }
   .msg { max-width:min(740px,88%); padding:11px 16px; line-height:1.5; white-space:pre-wrap; animation:entra .25s ease-out;
     clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
@@ -69,7 +73,7 @@
   #login h2 { letter-spacing:.45em; font-size:16px; text-align:center; color:#fff; text-shadow:0 0 16px rgba(255,42,61,.8); }
   #err { color:#ff8a8a; font-size:13px; min-height:1em; text-align:center; }
   .inbox { border-left-color:var(--red); }
-  @media (max-width:640px) { header { flex-wrap:wrap; gap:8px; padding:8px 10px; } #orb { margin:8px 16px 8px 14px; } form { padding:12px 12px 16px; } form button { padding:0 14px; } h1 { letter-spacing:.3em; } .spacer { display:none; } header button { padding:6px 8px; } }
+  @media (max-width:640px) { #visore { flex-basis:34%; min-height:150px; } header { flex-wrap:wrap; gap:8px; padding:8px 10px; } #orb { margin:8px 16px 8px 14px; } form { padding:12px 12px 16px; } form button { padding:0 14px; } h1 { letter-spacing:.3em; } .spacer { display:none; } header button { padding:6px 8px; } }
 </style>
 </head>
 <body>
@@ -82,8 +86,10 @@
   <button id="tts" class="on" title="Risposte vocali">🔊 voce</button>
   <button id="bell" title="Notifiche">📬 <span id="nb">0</span></button>
   <button id="wake" title="Ascolto continuo: di' 'Jarvis ...'">👂 sempre in ascolto</button>
+  <button id="vis" title="Mostra o nasconde la rete neurale che si muove con la voce">🧠 rete</button>
   <button id="fx" title="Meno animazioni (per PC lenti)">✨ effetti</button>
 </header>
+<div id="visore"><canvas id="rete"></canvas></div>
 <div id="log"></div>
 <form id="f">
   <button type="button" id="mic" title="Parla">🎤</button>
@@ -102,9 +108,28 @@ function add(text, cls, tools) {
   if (tools?.length) { const t = document.createElement('div'); t.className = 'tools'; t.textContent = '⚙ ' + tools.join(' · '); d.append(t); }
   log.append(d); log.scrollTop = log.scrollHeight; return d;
 }
+// Analizzatore del suono: la rete neurale si muove a ritmo della voce. Si collega a una voce solo se l'audio e' gia' sbloccato dal browser
+// (altrimenti la voce suonerebbe muta): in quel caso la rete simula il ritmo.
+let actx = null, hooked = new WeakSet();
+function unlockAudio() {
+  try {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      const an = actx.createAnalyser(); an.fftSize = 256; an.smoothingTimeConstant = 0.78; an.connect(actx.destination); window.JarvisAnalyser = an;
+      actx.onstatechange = () => { if (actx.state !== 'running') actx.resume().catch(() => {}); };
+    }
+    if (actx.state !== 'running') actx.resume().catch(() => {});
+  } catch (e) {}
+}
+['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, unlockAudio));
+function hookAudio(el) {
+  try { if (!actx || actx.state !== 'running' || hooked.has(el)) return; actx.createMediaElementSource(el).connect(window.JarvisAnalyser); hooked.add(el); } catch (e) {}
+}
 function setState(s, label) { orb.className = s; status.textContent = label; }
 // La sfera "parla" mentre Jarvis legge una risposta; gli effetti si possono ridurre (ricordato dal browser)
 setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.contains('thinking') && !orb.classList.contains('listening')), 200);
+{ let rete = true; try { rete = localStorage.jarvisRete !== '0'; } catch (e) {} document.body.classList.toggle('conrete', rete); $('#vis').classList.toggle('on', rete);
+  $('#vis').onclick = e => { const r = document.body.classList.toggle('conrete'); e.currentTarget.classList.toggle('on', r); try { localStorage.jarvisRete = r ? '1' : '0'; } catch (er) {} }; }
 { let calmo = false; try { calmo = localStorage.jarvisCalmo === '1'; } catch (e) {} document.body.classList.toggle('calmo', calmo); $('#fx').classList.toggle('on', !calmo);
   $('#fx').onclick = e => { const c = document.body.classList.toggle('calmo'); e.currentTarget.classList.toggle('on', !c); try { localStorage.jarvisCalmo = c ? '1' : '0'; } catch (er) {} }; }
 
@@ -150,7 +175,7 @@ function playFixed(key, token) {
   note(key.startsWith('attesa') ? 'fissa' : 'stato', `${key} dopo ${((performance.now() - sendStart) / 1000).toFixed(1)} s`);
   audioActive = true; lastActivity = performance.now();
   fillerDone = new Promise(res => { fillerEnd = res; });
-  fillerEl = new Audio(fixedAudio[key]);
+  fillerEl = new Audio(fixedAudio[key]); hookAudio(fillerEl);
   fillerEl.onended = fillerEl.onerror = () => { audioActive = false; lastActivity = performance.now(); fillerEnd?.(); };
   fillerEl.play().catch(() => { audioActive = false; fillerEnd?.(); });
   return true;
@@ -187,7 +212,7 @@ async function runQueue(token) {
     if (item.p) {
       try {
         const blob = await item.p; if (token !== speakToken) return;
-        await new Promise(res => { audioEl = new Audio(URL.createObjectURL(blob));
+        await new Promise(res => { audioEl = new Audio(URL.createObjectURL(blob)); hookAudio(audioEl);
           audioEl.onended = audioEl.onerror = () => { audioActive = false; lastActivity = performance.now(); res(); };
           audioEl.onplaying = () => { audioActive = true; firstAudioCb?.(); firstAudioCb = null; };
           audioEl.play().catch(e => { blocked = true; res(); }); });
@@ -347,5 +372,6 @@ async function init() {
 speechSynthesis?.getVoices();
 (async () => { const a = await (await fetch('/api/auth')).json(); a.required && !a.ok ? showLogin() : init(); })();
 </script>
+<script src="/static/rete.js"></script>
 </body>
 </html>
