@@ -16,11 +16,37 @@ except ImportError:
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200d]+")
 
 
+_UNITA = ["zero", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove", "dieci", "undici", "dodici", "tredici",
+          "quattordici", "quindici", "sedici", "diciassette", "diciotto", "diciannove"]
+_DECINE = {2: "venti", 3: "trenta", 4: "quaranta", 5: "cinquanta"}
+
+
+def numero_parlato(n: int) -> str:
+    """0-59 in lettere (ventitre', quarantotto...), per leggere gli orari in modo corretto."""
+    if n < 20:
+        return _UNITA[n]
+    dec, un = _DECINE[n // 10], n % 10
+    if un == 0:
+        return dec
+    if un in (1, 8):
+        return dec[:-1] + _UNITA[un]
+    return dec + ("tr\u00e9" if un == 3 else _UNITA[un])
+
+
+def _ora_parlata(m: re.Match) -> str:
+    h, mi = int(m.group(1)), int(m.group(2))
+    if h > 24 or mi > 59:
+        return m.group(0)
+    ore = "una" if h == 1 else numero_parlato(h)
+    return ore if mi == 0 else f"{ore} e {numero_parlato(mi)}"
+
+
 def clean_for_speech(text: str) -> str:
     """Toglie tutto cio' che una voce legge male: markdown, link, emoji, simboli."""
     t = re.sub(r"```.*?```", " ", text, flags=re.S)
     t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)  # [testo](url) -> testo
     t = re.sub(r"https?://\S+", " link ", t)
+    t = re.sub(r"\b(\d{1,2}):(\d{2})\b", _ora_parlata, t)  # 23:27 -> "ventitre' e ventisette"
     t = _EMOJI.sub(" ", t)
     t = re.sub(r"[*_`#>|~]+", " ", t)
     t = re.sub(r"^\s*[-•]\s+", "", t, flags=re.M)

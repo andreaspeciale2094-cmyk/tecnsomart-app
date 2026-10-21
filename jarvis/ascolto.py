@@ -4,6 +4,7 @@ di parlare (rilevatore di voce locale); 3) solo allora trascrizione a pagamento 
 registri: resta in memoria (RAM) il tempo della frase. Mentre Jarvis parla non ascolta (evita di svegliarsi con la propria voce)."""
 import io
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -117,43 +118,75 @@ def _wav(frames: list) -> bytes:
     return buf.getvalue()
 
 
-def registra_frase(leggi, vad) -> list | None:
-    """Registra finche' non smetti di parlare. leggi() ritorna un blocco di 1280 campioni. None se non parla nessuno."""
-    frames, parlato, silenzio, t0 = [], False, 0, time.time()
+def registra_frase(leggi, vad, attesa: float = 5.0) -> list | None:
+    """Registra finche' non smetti di parlare. leggi() ritorna un blocco di 1280 campioni.
+    None se nessuno parla entro `attesa` secondi, o se c'e' solo un rumore brevissimo."""
+    frames, voce, silenzio, parlato, t0 = [], 0, 0, False, time.time()
     while True:
         blocco = leggi()
         frames.append(blocco)
         if float(vad.predict(blocco, 640)) > 0.5:
-            parlato, silenzio = True, 0
+            voce += 1
+            parlato, silenzio = voce >= 2, 0
         else:
             silenzio += 1
         if parlato and silenzio >= 14:  # circa 1,1 secondi di silenzio: ha finito
-            return frames
+            return frames if voce >= 3 else None
         if time.time() - t0 > 15:
-            return frames if parlato else None
-        if not parlato and time.time() - t0 > 5:
+            return frames if parlato and voce >= 3 else None
+        if not parlato and time.time() - t0 > attesa:
             return None
 
 
-def gestisci_chiamata(leggi, vad):
-    """Dopo il risveglio: registra, trascrive, risponde a voce."""
-    stato["risvegli"] += 1
-    _bip()
-    frames = registra_frase(leggi, vad)
+_CHIAMATA = re.compile(r"^\W*(?:(?:hey|hei|ehi|ei|ehi|ciao|ok|okay)\W+)?(?:jarvis|j\.a\.r\.v\.i\.s\.?|giarvis|garvis|giarvi[sz])\b\W*", re.IGNORECASE)
+
+
+def togli_chiamata(testo: str) -> str:
+    """Toglie 'Hey Jarvis' dall'inizio della frase trascritta."""
+    return _CHIAMATA.sub("", testo.strip(), count=1).strip()
+
+
+def _ascolta(leggi, vad, attesa: float) -> str | None:
+    frames = registra_frase(leggi, vad, attesa)
     if not frames:
-        return
+        return None
     if not voice.stt_available():
-        logs.log_route("ASCOLTO: manca il riconoscimento vocale (chiave OpenAI)")
+        logs.log_route("ASCOLTO: manca il riconoscimento vocale (chiave Groq o OpenAI)")
         parla("Non riesco a capirti: manca il riconoscimento vocale.")
-        return
+        return None
     try:
         testo = voice.transcribe(_wav(frames), "audio/wav").strip()
     except Exception as e:
         logs.log_error(e, "ascolto: trascrizione")
-        return
-    if len(testo) < 2:
-        return
-    parla(dialogo.rispondi(SESSIONE, testo))
+        return None
+    return testo if len(testo) >= 2 else None
+
+
+def _scarta_audio_della_voce(leggi):
+    """Dopo che Jarvis ha parlato, butta l'audio registrato mentre parlava (la sua stessa voce)."""
+    while time.time() < _parlando_fino:
+        leggi()
+
+
+def gestisci_chiamata(leggi, vad):
+    """Dopo il risveglio: ascolta, risponde a voce, e RESTA in conversazione: finche' continui a parlare entro qualche secondo
+    non serve ripetere 'Hey Jarvis'. Se dici solo 'Hey Jarvis', risponde 'Dimmi'."""
+    stato["risvegli"] += 1
+    _bip()
+    primo = True
+    while True:
+        testo = _ascolta(leggi, vad, 5.0 if primo else 7.0)  # dopo una risposta aspetta un po' di piu'
+        if testo is None:
+            return
+        resto = togli_chiamata(testo)
+        if primo and not resto:  # ha detto solo il nome
+            parla("Dimmi.")
+            _scarta_audio_della_voce(leggi)
+            primo = False
+            continue
+        parla(dialogo.rispondi(SESSIONE, resto or testo))
+        _scarta_audio_della_voce(leggi)
+        primo = False
 
 
 def _ciclo():
