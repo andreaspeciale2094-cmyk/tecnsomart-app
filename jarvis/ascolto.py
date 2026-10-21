@@ -291,10 +291,18 @@ def gestisci_chiamata(leggi, vad):
     _bip()
     primo = True
     while True:
-        testo = _ascolta(leggi, vad, 5.0 if primo else float(config.ASCOLTO_FINESTRA))  # dopo una risposta resta in conversazione a lungo
-        if testo is None:
-            _fase("")
-            return
+        if primo:
+            testo = _ascolta(leggi, vad, 1.6)  # subito dopo il nome: se non aggiungi niente, ti saluta
+            if testo is None:
+                parla(saluto())
+                _scarta_audio_della_voce(leggi)
+                primo = False
+                continue
+        else:
+            testo = _ascolta(leggi, vad, float(config.ASCOLTO_FINESTRA))  # dopo una risposta resta in conversazione a lungo
+            if testo is None:
+                _fase("")
+                return
         if not primo and _INVENTATE.search(testo) and len(testo) < 60:
             continue  # frase inventata dal riconoscimento sul silenzio o sul rumore: la scarta e continua ad ascoltare
         resto = togli_chiamata(testo)
