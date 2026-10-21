@@ -1,4 +1,5 @@
 // Programma di appoggio di Jarvis per WhatsApp: SOLO INVIO, senza finestre.
+// Riceve anche i messaggi (solo chat singole) e li tiene in RAM per qualche giorno: mai su disco ne' nei registri.
 // Ascolta solo su 127.0.0.1 e vuole una chiave (memoria/whatsapp/token.txt). Non scrive mai i messaggi su disco ne' nei registri.
 // I dati del collegamento (come una password) stanno in memoria/whatsapp/auth, solo sul PC di Andrea.
 // Lo avvia Jarvis quando serve e si chiude insieme a Jarvis: non resta acceso da solo.
@@ -9,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import { registra, elenco, leggi } from './messaggi.js';
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys';
 
 const QUI = dirname(fileURLToPath(import.meta.url));
@@ -30,6 +32,7 @@ async function avvia() {
   const { version } = await fetchLatestBaileysVersion();
   sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), syncFullHistory: false, markOnlineOnConnect: false });
   sock.ev.on('creds.update', saveCreds);
+  sock.ev.on('messages.upsert', ({ messages }) => { for (const m of messages || []) { try { registra(m); } catch (e) {} } });
   sock.ev.on('connection.update', (u) => {
     if (u.qr) {
       stato.bisogna_qr = true;
@@ -101,6 +104,12 @@ createServer(async (req, res) => {
   if (host !== `127.0.0.1:${PORTA}` && host !== `localhost:${PORTA}`) return rispondi(res, 403, { ok: false, errore: 'host non ammesso' });
   if (req.headers['x-token'] !== TOKEN) return rispondi(res, 401, { ok: false, errore: 'non autorizzato' });
   if (req.method === 'GET' && req.url === '/stato') return rispondi(res, 200, { ok: true, ...stato });
+  if (req.method === 'GET' && req.url === '/chat') return rispondi(res, 200, { ok: true, chat: elenco() });
+  if (req.method === 'GET' && req.url.startsWith('/messaggi?')) {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const r = leggi(q.get('id') || '', Number(q.get('n') || 10));
+    return rispondi(res, r ? 200 : 404, r ? { ok: true, ...r } : { ok: false, errore: 'chat non trovata' });
+  }
   if (req.method === 'POST' && req.url === '/invia') {
     try {
       const { numero, testo } = await leggiCorpo(req);

@@ -16,3 +16,18 @@ def rispondi(sid: str, testo: str) -> str:
             return logs.handle(e)
         sessions.compact_in_background(sid)
         return reply
+
+
+def rispondi_stream(sid: str, testo: str):
+    """Come rispondi, ma a pezzi: produce il testo man mano che Claude (o Groq) lo scrive, cosi' la voce parte alla prima frase."""
+    with _lock:
+        history, before = sessions.start_request(sid, testo)
+        try:
+            for ev in brain.think_stream(history, summary=sessions.summaries.get(sid, "")):
+                if ev["type"] == "text" and ev.get("delta"):
+                    yield ev["delta"]
+        except Exception as e:  # errore chiaro in italiano; la storia torna com'era prima
+            del history[before:]
+            yield logs.handle(e)
+            return
+        sessions.compact_in_background(sid)

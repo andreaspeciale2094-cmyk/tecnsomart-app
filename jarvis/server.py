@@ -22,6 +22,8 @@ async def lifespan(app):
     threading.Thread(target=voice.prepare_fixed, daemon=True).start()
     CHIUDI_TOKEN.parent.mkdir(parents=True, exist_ok=True)
     CHIUDI_TOKEN.write_text(secrets.token_hex(24), encoding="utf-8")
+    if config.ENABLE_WHATSAPP_LEGGI:
+        threading.Thread(target=whatsapp.avvia_per_ricevere, daemon=True).start()  # per ricevere i messaggi deve essere sempre acceso
     pulizia.avvia()
     telegram_bot.avvia()
     ascolto.avvia()

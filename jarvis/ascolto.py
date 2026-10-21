@@ -4,6 +4,7 @@ di parlare (rilevatore di voce locale); 3) solo allora trascrizione a pagamento 
 registri: resta in memoria (RAM) il tempo della frase. Mentre Jarvis parla non ascolta (evita di svegliarsi con la propria voce)."""
 import io
 import os
+import queue
 import re
 import sys
 import tempfile
@@ -98,6 +99,9 @@ def _bip():
         winsound.Beep(880, 110)
 
 
+_cache_frasi: dict[str, bytes] = {}
+
+
 def parla(testo: str):
     global _parlando_fino
     testo = testo.strip()
@@ -105,11 +109,88 @@ def parla(testo: str):
         testo = testo[:700].rsplit(".", 1)[0] + ". Il resto lo trovi sulla pagina."
     _parlando_fino = time.time() + 600
     try:
-        _suona(voice.synthesize(testo))
+        if len(testo) <= 40:  # frasi brevi e ripetute ("Dimmi."): si preparano una volta sola e poi partono subito
+            if testo not in _cache_frasi:
+                _cache_frasi[testo] = voice.synthesize(testo)
+            _suona(_cache_frasi[testo])
+        else:
+            _suona(voice.synthesize(testo))
     except Exception as e:
         logs.log_voice("ascolto", e)
     finally:
         _parlando_fino = time.time() + 0.8  # un attimo di silenzio dopo la voce
+
+
+_FRASE = re.compile(r"(.+?[.!?])(?:\s+|$)", re.S)
+
+
+def parla_stream(frammenti, filler: str = "attesa3"):
+    """Parla MENTRE Claude scrive: ogni frase completa va subito alla voce, e mentre una si sente le successive si preparano.
+    Se la prima frase tarda piu' di 0,8 secondi parte una frase fissa gia' registrata ('Subito.'): mai silenzio."""
+    global _parlando_fino
+    _parlando_fino = time.time() + 600
+    q_testi, q_audio = queue.Queue(), queue.Queue()
+    primo = threading.Event()
+
+    def sintetizza():
+        while True:
+            t = q_testi.get()
+            if t is None:
+                q_audio.put(None)
+                return
+            try:
+                q_audio.put(voice.synthesize(t))
+            except Exception as e:
+                logs.log_voice("ascolto", e)
+
+    def suona():
+        while True:
+            a = q_audio.get()
+            if a is None:
+                return
+            try:
+                _suona(a)
+            except Exception as e:
+                logs.log_voice("ascolto", e)
+
+    def riempitivo():
+        if not primo.is_set():
+            try:
+                q_audio.put(voice.fixed_audio(filler))
+            except Exception:
+                pass
+
+    th = [threading.Thread(target=sintetizza, daemon=True), threading.Thread(target=suona, daemon=True)]
+    for t in th:
+        t.start()
+    timer = threading.Timer(0.8, riempitivo)
+    timer.daemon = True
+    timer.start()
+    buf, parlato = "", 0
+    try:
+        for pezzo in frammenti:
+            buf += pezzo
+            while True:
+                m = _FRASE.match(buf)
+                if not m or len(m.group(1)) < 12:
+                    break
+                frase, buf = m.group(1), buf[m.end():]
+                if parlato < 700:
+                    parlato += len(frase)
+                    primo.set()
+                    q_testi.put(frase)
+        if buf.strip() and parlato < 700:
+            primo.set()
+            q_testi.put(buf.strip())
+        if parlato >= 700:
+            primo.set()
+            q_testi.put("Il resto lo trovi sulla pagina.")
+    finally:
+        primo.set()
+        timer.cancel()
+        q_testi.put(None)
+        th[1].join()
+        _parlando_fino = time.time() + 0.8
 
 
 # ---------------- ascolto ----------------
@@ -137,7 +218,7 @@ def registra_frase(leggi, vad, attesa: float = 5.0) -> list | None:
             parlato, silenzio = voce >= 2, 0
         else:
             silenzio += 1
-        if parlato and silenzio >= 14:  # circa 1,1 secondi di silenzio: ha finito
+        if parlato and silenzio >= config.ASCOLTO_PAUSA_FINE:  # silenzio di fine frase (0,7 s circa): ha finito
             return frames if voce >= 3 else None
         if time.time() - t0 > 15:
             return frames if parlato and voce >= 3 else None
@@ -197,10 +278,9 @@ def gestisci_chiamata(leggi, vad):
             _scarta_audio_della_voce(leggi)
             primo = False
             continue
-        _fase("penso")
-        risposta = dialogo.rispondi(SESSIONE, resto or testo)
-        _fase("parlo")
-        parla(risposta)
+        _fase("rispondo")
+        risposta = dialogo.rispondi_stream(SESSIONE, resto or testo)
+        parla_stream(risposta)
         _scarta_audio_della_voce(leggi)
         primo = False
 
