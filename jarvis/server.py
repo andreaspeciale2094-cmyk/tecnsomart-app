@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import ascolto, auth, barra, benvenuto, meteo, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import ascolto, auth, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 @asynccontextmanager
@@ -25,6 +25,7 @@ async def lifespan(app):
     if config.ENABLE_WHATSAPP_LEGGI:
         threading.Thread(target=whatsapp.avvia_per_ricevere, daemon=True).start()  # per ricevere i messaggi deve essere sempre acceso
     pulizia.avvia()
+    tools.avvia_cache()  # agenda, posta e WhatsApp sempre pronti per i quadri veloci
     telegram_bot.avvia()
     ascolto.avvia()
     benvenuto.avvia()

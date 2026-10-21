@@ -1,5 +1,9 @@
 """Registro dei tool. Ogni modulo espone SCHEMAS (per Claude) e HANDLERS (funzioni).
 I moduli extra si caricano solo se attivati in .env: quelli spenti non costano nulla."""
+import json
+import threading
+import time
+
 from .. import config
 from . import addetti_tools, pc_comandi_tools, ascolto_tools, agenda_tools, banca_tools, cassa_tools, agents, home, mail_calendar, memory_tools, negozi_tools, pc, posta_tools, pulizia_tools, schede_tools, web, whatsapp_tools
 
@@ -37,11 +41,54 @@ SCHEMAS = [s for m in _MODULES for s in m.SCHEMAS]
 HANDLERS = {k: v for m in _MODULES for k, v in m.HANDLERS.items()}
 
 
+# Letture che si rifanno spesso: il risultato resta in RAM per qualche secondo e in sottofondo viene tenuto fresco (agenda, posta, WhatsApp),
+# cosi' "dammi un quadro di oggi" non aspetta internet. Nulla finisce su disco. Gli errori non si tengono mai.
+CACHE_LETTURE = {"briefing_mattino": 300, "mail_non_lette": 90, "whatsapp_non_lette": 20, "riepilogo_negozi": 120}  # secondi di validita'
+_PREDEFINITI = {"mail_non_lette": {"limite": 10, "conto": "tutti"}, "briefing_mattino": {"data": ""}, "riepilogo_negozi": {"data": "", "tipo": "tutti"}}
+_cache: dict[str, tuple[float, str]] = {}
+
+
+def _chiave(name: str, args: dict) -> str:
+    utili = {k: v for k, v in (args or {}).items() if _PREDEFINITI.get(name, {}).get(k) != v}  # {} e {"limite": 10} sono la stessa richiesta
+    return name + json.dumps(utili, sort_keys=True, default=str)
+
+
 def run_tool(name: str, args: dict) -> str:
     handler = HANDLERS.get(name)
     if not handler:
         return f"Errore: tool sconosciuto '{name}'"
+    ttl = CACHE_LETTURE.get(name)
+    chiave = _chiave(name, args) if ttl else ""
+    if ttl:
+        trovato = _cache.get(chiave)
+        if trovato and time.time() - trovato[0] < ttl:
+            return trovato[1]
     try:
-        return str(handler(**args))[:20000]
+        out = str(handler(**args))[:20000]
     except Exception as e:  # il cervello vede l'errore e puo' riprovare
         return f"Errore in {name}: {e}"
+    if ttl and not out.startswith("Errore"):
+        _cache[chiave] = (time.time(), out)
+    return out
+
+
+def _tieni_freschi():
+    """Ogni tanto rilegge in sottofondo agenda, posta e WhatsApp (solo se attivi). Se uno non risponde, aspetta 5 minuti prima di riprovare."""
+    rifai = {"briefing_mattino": 240, "mail_non_lette": 75, "whatsapp_non_lette": 15}
+    riprova_dopo: dict[str, float] = {}
+    while True:
+        for nome, eta in rifai.items():
+            if nome not in HANDLERS or time.time() < riprova_dopo.get(nome, 0):
+                continue
+            c = _cache.get(_chiave(nome, {}))
+            if c and time.time() - c[0] < eta:
+                continue
+            _cache.pop(_chiave(nome, {}), None)
+            if run_tool(nome, {}).startswith("Errore"):
+                riprova_dopo[nome] = time.time() + 300
+        time.sleep(10)
+
+
+def avvia_cache():
+    if any(n in HANDLERS for n in ("briefing_mattino", "mail_non_lette", "whatsapp_non_lette")):
+        threading.Thread(target=_tieni_freschi, daemon=True).start()
