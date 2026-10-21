@@ -221,7 +221,34 @@ def imposta_fase(body: Fase):
 def ascolto_stato():
     """Stato vero dell'ascolto in stanza (il programma che sente 'Hey Jarvis' anche a pagina chiusa)."""
     return {"abilitato": config.ENABLE_ASCOLTO, "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"],
-            "risvegli": ascolto.stato["risvegli"], "errore": ascolto.stato["errore"], "stt": voice.stt_available(), "fase": ascolto.stato["fase"]}
+            "risvegli": ascolto.stato["risvegli"], "errore": ascolto.stato["errore"], "stt": voice.stt_available(), "fase": ascolto.stato["fase"],
+            "livello": round(ascolto.stato["livello"], 2), "punteggio": round(ascolto.stato["punteggio"], 2), "dispositivo": ascolto.stato["dispositivo"], "soglia": config.ASCOLTO_SOGLIA}
+
+
+@app.get("/api/ascolto/microfoni")
+def ascolto_microfoni(request: Request):
+    if not _dal_pc(request):
+        return JSONResponse({"error": "non disponibile"}, status_code=403)
+    try:
+        return {"nomi": ascolto.microfoni(), "scelto": ascolto.stato["dispositivo"]}
+    except Exception:
+        return JSONResponse({"error": "non riesco a leggere i microfoni"}, status_code=500)
+
+
+class Microfono(BaseModel):
+    nome: str = ""
+
+
+@app.post("/api/ascolto/microfono")
+def ascolto_microfono(body: Microfono, request: Request):
+    """Sceglie il microfono dell'ascolto in stanza (solo dal PC)."""
+    if not _dal_pc(request):
+        return JSONResponse({"error": "non disponibile"}, status_code=403)
+    try:
+        ascolto.scegli_microfono(body.nome)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"ok": True}
 
 
 class Chat(BaseModel):

@@ -46,6 +46,9 @@
   #status { color:var(--red); font-size:11px; letter-spacing:.18em; text-transform:uppercase; font-family:ui-monospace, "Cascadia Mono", Consolas, monospace; margin-top:3px; }
   #asc { font-size:10px; letter-spacing:.14em; text-transform:uppercase; font-family:ui-monospace, Consolas, monospace; margin-top:3px; color:var(--dim); }
   #asc.ok { color:var(--gold); } #asc.no { color:#ff8a8a; }
+  #asc { cursor:pointer; display:flex; align-items:center; gap:8px; flex-wrap:wrap; } #asc:hover { color:#fff; }
+  #asc .liv { width:60px; height:6px; background:#1a0a0e; border:1px solid var(--red-dim); position:relative; } #asc .liv i { position:absolute; left:0; top:0; bottom:0; width:0; background:var(--red); box-shadow:0 0 6px var(--red); transition:width .1s; }
+  #asc .mic { color:var(--dim); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .spacer { flex:1; }
   header button { background:rgba(255,42,61,.04); border:1px solid var(--red-dim); color:var(--dim); border-radius:4px; padding:7px 11px; cursor:pointer; font-size:11px;
     letter-spacing:.06em; font-family:ui-monospace, "Cascadia Mono", Consolas, monospace; text-transform:uppercase; transition:.2s;
@@ -524,11 +527,17 @@ async function init() {
   if (cfg.stt) $('#mic').title = 'Premi per parlare, premi ancora per inviare (Whisper)';
   { const h = new Date().getHours(); add(`${h >= 5 && h < 18 ? 'Buongiorno' : 'Buonasera'}${cfg.user ? ', ' + cfg.user : ''}. Tutti i sistemi sono operativi. Come posso esserle utile?`, 'jarvis'); }
   loadFillers(); pollInbox(); setInterval(pollInbox, 15000);
-  if (cfg.ascolto_stanza) { $('#wake').textContent = '👂 ascolto in stanza'; const asc = $('#asc');
+  if (cfg.ascolto_stanza) { $('#wake').textContent = '👂 ascolto in stanza'; const asc = $('#asc'); const esc2 = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    asc.onclick = async () => { let d; try { d = await (await api('/api/ascolto/microfoni')).json(); } catch (e) { return; }
+      const pk = $('#picker'); pk.querySelector('.pkt').textContent = 'Quale microfono deve usare Jarvis?'; $('#pk-q').style.display = 'none'; pk.querySelector('.pkn').textContent = 'Scegli quello delle cuffie. Dopo il clic guarda la barra: deve muoversi quando parli.';
+      const L = $('#pk-l'); L.replaceChildren(...['', ...d.nomi].map(n => { const b = document.createElement('button'); b.textContent = n || '(quello predefinito di Windows)'; if (n && d.scelto && d.scelto.startsWith(n.slice(0, 30))) b.textContent += '  ← in uso';
+        b.onclick = () => api('/api/ascolto/microfono', { method: 'POST', body: JSON.stringify({ nome: n }) }).then(() => { pk.classList.remove('on'); $('#pk-q').style.display = ''; }).catch(() => {}); return b; }));
+      pk.classList.add('on'); };
     const aggiorna = async () => { try { const a = await (await api('/api/ascolto')).json();
       if (a.errore) { asc.textContent = 'ascolto: problema (' + a.errore + ')'; asc.className = 'no'; }
       else if (!a.attivo) { asc.textContent = 'ascolto: spento'; asc.className = 'no'; }
-      else if (a.in_ascolto) { asc.textContent = a.stt ? 'ascolto in stanza: ' + (a.fase || 'acceso') : 'ascolto acceso, manca il riconoscimento vocale'; asc.className = a.stt ? 'ok' : 'no'; }
+      else if (a.in_ascolto) { asc.className = a.stt ? 'ok' : 'no'; asc.title = 'Clicca per scegliere il microfono. La barra si muove quando senti la tua voce; il numero e\' quanto somiglia a "Hey Jarvis" (serve ' + a.soglia + ').';
+        asc.innerHTML = (a.stt ? 'ascolto in stanza: ' + esc2(a.fase || 'acceso') : 'ascolto acceso, manca il riconoscimento vocale') + `<span class="liv"><i style="width:${Math.round(a.livello * 100)}%"></i></span><span class="mic">${esc2(a.dispositivo || 'microfono predefinito')} · ${a.punteggio.toFixed(2)}</span>`; }
       else { asc.textContent = 'ascolto: sto avviando…'; asc.className = ''; } } catch (e) {} };
     aggiorna(); setInterval(aggiorna, 1500); }
 }
@@ -557,7 +566,7 @@ speechSynthesis?.getVoices();
     } catch (e) {}
   }
   const chiudiPicker = () => $('#picker').classList.remove('on');
-  async function apriPicker() { $('#picker').classList.add('on'); $('#pk-q').value = ''; $('#pk-l').textContent = 'Cerco le app…'; $('#pk-q').focus();
+  async function apriPicker() { const pk = $('#picker'); pk.querySelector('.pkt').textContent = 'Aggiungi alla schermata di Jarvis'; pk.querySelector('.pkn').textContent = 'Non cambia niente in Windows: l\'app resta dov\'è. Puoi anche dire: «aggiungi Spotify al desktop».'; $('#pk-q').style.display = ''; pk.classList.add('on'); $('#pk-q').value = ''; $('#pk-l').textContent = 'Cerco le app…'; $('#pk-q').focus();
     try { const nomi = (await (await api('/api/desk/catalogo')).json()).nomi; const mostra = () => { const q = $('#pk-q').value.trim().toLowerCase();
         $('#pk-l').replaceChildren(...nomi.filter(n => n.toLowerCase().includes(q)).slice(0, 80).map(n => { const b = document.createElement('button'); b.textContent = n;
           b.onclick = () => postD('aggiungi', n).then(() => { chiudiPicker(); firmaDesk = ''; disegnaDesk(); }).catch(() => { b.textContent = n + ' — non riesco ad aggiungerla'; }); return b; })); };

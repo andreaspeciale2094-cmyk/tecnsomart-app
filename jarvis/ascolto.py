@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 import wave
+from pathlib import Path
 
 from . import config, dialogo, logs, voice
 
@@ -18,7 +19,9 @@ SESSIONE = "ascolto"
 RATE = 16000
 BLOCCO = 1280  # 80 ms
 PAROLA = "hey_jarvis"
-stato = {"attivo": True, "risvegli": 0, "errore": "", "in_ascolto": False, "fase": "", "ultimo_errore_log": 0.0}
+stato = {"attivo": True, "risvegli": 0, "errore": "", "in_ascolto": False, "fase": "", "ultimo_errore_log": 0.0,
+         "livello": 0.0, "punteggio": 0.0, "dispositivo": "", "riapri": False}
+FILE_MIC = Path(__file__).parent.parent / "memoria" / "ascolto_microfono.txt"  # microfono scelto dalla pagina (solo sul PC)
 
 
 def _fase(f: str):
@@ -376,6 +379,46 @@ def _ciclo():
         logs.log_error(e, "ascolto: avvio")
 
 
+def microfoni() -> list[str]:
+    """Nomi dei microfoni del PC (senza doppioni tra i vari sistemi audio di Windows)."""
+    import sounddevice as sd
+    visti, out = set(), []
+    for d in sd.query_devices():
+        if d["max_input_channels"] > 0:
+            chiave = d["name"][:30].lower()
+            if chiave not in visti:
+                visti.add(chiave)
+                out.append(d["name"])
+    return out
+
+
+def scegli_microfono(nome: str):
+    """Sceglie il microfono dell'ascolto (ricordato in memoria/ascolto_microfono.txt) e riapre l'ascolto subito. Nome vuoto = quello predefinito."""
+    if nome and nome not in microfoni():
+        raise ValueError("Microfono non trovato.")
+    FILE_MIC.parent.mkdir(parents=True, exist_ok=True)
+    FILE_MIC.write_text(nome, encoding="utf-8")
+    stato["riapri"] = True
+
+
+def _dispositivo(sd):
+    """Il microfono da usare: quello scelto dalla pagina, poi ASCOLTO_DISPOSITIVO (numero o nome), altrimenti quello predefinito di Windows."""
+    voluto = ""
+    try:
+        voluto = FILE_MIC.read_text(encoding="utf-8").strip() if FILE_MIC.exists() else ""
+    except OSError:
+        pass
+    voluto = voluto or str(config.ASCOLTO_DISPOSITIVO or "").strip()
+    if not voluto:
+        return None
+    if voluto.isdigit():
+        return int(voluto)  # il numero scritto nel .env e' testo: va trasformato, altrimenti si cercherebbe un microfono con quel nome
+    for i, d in enumerate(sd.query_devices()):  # per nome: il primo microfono che comincia cosi' (i nomi cambiano un po' tra i sistemi audio)
+        if d["max_input_channels"] > 0 and d["name"].lower().startswith(voluto[:30].lower()):
+            return i
+    return None
+
+
 def _ciclo_vero():
     global _parlando_fino
     import numpy as np
@@ -395,15 +438,24 @@ def _ciclo_vero():
             time.sleep(1)
             continue
         try:
-            with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=BLOCCO, device=config.ASCOLTO_DISPOSITIVO or None) as s:
+            dispositivo = _dispositivo(sd)
+            with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=BLOCCO, device=dispositivo) as s:
                 stato["errore"] = ""
                 stato["in_ascolto"] = True
+                stato["riapri"] = False
+                try:
+                    stato["dispositivo"] = sd.query_devices(dispositivo if dispositivo is not None else sd.default.device[0])["name"]
+                except Exception:
+                    stato["dispositivo"] = ""
                 leggi = lambda: s.read(BLOCCO)[0][:, 0].copy()
-                while stato["attivo"]:
+                while stato["attivo"] and not stato["riapri"]:
                     blocco = leggi()
+                    stato["livello"] = 0.5 * stato["livello"] + 0.5 * min(1.0, float(np.abs(blocco.astype(np.int32)).max()) / 12000)  # per l'indicatore nella pagina
                     if time.time() < _parlando_fino:  # Jarvis sta parlando: non si ascolta
                         continue
-                    if model.predict(blocco).get(PAROLA, 0) >= config.ASCOLTO_SOGLIA and time.time() - ultimo > 2:
+                    punteggio = float(model.predict(blocco).get(PAROLA, 0))
+                    stato["punteggio"] = max(punteggio, stato["punteggio"] * 0.97)
+                    if punteggio >= config.ASCOLTO_SOGLIA and time.time() - ultimo > 2:
                         try:
                             gestisci_chiamata(leggi, vad)
                         except sd.PortAudioError:
