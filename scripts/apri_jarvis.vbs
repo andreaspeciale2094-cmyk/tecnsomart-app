@@ -28,17 +28,9 @@ browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\c
 If browser = "" Then browser = sh.RegRead("HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe\")
 If browser = "" Then browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe\")
 On Error GoTo 0
-' finestra massimizzata come un'app (F11 per il vero tutto schermo, Alt+F4 per chiudere la finestra)
+' vero tutto schermo (kiosk): niente bordi, niente barra in alto, copre anche la barra di Windows. Per uscire: Alt+F4 oppure "Spegni Jarvis"
 If browser <> "" Then
-  sh.Run """" & browser & """ --app=http://localhost:8000 --start-maximized", 1, False
+  sh.Run """" & browser & """ --kiosk --app=http://localhost:8000 --user-data-dir=""" & cartella & "\memoria\finestra_jarvis"" --no-first-run", 1, False
 Else
   sh.Run "http://localhost:8000", 1, False
-End If
-
-' Chrome si ricorda la grandezza dell'ultima finestra e puo' ignorare la richiesta: appena la finestra c'e', la si massimizza
-If browser <> "" Then
-  comando = "powershell -NoProfile -WindowStyle Hidden -Command ""Add-Type -Name W -Namespace N -MemberDefinition '[DllImport(\""user32.dll\"")] public static extern bool ShowWindow(IntPtr h,int c);'; " & _
-            "for($i=0;$i -lt 20;$i++){ $p=Get-Process | Where-Object { $_.MainWindowTitle -like '*J.A.R.V.I.S.*' } | Select-Object -First 1; " & _
-            "if($p){ [N.W]::ShowWindow($p.MainWindowHandle,3) | Out-Null; break }; Start-Sleep -Milliseconds 500 }"""
-  sh.Run comando, 0, False
 End If
