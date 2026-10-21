@@ -37,29 +37,68 @@ foreach ($f in $p) {
 $o | ConvertTo-Json -Compress
 """
 
+_PS_ICONE_APP = r"""
+Add-Type -AssemblyName System.Drawing
+$ids = [Console]::In.ReadToEnd() | ConvertFrom-Json
+$o = @{}
+$cart = @{ '{6D809377-6AF0-444B-8957-A3773F02200E}' = $env:ProgramFiles; '{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}' = ${env:ProgramFiles(x86)}; '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}' = [Environment]::SystemDirectory; '{F38BF404-1D43-42F2-9305-67DE0B28FC23}' = $env:windir }
+function Png64($img) {
+  $b = New-Object System.Drawing.Bitmap 64,64
+  $g = [System.Drawing.Graphics]::FromImage($b); $g.InterpolationMode = 'HighQualityBicubic'; $g.DrawImage($img, 0, 0, 64, 64)
+  $m = New-Object System.IO.MemoryStream; $b.Save($m, [System.Drawing.Imaging.ImageFormat]::Png); [Convert]::ToBase64String($m.ToArray())
+}
+foreach ($id in $ids) {
+  try {
+    if ($id -match '^(.+?)!(.+)$') {
+      $pk = Get-AppxPackage | Where-Object { $_.PackageFamilyName -eq $matches[1] } | Select-Object -First 1
+      $app = $matches[2]
+      if ($pk) {
+        [xml]$mf = Get-Content (Join-Path $pk.InstallLocation 'AppxManifest.xml')
+        $a = $mf.Package.Applications.Application | Where-Object { $_.Id -eq $app } | Select-Object -First 1
+        $rel = $a.VisualElements.Square44x44Logo; if (-not $rel) { $rel = $a.VisualElements.Square150x150Logo }
+        $full = Join-Path $pk.InstallLocation $rel
+        $dir = Split-Path $full; $base = [IO.Path]::GetFileNameWithoutExtension($full); $ext = [IO.Path]::GetExtension($full)
+        $f = Get-ChildItem $dir -Filter ($base + '*' + $ext) -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'contrast|lightunplated' }
+        $sc = $f | Where-Object { $_.Name -match 'targetsize-(48|64|96)_altform-unplated' } | Select-Object -First 1
+        if (-not $sc) { $sc = $f | Where-Object { $_.Name -match 'targetsize-(48|64|96)' -and $_.Name -notmatch 'altform' } | Select-Object -First 1 }
+        if (-not $sc) { $sc = $f | Where-Object { $_.Name -match 'scale-(200|400)' } | Select-Object -First 1 }
+        if (-not $sc) { $sc = $f | Select-Object -First 1 }
+        if ($sc) { $o[$id] = Png64([System.Drawing.Image]::FromFile($sc.FullName)) }
+      }
+    } else {
+      $p = $id
+      if ($id -match '^(\{[0-9A-Fa-f-]+\})\\(.*)$' -and $cart[$matches[1]]) { $p = Join-Path $cart[$matches[1]] $matches[2] }
+      if (Test-Path $p) { $o[$id] = Png64([System.Drawing.Icon]::ExtractAssociatedIcon($p).ToBitmap()) }
+    }
+  } catch {}
+}
+$o | ConvertTo-Json -Compress
+"""
+
 
 def disponibile() -> bool:
     return sys.platform == "win32"
 
 
-def _estrai_icone(percorsi: list[str]):
+def _estrai_icone(percorsi: list[str], script: str = "", prefisso: str = ""):
     """Prende le icone vere dei programmi (una sola chiamata, in sottofondo) e le tiene in RAM."""
-    nuovi = [p for p in percorsi if p not in _icone and p not in _in_corso]
+    script = script or _PS_ICONE
+    nuovi = [p for p in percorsi if prefisso + p not in _icone and prefisso + p not in _in_corso]
     if not nuovi or not disponibile():
         return
-    _in_corso.update(nuovi)
+    _in_corso.update(prefisso + p for p in nuovi)
 
     def lavoro():
         try:
-            out = subprocess.run(["powershell", "-NoProfile", "-Command", _PS_ICONE], input=json.dumps(nuovi), capture_output=True, text=True,
-                                 timeout=40, creationflags=NASCONDI).stdout
+            out = subprocess.run(["powershell", "-NoProfile", "-Command", script], input=json.dumps(nuovi), capture_output=True, text=True,
+                                 timeout=60, creationflags=NASCONDI).stdout
             dati = json.loads(out or "{}") or {}
         except (OSError, ValueError, subprocess.SubprocessError):
             dati = {}
         for p in nuovi:
             b = dati.get(p)
-            _icone[p] = f"data:image/png;base64,{b}" if b else None
-            _in_corso.discard(p)
+            _icone[prefisso + p] = f"data:image/png;base64,{b}" if b else None
+            _in_corso.discard(prefisso + p)
 
     threading.Thread(target=lavoro, daemon=True).start()
 
@@ -133,11 +172,14 @@ def scrivania() -> list[dict]:
                 _salva(app)
             FLAG_IMPORT.write_text("1", encoding="utf-8")
     _estrai_icone([a["valore"] for a in app if a.get("come") == "file"])
+    _estrai_icone([a["valore"] for a in app if a.get("come") == "appid"], _PS_ICONE_APP, "appid:")  # app del menu Start (anche del Microsoft Store)
     return app
 
 
 def icona_di(a: dict):
-    return _icone.get(a["valore"]) if a.get("come") == "file" else None
+    if a.get("come") == "file":
+        return _icone.get(a["valore"])
+    return _icone.get("appid:" + a["valore"]) if a.get("come") == "appid" else None
 
 
 def catalogo() -> list[str]:
