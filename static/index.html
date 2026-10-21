@@ -430,7 +430,7 @@ async function init() {
   if (started) return; started = true;
   try { cfg = await (await api('/api/config')).json(); } catch (e) { started = false; return; }
   if (cfg.stt) $('#mic').title = 'Premi per parlare, premi ancora per inviare (Whisper)';
-  add(`Buongiorno${cfg.user ? ', ' + cfg.user : ''}. Tutti i sistemi sono operativi. Come posso esserle utile?`, 'jarvis');
+  { const h = new Date().getHours(); add(`${h >= 5 && h < 18 ? 'Buongiorno' : 'Buonasera'}${cfg.user ? ', ' + cfg.user : ''}. Tutti i sistemi sono operativi. Come posso esserle utile?`, 'jarvis'); }
   loadFillers(); pollInbox(); setInterval(pollInbox, 15000);
   if (cfg.ascolto_stanza) { $('#wake').textContent = '👂 ascolto in stanza'; const asc = $('#asc');
     const aggiorna = async () => { try { const a = await (await api('/api/ascolto')).json();
