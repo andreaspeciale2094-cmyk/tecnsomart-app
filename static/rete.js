@@ -20,13 +20,17 @@
       nodi.push({ x: Math.cos(th) * r * j, y: y * j, z: Math.sin(th) * r * j, banda: Math.floor(Math.random() * BANDE), v: 0 });
     }
   }
-  guscio(230, 1.0, 0.1);
-  guscio(100, 0.5, 0.18);
+  // piu' punti sui PC potenti, un po' meno su quelli lenti
+  const dens = (navigator.hardwareConcurrency || 4) >= 8 ? 1 : 0.7;
+  guscio(Math.round(440 * dens), 1.0, 0.1);
+  guscio(Math.round(190 * dens), 0.62, 0.15);
+  guscio(Math.round(80 * dens), 0.3, 0.2);
   const N = nodi.length;
-  // ogni nodo si collega ai 4 piu' vicini (anche tra i due gusci)
+  // ogni nodo si collega ai 4 piu' vicini (anche tra i gusci)
+  const visti = new Set();
   for (let i = 0; i < N; i++) {
     const d = nodi.map((n, k) => [k, (n.x - nodi[i].x) ** 2 + (n.y - nodi[i].y) ** 2 + (n.z - nodi[i].z) ** 2]).filter(a => a[0] !== i).sort((a, b) => a[1] - b[1]).slice(0, 4);
-    for (const [k] of d) if (!bordi.some(b => (b[0] === i && b[1] === k) || (b[0] === k && b[1] === i))) bordi.push([i, k]);
+    for (const [k] of d) { const chiave = Math.min(i, k) * N + Math.max(i, k); if (!visti.has(chiave)) { visti.add(chiave); bordi.push([i, k]); } }
   }
 
   function misura() {
@@ -90,16 +94,21 @@
     const gr = g.createRadialGradient(cx, cy, 0, cx, cy, R * (1.1 + livello * 0.5));
     gr.addColorStop(0, `rgba(${colore},${0.16 + livello * 0.35})`); gr.addColorStop(1, `rgba(${colore},0)`);
     g.fillStyle = gr; g.fillRect(0, 0, W, H);
-    // collegamenti
+    // collegamenti, disegnati a gruppi di trasparenza (veloce anche con tanti fili)
+    const gruppi = Array.from({ length: 9 }, () => []);
     for (const [a, b] of bordi) {
       const A = p[a], B = p[b], prof = (A.z + B.z) / 2 * 0.5 + 0.5, forza = (A.v + B.v) / 2;
-      g.strokeStyle = `rgba(${colore},${Math.min(0.9, 0.05 + prof * 0.16 + forza * 0.65)})`;
-      g.lineWidth = 0.5 + forza * 1.4;
-      g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke();
+      const alfa = Math.min(0.95, 0.04 + prof * 0.14 + forza * 0.7);
+      gruppi[Math.min(8, Math.floor(alfa * 9.5))].push(A.x, A.y, B.x, B.y);
+    }
+    for (let k = 0; k < 9; k++) {
+      const v = gruppi[k]; if (!v.length) continue;
+      g.strokeStyle = `rgba(${colore},${(k + 0.5) / 9.5})`; g.lineWidth = 0.4 + k * 0.17;
+      g.beginPath(); for (let i = 0; i < v.length; i += 4) { g.moveTo(v[i], v[i + 1]); g.lineTo(v[i + 2], v[i + 3]); } g.stroke();
     }
     // impulsi che corrono lungo i collegamenti (piu' numerosi quando la voce e' forte)
     const nascita = modo === 'parla' ? livello * 0.9 : modo === 'pensa' ? 0.35 : modo === 'ascolta' ? 0.12 : 0.03;
-    if (Math.random() < nascita * 1.6 * (calmo ? 0.5 : 1) && impulsi.length < 110) impulsi.push({ e: Math.floor(Math.random() * bordi.length), t: 0, dir: Math.random() < 0.5 });
+    if (Math.random() < nascita * 1.6 * (calmo ? 0.5 : 1) && impulsi.length < 160) impulsi.push({ e: Math.floor(Math.random() * bordi.length), t: 0, dir: Math.random() < 0.5 });
     for (let i = impulsi.length - 1; i >= 0; i--) {
       const im = impulsi[i]; im.t += dt * (1.4 + livello * 2.5);
       if (im.t >= 1) { impulsi.splice(i, 1); continue; }
@@ -110,10 +119,10 @@
     }
     // nodi
     for (const n of p) {
-      const prof = n.z * 0.5 + 0.5, r = (0.9 + prof * 1.2 + n.v * 4.2) * n.f;
+      const prof = n.z * 0.5 + 0.5, r = (0.7 + prof * 1.0 + n.v * 3.6) * n.f;
       g.fillStyle = n.v > 0.55 ? 'rgba(255,235,220,0.95)' : `rgba(${colore},${0.35 + prof * 0.5 + n.v * 0.4})`;
       g.beginPath(); g.arc(n.x, n.y, r, 0, 6.283); g.fill();
-      if (!calmo && n.v > 0.35) { g.fillStyle = `rgba(${colore},${n.v * 0.25})`; g.beginPath(); g.arc(n.x, n.y, r * 3.2, 0, 6.283); g.fill(); }
+      if (!calmo && n.v > 0.5) { g.fillStyle = `rgba(${colore},${n.v * 0.25})`; g.beginPath(); g.arc(n.x, n.y, r * 3.2, 0, 6.283); g.fill(); }
     }
     g.restore();
   }
