@@ -122,9 +122,30 @@
   .ico .x { display:none; position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%; background:#1a0a0e; border:1px solid var(--red); color:#fff; font:700 12px/1 sans-serif; align-items:center; justify-content:center; cursor:pointer; z-index:2; }
   .ico.dx .x { right:auto; left:-7px; }
   .ico:hover .x { display:flex; } .ico .x:hover { background:var(--red); }
+  /* riquadri cliccabili: cambiano aspetto al passaggio del mouse */
+  .box .cl { pointer-events:auto; cursor:pointer; padding:6px 10px; margin:-6px -10px; transition:background .15s, box-shadow .15s, transform .15s; }
+  .box .cl:hover { background:linear-gradient(90deg, rgba(255,42,61,.22), transparent); box-shadow:0 0 16px rgba(255,42,61,.3); transform:translateX(3px); }
+  .box .cl:hover .t::after { content:" ↗"; }
+  .box .cl + .cl, .box div + .cl { margin-top:6px; }
+  /* finestra dei dettagli (impegni, WhatsApp) */
+  #int { display:none; position:fixed; inset:0; z-index:36; background:rgba(2,2,5,.82); align-items:center; justify-content:center; } #int.on { display:flex; }
+  #int .intbox { width:min(600px,94%); max-height:86vh; } #int-b { overflow-y:auto; min-height:80px; display:flex; flex-direction:column; gap:6px; scrollbar-width:thin; scrollbar-color:var(--red-dim) transparent; }
+  #int .sezt { font:10px ui-monospace, Consolas, monospace; letter-spacing:.16em; text-transform:uppercase; color:var(--red); margin-top:8px; }
+  #int .dim { color:var(--dim); font-size:13px; } #int .err { color:#ff8a8a; font-size:13px; } #int .dett { font-size:13px; color:var(--text); } #int .desc { font-size:12.5px; color:var(--dim); white-space:pre-wrap; border-left:2px solid var(--red-dim); padding-left:10px; margin:4px 0; max-height:140px; overflow-y:auto; }
+  #int .riga { display:flex; gap:12px; align-items:baseline; width:100%; text-align:left; background:transparent; border:0; border-left:2px solid var(--red-dim); color:var(--text); padding:9px 12px; font-size:14px; cursor:pointer; transition:.12s; }
+  #int .riga:hover { background:rgba(255,42,61,.16); border-left-color:var(--red); color:#fff; padding-left:18px; }
+  #int .riga .q { flex:none; width:96px; font:12px ui-monospace, Consolas, monospace; color:var(--red); } #int .riga .n { flex:1; min-width:0; } #int .riga .b { flex:none; min-width:22px; text-align:center; background:var(--red); color:#fff; border-radius:11px; font:700 11px ui-monospace, monospace; padding:2px 7px; }
+  #int .gruppo { display:flex; flex-wrap:wrap; gap:8px; }
+  #int .ib { padding:8px 14px; background:transparent; border:1px solid var(--red-dim); color:var(--text); font-size:13px; cursor:pointer; transition:.12s; }
+  #int .ib:hover:not(:disabled) { border-color:var(--red); background:rgba(255,42,61,.18); color:#fff; box-shadow:0 0 12px rgba(255,42,61,.3); } #int .ib:disabled { opacity:.45; cursor:default; }
+  #int .ib.ok { background:linear-gradient(135deg, var(--red), var(--red2)); border-color:var(--red); color:#fff; font-weight:700; } #int .ib.ind, #int .ib.alt { color:var(--dim); }
+  #int .bolla { max-width:84%; padding:8px 12px; font-size:13.5px; line-height:1.45; white-space:pre-wrap; background:rgba(255,255,255,.05); border-left:2px solid var(--gold); } #int .bolla.mio { align-self:flex-end; background:rgba(255,42,61,.12); border-left:0; border-right:2px solid var(--red); }
+  #int .bolla small { display:block; font:10px ui-monospace, monospace; color:var(--dim); margin-top:3px; }
+  #int .citaz { white-space:pre-wrap; font-size:14px; line-height:1.5; padding:12px 14px; background:rgba(255,42,61,.08); border:1px solid var(--red-dim); border-left:3px solid var(--red); color:#fff; }
+  #int textarea, #int input { width:100%; background:rgba(12,13,20,.9); border:1px solid var(--red-dim); color:var(--text); padding:10px 12px; font:14px "Segoe UI", system-ui, sans-serif; outline:none; resize:vertical; clip-path:none; } #int textarea { min-height:84px; } #int textarea:focus, #int input:focus { border-color:var(--red); box-shadow:0 0 14px rgba(255,42,61,.25); }
   #picker { display:none; position:fixed; inset:0; z-index:35; background:rgba(2,2,5,.82); align-items:center; justify-content:center; } #picker.on { display:flex; }
-  #picker .pk { width:min(460px,92%); max-height:80vh; display:flex; flex-direction:column; gap:10px; padding:18px; background:linear-gradient(135deg, #1c0a0e, #0c0508); border:1px solid var(--red-dim); border-top:2px solid var(--red); box-shadow:0 0 40px rgba(255,42,61,.25); }
-  #picker .pkt { letter-spacing:.2em; text-transform:uppercase; color:#fff; font-size:13px; } #picker .pkn { font-size:11px; color:var(--dim); }
+  #picker .pk, #int .pk { width:min(460px,92%); max-height:80vh; display:flex; flex-direction:column; gap:10px; padding:18px; background:linear-gradient(135deg, #1c0a0e, #0c0508); border:1px solid var(--red-dim); border-top:2px solid var(--red); box-shadow:0 0 40px rgba(255,42,61,.25); }
+  #picker .pkt, #int .pkt { letter-spacing:.2em; text-transform:uppercase; color:#fff; font-size:13px; } #picker .pkn, #int .pkn { font-size:11px; color:var(--dim); }
   #pk-l { overflow-y:auto; min-height:120px; display:flex; flex-direction:column; scrollbar-width:thin; scrollbar-color:var(--red-dim) transparent; }
   #pk-l button { text-align:left; background:transparent; border:0; border-left:2px solid transparent; color:var(--text); padding:9px 12px; font-size:14px; cursor:pointer; transition:.12s; }
   #pk-l button:hover { background:rgba(255,42,61,.14); border-left-color:var(--red); color:#fff; padding-left:18px; }
@@ -192,6 +213,7 @@
   <div id="hud"><div class="box" id="hud-sx"></div><div class="box" id="hud-dx"><div id="meteo"></div><div id="orario"><div id="ora"></div><div id="data"></div></div></div><div class="box" id="hud-bs"></div></div>
   <div id="desk-sx" class="desk"></div><div id="desk-dx" class="desk"></div>
   <div id="didascalia"></div></div>
+<div id="int"><div class="pk intbox"><div class="pkt" id="int-t"></div><div id="int-b"></div><div class="pkn" id="int-n"></div></div></div>
 <div id="picker"><div class="pk"><div class="pkt">Aggiungi alla schermata di Jarvis</div><input id="pk-q" placeholder="Cerca un'app o un gioco…" autocomplete="off"><div id="pk-l"></div><div class="pkn">Non cambia niente in Windows: l'app resta dov'è. Puoi anche dire: «aggiungi Spotify al desktop».</div></div></div>
 <div id="log"></div>
 <form id="f">
@@ -269,9 +291,9 @@ setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.
     e.innerHTML = `<div class="gr">${MT[m.cat] || MT.nuvole}<b>${m.temp}°</b></div>${esc(m.citta)} · ${m.min}° / ${m.max}°`; }
   async function pannello() { try { const p = await (await api('/api/pannello')).json(); let sx = '', bs = ''; disegnaMeteo(p.meteo);
     if (p.agenda) sx = `<span class="t">${IC.cal}oggi</span><b>${p.agenda.n}</b> impegni` + (p.agenda.prossimo ? `<br>prossimo: <b>${esc(p.agenda.prossimo.ora)}</b> ${esc(p.agenda.prossimo.titolo)}` : '<br>nient\'altro per oggi');
-    if (p.mail) bs += `<span class="t">${IC.mail}posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' · ');
-    if (p.whatsapp) bs += (bs ? '<br>' : '') + `<span class="t">${IC.wa}whatsapp</span><b>${p.whatsapp.messaggi}</b> messaggi da ${p.whatsapp.chat} chat`;
-    $('#hud-sx').style.display = sx ? 'block' : 'none'; $('#hud-sx').innerHTML = sx; $('#hud-bs').style.display = bs ? 'block' : 'none'; $('#hud-bs').innerHTML = bs; } catch (e) {} }
+    if (p.mail) bs += `<div><span class="t">${IC.mail}posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' · ') + '</div>';
+    if (p.whatsapp) bs += `<div class="cl" data-apri="whatsapp" title="Clicca per leggere e rispondere"><span class="t">${IC.wa}whatsapp</span><b>${p.whatsapp.messaggi}</b> messaggi da ${p.whatsapp.chat} chat</div>`;
+    if (sx) sx = '<div class="cl" data-apri="impegni" title="Clicca per vedere gli impegni">' + sx + '</div>'; $('#hud-sx').style.display = sx ? 'block' : 'none'; $('#hud-sx').innerHTML = sx; $('#hud-bs').style.display = bs ? 'block' : 'none'; $('#hud-bs').innerHTML = bs; } catch (e) {} }
   setTimeout(pannello, 2500); setInterval(pannello, 60000); }
 { let sv = true; try { sv = localStorage.jarvisChat !== '1'; } catch (e) {} document.body.classList.toggle('solovoce', sv); $('#chatbtn').classList.toggle('on', !sv);
   const mostraChat = on => { document.body.classList.toggle('solovoce', !on); $('#chatbtn').classList.toggle('on', on); try { localStorage.jarvisChat = on ? '1' : '0'; } catch (er) {} if (on) { log.scrollTop = log.scrollHeight; $('#q').focus(); } };
@@ -579,6 +601,65 @@ speechSynthesis?.getVoices();
   $('#picker').onclick = e => { if (e.target.id === 'picker') chiudiPicker(); };
   addEventListener('keydown', e => { if (e.key === 'Escape') chiudiPicker(); });
   disegnaDesk(); setInterval(disegnaDesk, 3000); }
+// riquadri cliccabili: impegni e WhatsApp. Ogni testo mostrato e' messo come testo semplice. Un messaggio parte SOLO dopo il clic su "Invia" (vedi il testo prima).
+{ const M = $('#int'), T = $('#int-t'), Bd = $('#int-b'), N = $('#int-n');
+  const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  const btn = (txt, f, cls) => { const b = h('button', 'ib ' + (cls || ''), txt); b.onclick = f; return b; };
+  const chiudi = () => M.classList.remove('on');
+  const apri = (titolo, nota) => { T.textContent = titolo; N.textContent = nota || ''; M.classList.add('on'); };
+  const chiama = async (path, corpo) => { const r = await fetch(path, { credentials: 'same-origin', method: corpo ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' }, body: corpo ? JSON.stringify(corpo) : undefined });
+    if (r.status === 401) { showLogin(); throw new Error('Serve il login.'); } const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Qualcosa non ha funzionato.'); return d; };
+  const mostra = (...nodi) => Bd.replaceChildren(...nodi);
+  const attendi = (txt) => mostra(h('div', 'dim', txt || 'Un attimo…'));
+  const guasto = (e, indietro) => mostra(h('div', 'err', e.message), ...(indietro ? [btn('← indietro', indietro, 'ind')] : []));
+
+  // ---- impegni ----
+  async function vistaImpegni() { apri('Impegni di oggi', 'Clicca un impegno per vedere i dettagli e scrivere alla persona.'); attendi('Leggo il calendario…');
+    try { const d = await chiama('/api/impegni'); const nodi = [];
+      for (const c of d.calendari) { nodi.push(h('div', 'sezt', 'Calendario ' + c.calendario));
+        if (c.errore) nodi.push(h('div', 'dim', c.errore)); else if (!c.eventi.length) nodi.push(h('div', 'dim', 'Nessun impegno.'));
+        for (const ev of c.eventi) { const r = h('button', 'riga'); r.append(h('span', 'q', ev.quando), h('span', 'n', ev.titolo)); r.onclick = () => vistaEvento(ev); nodi.push(r); } }
+      mostra(...nodi); } catch (e) { guasto(e); } }
+  function vistaEvento(ev) { apri(ev.titolo, ''); const nodi = [btn('← indietro', vistaImpegni, 'ind'), h('div', 'dett', 'Quando: ' + ev.quando)];
+    if (ev.luogo) nodi.push(h('div', 'dett', 'Dove: ' + ev.luogo)); if (ev.partecipanti.length) nodi.push(h('div', 'dett', 'Con: ' + ev.partecipanti.join(', '))); if (ev.descrizione) nodi.push(h('div', 'desc', ev.descrizione));
+    nodi.push(h('div', 'sezt', 'Scrivi su WhatsApp')); const g = h('div', 'gruppo');
+    ev.contatti.forEach(n => g.append(btn(n, () => vistaScrivi({ nome: n, indietro: () => vistaEvento(ev) }))));
+    g.append(btn('Un\'altra persona…', () => vistaScrivi({ nome: '', indietro: () => vistaEvento(ev) }), 'alt')); nodi.push(g); mostra(...nodi); }
+
+  // ---- WhatsApp ----
+  async function vistaWhatsApp() { apri('WhatsApp', 'Messaggi non letti. Clicca una chat per leggerla e rispondere.'); attendi('Leggo i messaggi…');
+    try { const d = await chiama('/api/whatsapp/chat'); const nodi = [];
+      if (!d.chat.length) nodi.push(h('div', 'dim', 'Nessun messaggio nuovo.'));
+      for (const c of d.chat) { const r = h('button', 'riga'); r.append(h('span', 'n', c.nome), h('span', 'b', String(c.non_lette))); r.onclick = () => vistaChat(c); nodi.push(r); }
+      nodi.push(btn('✉ Scrivi a qualcuno…', () => vistaScrivi({ nome: '', indietro: vistaWhatsApp }), 'alt')); mostra(...nodi); } catch (e) { guasto(e); } }
+  async function vistaChat(c) { apri(c.nome, 'Letta solo qui: a chi ha scritto non arriva nessuna spunta blu.'); attendi('Apro la chat…');
+    try { const d = await chiama('/api/whatsapp/messaggi?id=' + encodeURIComponent(c.id)); const nodi = [btn('← indietro', vistaWhatsApp, 'ind')];
+      for (const m of d.messaggi) { const b = h('div', 'bolla' + (m.da_me ? ' mio' : ''), m.testo); b.append(h('small', '', (m.da_me ? 'tu' : d.nome) + ' · ' + m.ora)); nodi.push(b); }
+      if (d.in_rubrica) nodi.push(btn('↩ Rispondi', () => vistaScrivi({ nome: d.nome, indietro: () => vistaChat(c) }), 'ok'));
+      else if (d.numero_noto) { const nm = h('input'); nm.placeholder = 'Che nome gli dai in rubrica?'; nm.value = c.nome.startsWith('+') ? '' : c.nome; const st = h('div', 'dim', 'Questa persona non e\' ancora nella tua rubrica: per rispondere va salvata (resta solo sul tuo PC).');
+        nodi.push(st, nm, btn('Salva in rubrica', async () => { try { await chiama('/api/whatsapp/salva', { chat_id: c.id, nome: nm.value.trim() }); vistaChat(c); } catch (e) { st.textContent = e.message; st.className = 'err'; } }));
+      } else nodi.push(h('div', 'dim', 'Di questa chat WhatsApp non mi dice il numero, quindi da qui non posso rispondere.'));
+      mostra(...nodi); Bd.scrollTop = Bd.scrollHeight; } catch (e) { guasto(e, vistaWhatsApp); } }
+
+  // ---- scrivere e confermare ----
+  async function vistaScrivi({ nome, indietro, testo = '' }) { apri(nome ? 'Messaggio per ' + nome : 'Scrivi su WhatsApp', 'Prima vedi il testo, poi premi Invia: senza il tuo clic non parte niente.');
+    const nodi = [btn('← indietro', indietro, 'ind')]; let campo = null;
+    if (!nome) { campo = h('input'); campo.placeholder = 'A chi? Scrivi un nome della rubrica'; campo.setAttribute('list', 'dl-rubrica'); nodi.push(campo);
+      if (!$('#dl-rubrica')) { const dl = h('datalist'); dl.id = 'dl-rubrica'; document.body.append(dl); } chiama('/api/whatsapp/rubrica').then(d => $('#dl-rubrica').replaceChildren(...d.nomi.map(n => { const o = h('option'); o.value = n; return o; }))).catch(() => {}); }
+    const ta = h('textarea'); ta.placeholder = 'Scrivi il messaggio…'; ta.value = testo; nodi.push(ta); const er = h('div', 'err');
+    nodi.push(btn('Prepara il messaggio', async () => { er.textContent = ''; const a = (campo ? campo.value : nome).trim(); if (!a) { er.textContent = 'Scrivi a chi vuoi mandarlo.'; return; }
+      try { const prep = await chiama('/api/whatsapp/prepara', { a, testo: ta.value }); vistaConferma(prep, () => vistaScrivi({ nome: campo ? a : nome, indietro, testo: ta.value })); } catch (e) { er.textContent = e.message; } }, 'ok'), er);
+    mostra(...nodi); (campo || ta).focus(); }
+  function vistaConferma(prep, modifica) { apri('Confermi l\'invio?', 'Il messaggio parte solo se premi "Invia".');
+    const inv = btn('Invia', async () => { inv.disabled = true; inv.textContent = 'Invio…'; try { const d = await chiama('/api/whatsapp/invia', { pid: prep.pid }); apri('Fatto', ''); mostra(h('div', 'dett', d.messaggio), btn('Chiudi', chiudi)); }
+      catch (e) { mostra(h('div', 'err', e.message), btn('← indietro', modifica, 'ind')); } }, 'ok'); inv.disabled = true; setTimeout(() => { inv.disabled = false; }, 1300);  // il tempo di leggere
+    const nodi = [h('div', 'dett', 'Sto per mandare a ' + prep.nome + ':'), h('div', 'citaz', prep.testo)];
+    if (!prep.in_rubrica) nodi.push(h('div', 'err', 'Questa persona non e\' in rubrica: per sicurezza non posso inviare. Salvala prima.'));
+    const g = h('div', 'gruppo'); if (prep.in_rubrica) g.append(inv); g.append(btn('Modifica', modifica), btn('Annulla', chiudi, 'alt')); nodi.push(g); mostra(...nodi); }
+
+  $('#hud').addEventListener('click', e => { const a = e.target.closest('[data-apri]'); if (!a || !document.body.classList.contains('conbarra')) return; ({ impegni: vistaImpegni, whatsapp: vistaWhatsApp })[a.dataset.apri]?.(); });
+  M.onclick = e => { if (e.target.id === 'int') chiudi(); }; addEventListener('keydown', e => { if (e.key === 'Escape') chiudi(); }); }
+
 // posizione per il meteo: la chiede il browser (con il tuo permesso) solo sul PC, ogni 3 ore; se la neghi si usa la citta' dall'indirizzo internet
 { const manda = () => { if (!document.body.classList.contains('conbarra') || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(p => api('/api/posizione', { method: 'POST', body: JSON.stringify({ lat: p.coords.latitude, lon: p.coords.longitude }) }).then(() => pannello()).catch(() => {}), () => {}, { maximumAge: 3600000, timeout: 15000 }); };

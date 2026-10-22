@@ -50,13 +50,22 @@ def eventi(url: str, day: date) -> list[dict]:
         f = e.get("DTEND").dt if e.get("DTEND") else None
         titolo = str(e.get("SUMMARY", "")).strip() or "(senza titolo)"
         luogo = str(e.get("LOCATION", "")).strip()
+        descrizione = str(e.get("DESCRIPTION", "")).strip()[:600]
+        part = e.get("ATTENDEE")
+        part = part if isinstance(part, list) else ([part] if part else [])
+        partecipanti = []
+        for a in part:  # solo i nomi (o la parte prima della @): servono per trovare le persone in rubrica
+            nome = str(getattr(a, "params", {}).get("CN", "")).strip() or str(a).replace("mailto:", "").split("@")[0]
+            if nome and nome not in partecipanti:
+                partecipanti.append(nome[:60])
+        extra = {"descrizione": descrizione, "partecipanti": partecipanti[:12]}
         if isinstance(s, datetime):
             s = s.astimezone(zone) if s.tzinfo else s.replace(tzinfo=zone)
             if isinstance(f, datetime):
                 f = f.astimezone(zone) if f.tzinfo else f.replace(tzinfo=zone)
-            out.append({"tutto_giorno": False, "inizio": s, "fine": f if isinstance(f, datetime) else None, "titolo": titolo, "luogo": luogo})
+            out.append({"tutto_giorno": False, "inizio": s, "fine": f if isinstance(f, datetime) else None, "titolo": titolo, "luogo": luogo, **extra})
         else:
-            out.append({"tutto_giorno": True, "inizio": datetime.combine(s, time.min, tzinfo=zone), "fine": None, "titolo": titolo, "luogo": luogo})
+            out.append({"tutto_giorno": True, "inizio": datetime.combine(s, time.min, tzinfo=zone), "fine": None, "titolo": titolo, "luogo": luogo, **extra})
     out.sort(key=lambda x: (not x["tutto_giorno"], x["inizio"]))
     return out
 

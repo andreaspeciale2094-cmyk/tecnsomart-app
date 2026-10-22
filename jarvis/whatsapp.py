@@ -89,7 +89,7 @@ def prepara(a: str, testo: str) -> str:
         raise WhatsAppError("Manca il testo del messaggio.")
     nome, numero, in_rubrica = _trova(a)
     pid = uuid.uuid4().hex[:6]
-    _pronti[pid] = {"nome": nome, "numero": numero, "testo": testo[:1000], "turno": posta.turno(), "in_rubrica": in_rubrica}
+    _pronti[pid] = {"nome": nome, "numero": numero, "testo": testo[:1000], "turno": posta.turno(), "in_rubrica": in_rubrica, "t": time.time()}
     return (f"MESSAGGIO {pid} per {nome} (non ancora aperto)\n\n{testo[:1000]}\n\n"
             "Leggilo ad Andrea e chiedi: 'Lo apro in WhatsApp?'. Dopo il suo si': se hai lo strumento whatsapp_invia lo mandi tu senza finestre, altrimenti si apre WhatsApp e lo invia lui.")
 
@@ -158,11 +158,12 @@ def _avvia_helper_senza_blocco() -> dict:
     raise WhatsAppError("Il programma di appoggio di WhatsApp non e' partito. Riprova tra poco.")
 
 
-def invia(pid: str) -> str:
+def invia(pid: str, da_pagina: bool = False) -> str:
+    """da_pagina=True solo dal pulsante 'Invia' della pagina, dopo che Andrea ha VISTO il testo (il clic e' il suo si'): lo decide `interazioni.invia_dopo_si`."""
     p = _pronti.get(pid)
     if not p:
         raise WhatsAppError("Non trovo quel messaggio: ripreparalo.")
-    if p["turno"] == posta.turno():
+    if p["turno"] == posta.turno() and not da_pagina:
         raise WhatsAppError("Prima Andrea deve vedere il messaggio e dirti di inviarlo: aspetta il suo si'.")
     if not p.get("in_rubrica"):
         raise WhatsAppError("Senza finestre invio solo a persone della rubrica: salva prima il numero con il suo nome.")

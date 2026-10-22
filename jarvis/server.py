@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agenti, ascolto, auth, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import agenti, ascolto, auth, interazioni, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 @asynccontextmanager
@@ -211,6 +211,70 @@ def barra_azione(azione: str, body: BarraAzione, request: Request):
     except (ValueError, OSError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return {"ok": True}
+
+
+def _pc_o_errore(request: Request):
+    return None if _dal_pc(request) else JSONResponse({"error": "Questa funzione e' disponibile solo dal PC."}, status_code=403)
+
+
+def _chiama(f, *a):
+    """Esegue una funzione dei riquadri cliccabili e traduce gli errori in messaggi semplici."""
+    try:
+        return f(*a)
+    except whatsapp.WhatsAppError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except ValueError:
+        return JSONResponse({"error": "Dati non validi."}, status_code=400)
+
+
+@app.get("/api/impegni")
+def api_impegni(request: Request, data: str = ""):
+    return _pc_o_errore(request) or _chiama(interazioni.impegni, data)
+
+
+@app.get("/api/whatsapp/rubrica")
+def api_wa_rubrica(request: Request):
+    return _pc_o_errore(request) or {"nomi": interazioni.rubrica_nomi()}
+
+
+@app.get("/api/whatsapp/chat")
+def api_wa_chat(request: Request):
+    return _pc_o_errore(request) or _chiama(lambda: {"chat": interazioni.chat_lista()})
+
+
+@app.get("/api/whatsapp/messaggi")
+def api_wa_messaggi(request: Request, id: str):
+    return _pc_o_errore(request) or _chiama(interazioni.chat_messaggi, id)
+
+
+class WaPrepara(BaseModel):
+    a: str
+    testo: str
+
+
+@app.post("/api/whatsapp/prepara")
+def api_wa_prepara(body: WaPrepara, request: Request):
+    return _pc_o_errore(request) or _chiama(interazioni.prepara, body.a[:60], body.testo[:1000])
+
+
+class WaInvia(BaseModel):
+    pid: str
+
+
+@app.post("/api/whatsapp/invia")
+def api_wa_invia(body: WaInvia, request: Request):
+    """Parte solo dal pulsante 'Invia' dopo che Andrea ha visto il testo."""
+    return _pc_o_errore(request) or _chiama(lambda: {"messaggio": interazioni.invia_dopo_si(body.pid)})
+
+
+class WaSalva(BaseModel):
+    chat_id: str
+    nome: str
+
+
+@app.post("/api/whatsapp/salva")
+def api_wa_salva(body: WaSalva, request: Request):
+    return _pc_o_errore(request) or _chiama(lambda: {"messaggio": interazioni.salva_da_chat(body.chat_id, body.nome)})
 
 
 class Fase(BaseModel):
