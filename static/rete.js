@@ -13,6 +13,8 @@
   const dati = new Uint8Array(128);
   // agenti al lavoro (pezzo 3): ognuno ha una zona fissa intorno alla rete che si accende mentre lavora, con un raggio dal centro e il suo nome
   const AGENTI_ORD = ['agenda', 'posta', 'whatsapp', 'negozi', 'soldi'];
+  const COLORI = { agenda: [66, 133, 244], posta: [234, 67, 53], whatsapp: [37, 211, 102], negozi: [255, 159, 28], soldi: [45, 212, 191] };  // il colore di ogni app
+  const scintille = [];
   const ag = {}; let agenti = {}, sondaggio = true;
   async function sondaAgenti() { if (!sondaggio || document.hidden) return;
     try { const r = await fetch('/api/agenti', { credentials: 'same-origin' }); if (r.status === 401 || r.status === 404) { sondaggio = false; return; } if (r.ok) agenti = (await r.json()).agenti || {}; } catch (e) {} }
@@ -37,6 +39,12 @@
   for (let i = 0; i < N; i++) {
     const d = nodi.map((n, k) => [k, (n.x - nodi[i].x) ** 2 + (n.y - nodi[i].y) ** 2 + (n.z - nodi[i].z) ** 2]).filter(a => a[0] !== i).sort((a, b) => a[1] - b[1]).slice(0, 4);
     for (const [k] of d) { const chiave = Math.min(i, k) * N + Math.max(i, k); if (!visti.has(chiave)) { visti.add(chiave); bordi.push([i, k]); } }
+  }
+
+  function nuovaScintilla(ax, ay, rz, col) {
+    if (scintille.length > 140) return;
+    const r = rz * Math.sqrt(Math.random()), t = Math.random() * 6.283;
+    scintille.push({ x: ax + Math.cos(t) * r, y: ay + Math.sin(t) * r, nato: performance.now(), dura: 500 + Math.random() * 700, gr: 2.5 + Math.random() * 4.5, col });
   }
 
   function misura() {
@@ -108,8 +116,13 @@
         if (a.i <= 0.02) continue;
         const k = AGENTI_ORD.indexOf(nm), idx = k < 0 ? AGENTI_ORD.length + Object.keys(ag).indexOf(nm) : k, th = -Math.PI / 2 + idx * 2 * Math.PI / Math.max(5, AGENTI_ORD.length);
         const ax = cx + Math.cos(th) * R * 0.82, ay = cy + Math.sin(th) * R * 0.74, rz = R * 0.27;
-        for (const q of p) { const d = Math.hypot(q.x - ax, q.y - ay) / rz; if (d < 1 && q.z > -0.35) q.v = Math.max(q.v, Math.pow(1 - d, 1.4) * a.i * 0.6); }
-        zone.push({ nm, a, th, ax, ay, rz });
+        const col = COLORI[nm] || [255, 42, 61];
+        for (const q of p) { const d = Math.hypot(q.x - ax, q.y - ay) / rz; if (d < 1 && q.z > -0.35) { const w = Math.pow(1 - d, 1.4) * a.i * 0.6; if (w > q.v) q.v = w; if (!q.t || w > q.t.w) q.t = { w, c: col }; } }
+        if (a.fase === 'fatto' && a.prima !== 'fatto') for (let j = 0; j < 14; j++) nuovaScintilla(ax, ay, rz, col);  // un'esplosione di luccichii quando finisce
+        a.prima = a.fase;
+        if (a.fase === 'lavora' && Math.random() < dt * 22 * (calmo ? 0.5 : 1)) nuovaScintilla(ax, ay, rz, col);
+        if (a.fase === 'lavora' && Math.random() < dt * 8) nuovaScintilla(ax, ay, rz, col);
+        zone.push({ nm, a, th, ax, ay, rz, col });
       }
     }
 
@@ -146,25 +159,28 @@
     // nodi
     for (const n of p) {
       const prof = n.z * 0.5 + 0.5, r = (0.7 + prof * 1.0 + n.v * 3.6) * n.f;
-      g.fillStyle = n.v > 0.55 ? 'rgba(255,235,220,0.95)' : `rgba(${colore},${0.35 + prof * 0.5 + n.v * 0.4})`;
+      const tc = n.t && n.t.w > 0.12 ? n.t.c : null;
+      g.fillStyle = tc ? (n.v > 0.45 ? `rgba(${tc.map(x => Math.round((x + 255 * 0.55) / 1.55))},0.95)` : `rgba(${tc},${0.45 + prof * 0.4 + n.v * 0.4})`)
+        : n.v > 0.55 ? 'rgba(255,235,220,0.95)' : `rgba(${colore},${0.35 + prof * 0.5 + n.v * 0.4})`;
       g.beginPath(); g.arc(n.x, n.y, r, 0, 6.283); g.fill();
-      if (!calmo && n.v > 0.5) { g.fillStyle = `rgba(${colore},${n.v * 0.25})`; g.beginPath(); g.arc(n.x, n.y, r * 3.2, 0, 6.283); g.fill(); }
+      if (!calmo && n.v > 0.5) { g.fillStyle = `rgba(${tc || colore},${n.v * 0.25})`; g.beginPath(); g.arc(n.x, n.y, r * 3.2, 0, 6.283); g.fill(); }
     }
-    // agenti: raggio dal centro, cerchio e nome (restano fermi mentre la rete gira)
+    // agenti: un filo leggero dal centro e luccichii nel colore dell'app (niente nomi)
     for (const z of zone) {
-      const { a, th, ax, ay, rz } = z, lavora = a.fase === 'lavora', oro = a.fase === 'fatto', c = oro ? [255, 180, 84] : lavora ? [255, 42, 61] : [255, 120, 60];
-      const gr2 = g.createLinearGradient(cx, cy, ax, ay); gr2.addColorStop(0, `rgba(${c},0)`); gr2.addColorStop(1, `rgba(${c},${0.22 * a.i})`);
+      const { a, ax, ay, col } = z;
+      const gr2 = g.createLinearGradient(cx, cy, ax, ay); gr2.addColorStop(0, `rgba(${col},0)`); gr2.addColorStop(1, `rgba(${col},${0.2 * a.i})`);
       g.strokeStyle = gr2; g.lineWidth = 1; g.beginPath(); g.moveTo(cx, cy); g.lineTo(ax, ay); g.stroke();
-      g.strokeStyle = `rgba(${c},${0.28 * a.i})`; g.lineWidth = 1; g.beginPath(); g.arc(ax, ay, rz * (0.92 + 0.06 * Math.sin(adesso / 220)), 0, 6.283); g.stroke();
-      if (lavora) for (let j = 0; j < 2; j++) { const f = ((adesso / 1400) + j / 2) % 1; g.fillStyle = `rgba(255,200,190,${0.55 * a.i})`; g.beginPath(); g.arc(cx + (ax - cx) * f, cy + (ay - cy) * f, 1.8, 0, 6.283); g.fill(); }
-      g.globalCompositeOperation = 'source-over';
-      const lato = Math.cos(th) >= -0.3 ? 1 : -1, lx = ax + lato * (rz + 12), ly = ay;  // il nome sta di lato, mai sopra o sotto (non si taglia e non copre i sottotitoli)
-      g.textAlign = lato > 0 ? 'left' : 'right'; g.textBaseline = 'middle';
-      g.font = '600 10px ui-monospace, Consolas, monospace'; if ('letterSpacing' in g) g.letterSpacing = '2px';
-      g.shadowColor = `rgba(${c},.9)`; g.shadowBlur = 5; g.fillStyle = `rgba(255,255,255,${Math.min(0.75, a.i * 1.1)})`; g.fillText(z.nm.toUpperCase(), lx, ly - 7);
-      g.font = '9px ui-monospace, Consolas, monospace'; g.fillStyle = `rgba(${c},${Math.min(0.7, a.i * 1.1)})`;
-      g.fillText(lavora ? 'AL LAVORO' : oro ? 'FATTO' : 'NON RISPONDE', lx, ly + 7); g.shadowBlur = 0;
-      g.globalCompositeOperation = 'lighter';
+      if (a.fase === 'lavora') for (let j = 0; j < 2; j++) { const f = ((adesso / 1400) + j / 2) % 1; g.fillStyle = `rgba(${col},${0.6 * a.i})`; g.beginPath(); g.arc(cx + (ax - cx) * f, cy + (ay - cy) * f, 1.8, 0, 6.283); g.fill(); }
+    }
+    const ora = performance.now();
+    for (let i = scintille.length - 1; i >= 0; i--) {
+      const sc = scintille[i], t = (ora - sc.nato) / sc.dura;
+      if (t >= 1) { scintille.splice(i, 1); continue; }
+      const lum = Math.sin(Math.PI * t), gr = sc.gr * (0.4 + 0.6 * lum), c = sc.col;
+      g.strokeStyle = `rgba(${c.map(x => Math.round((x + 255 * 0.5) / 1.5))},${0.9 * lum})`; g.lineWidth = 1;   // piccola stella a quattro punte
+      g.beginPath(); g.moveTo(sc.x - gr, sc.y); g.lineTo(sc.x + gr, sc.y); g.moveTo(sc.x, sc.y - gr); g.lineTo(sc.x, sc.y + gr); g.stroke();
+      g.fillStyle = `rgba(${c},${0.35 * lum})`; g.beginPath(); g.arc(sc.x, sc.y, gr * 1.2, 0, 6.283); g.fill();
+      g.fillStyle = `rgba(255,255,255,${0.85 * lum})`; g.beginPath(); g.arc(sc.x, sc.y, 0.9, 0, 6.283); g.fill();
     }
     g.restore();
   }
