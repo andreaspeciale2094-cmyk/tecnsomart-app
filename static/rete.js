@@ -42,9 +42,9 @@
   }
 
   function nuovaScintilla(ax, ay, rz, col) {
-    if (scintille.length > 140) return;
+    if (scintille.length > 40) return;
     const r = rz * Math.sqrt(Math.random()), t = Math.random() * 6.283;
-    scintille.push({ x: ax + Math.cos(t) * r, y: ay + Math.sin(t) * r, nato: performance.now(), dura: 500 + Math.random() * 700, gr: 2.5 + Math.random() * 4.5, col });
+    scintille.push({ x: ax + Math.cos(t) * r, y: ay + Math.sin(t) * r, nato: performance.now(), dura: 500 + Math.random() * 700, gr: 2 + Math.random() * 3, col });
   }
 
   function misura() {
@@ -115,14 +115,13 @@
       for (const [nm, a] of Object.entries(ag)) {
         if (a.i <= 0.02) continue;
         const k = AGENTI_ORD.indexOf(nm), idx = k < 0 ? AGENTI_ORD.length + Object.keys(ag).indexOf(nm) : k, th = -Math.PI / 2 + idx * 2 * Math.PI / Math.max(5, AGENTI_ORD.length);
-        const ax = cx + Math.cos(th) * R * 0.82, ay = cy + Math.sin(th) * R * 0.74, rz = R * 0.27;
+        const ax = cx + Math.cos(th) * R * 0.82, ay = cy + Math.sin(th) * R * 0.74, rz = R * 0.19;
         const col = COLORI[nm] || [255, 42, 61];
-        for (const q of p) { const d = Math.hypot(q.x - ax, q.y - ay) / rz; if (d < 1 && q.z > -0.35) { const w = Math.pow(1 - d, 1.4) * a.i * 0.6; if (w > q.v) q.v = w; if (!q.t || w > q.t.w) q.t = { w, c: col }; } }
-        if (a.fase === 'fatto' && a.prima !== 'fatto') for (let j = 0; j < 14; j++) nuovaScintilla(ax, ay, rz, col);  // un'esplosione di luccichii quando finisce
+        for (const q of p) { const d = Math.hypot(q.x - ax, q.y - ay) / rz; if (d < 1 && q.z > -0.35) { const w = Math.pow(1 - d, 1.6) * a.i * 0.55; if (w > q.v) q.v = w; if (!q.t || w > q.t.w) q.t = { w, c: col }; } }
+        if (a.fase === 'fatto' && a.prima !== 'fatto') for (let j = 0; j < 6; j++) nuovaScintilla(ax, ay, rz, col);  // un'esplosione di luccichii quando finisce
         a.prima = a.fase;
-        if (a.fase === 'lavora' && Math.random() < dt * 22 * (calmo ? 0.5 : 1)) nuovaScintilla(ax, ay, rz, col);
-        if (a.fase === 'lavora' && Math.random() < dt * 8) nuovaScintilla(ax, ay, rz, col);
-        zone.push({ nm, a, th, ax, ay, rz, col });
+        if (a.fase === 'lavora' && Math.random() < dt * 7 * (calmo ? 0.5 : 1)) nuovaScintilla(ax, ay, rz, col);
+                zone.push({ nm, a, th, ax, ay, rz, col });
       }
     }
 
@@ -159,7 +158,7 @@
     // nodi
     for (const n of p) {
       const prof = n.z * 0.5 + 0.5, r = (0.7 + prof * 1.0 + n.v * 3.6) * n.f;
-      const tc = n.t && n.t.w > 0.12 ? n.t.c : null;
+      const tc = n.t && n.t.w > 0.22 ? n.t.c : null;
       g.fillStyle = tc ? (n.v > 0.45 ? `rgba(${tc.map(x => Math.round((x + 255 * 0.55) / 1.55))},0.95)` : `rgba(${tc},${0.45 + prof * 0.4 + n.v * 0.4})`)
         : n.v > 0.55 ? 'rgba(255,235,220,0.95)' : `rgba(${colore},${0.35 + prof * 0.5 + n.v * 0.4})`;
       g.beginPath(); g.arc(n.x, n.y, r, 0, 6.283); g.fill();
@@ -179,7 +178,7 @@
       const lum = Math.sin(Math.PI * t), gr = sc.gr * (0.4 + 0.6 * lum), c = sc.col;
       g.strokeStyle = `rgba(${c.map(x => Math.round((x + 255 * 0.5) / 1.5))},${0.9 * lum})`; g.lineWidth = 1;   // piccola stella a quattro punte
       g.beginPath(); g.moveTo(sc.x - gr, sc.y); g.lineTo(sc.x + gr, sc.y); g.moveTo(sc.x, sc.y - gr); g.lineTo(sc.x, sc.y + gr); g.stroke();
-      g.fillStyle = `rgba(${c},${0.35 * lum})`; g.beginPath(); g.arc(sc.x, sc.y, gr * 1.2, 0, 6.283); g.fill();
+      g.fillStyle = `rgba(${c},${0.18 * lum})`; g.beginPath(); g.arc(sc.x, sc.y, gr * 1.1, 0, 6.283); g.fill();
       g.fillStyle = `rgba(255,255,255,${0.85 * lum})`; g.beginPath(); g.arc(sc.x, sc.y, 0.9, 0, 6.283); g.fill();
     }
     g.restore();
