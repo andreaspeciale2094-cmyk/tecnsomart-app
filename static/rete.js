@@ -11,6 +11,12 @@
   const nodi = [], bordi = [], impulsi = [];
   let W = 0, H = 0, dpr = 1, ang = 0, tilt = 0.35, livello = 0, ultimo = performance.now();
   const dati = new Uint8Array(128);
+  // agenti al lavoro (pezzo 3): ognuno ha una zona fissa intorno alla rete che si accende mentre lavora, con un raggio dal centro e il suo nome
+  const AGENTI_ORD = ['agenda', 'posta', 'whatsapp', 'negozi', 'soldi'];
+  const ag = {}; let agenti = {}, sondaggio = true;
+  async function sondaAgenti() { if (!sondaggio || document.hidden) return;
+    try { const r = await fetch('/api/agenti', { credentials: 'same-origin' }); if (r.status === 401 || r.status === 404) { sondaggio = false; return; } if (r.ok) agenti = (await r.json()).agenti || {}; } catch (e) {} }
+  setInterval(sondaAgenti, 700);
 
   // due gusci di nodi (esterno fitto e interno piu' piccolo) su sfere con un po' di disordine: la rete e' fitta e ha profondita'
   function guscio(n, raggio, variazione) {
@@ -69,7 +75,16 @@
     if (document.hidden || wrap.getClientRects().length === 0) return;
     if (calmo && adesso - ultimo < 33) return;  // effetti ridotti: meta' dei fotogrammi
     const dt = Math.min(0.05, (adesso - ultimo) / 1000); ultimo = adesso;
-    const modo = stato();
+    let attivi = 0;
+    for (const nm of new Set([...AGENTI_ORD, ...Object.keys(agenti)])) {
+      const a = ag[nm] ||= { i: 0, fase: '' }, f = agenti[nm] || '';
+      if (f) a.fase = f;
+      a.i += ((f === 'lavora' ? 1 : f === 'fatto' ? 0.6 : f === 'errore' ? 0.4 : 0) - a.i) * Math.min(1, dt * 6);
+      if (!f && a.i < 0.02) { a.i = 0; a.fase = ''; }
+      if (a.i > 0.02) attivi++;
+    }
+    let modo = stato();
+    if (attivi && modo === 'riposo') modo = 'pensa';  // mentre gli agenti lavorano la rete si muove come quando pensa
     const conSpettro = leggiSuono(modo, adesso);
     if (conSpettro) { for (const n of nodi) n.v += ((dati[n.banda + 2] / 255) * 1.6 - n.v) * 0.35; }
     else for (const n of nodi) n.v += ((livello * (0.5 + 0.5 * Math.sin(adesso / 140 + n.banda))) - n.v) * 0.2;
@@ -86,6 +101,17 @@
       const f = 2.6 / (2.6 - z2);
       return { x: cx + x1 * R * f, y: cy + y2 * R * f, z: z2, f, v: n.v };
     });
+
+    const zone = [];
+    if (attivi) {
+      for (const [nm, a] of Object.entries(ag)) {
+        if (a.i <= 0.02) continue;
+        const k = AGENTI_ORD.indexOf(nm), idx = k < 0 ? AGENTI_ORD.length + Object.keys(ag).indexOf(nm) : k, th = -Math.PI / 2 + idx * 2 * Math.PI / Math.max(5, AGENTI_ORD.length);
+        const ax = cx + Math.cos(th) * R * 0.82, ay = cy + Math.sin(th) * R * 0.74, rz = R * 0.33;
+        for (const q of p) { const d = Math.hypot(q.x - ax, q.y - ay) / rz; if (d < 1 && q.z > -0.35) q.v = Math.max(q.v, Math.pow(1 - d, 1.2) * a.i * 1.15); }
+        zone.push({ nm, a, th, ax, ay, rz });
+      }
+    }
 
     g.clearRect(0, 0, canvas.width, canvas.height);
     g.save(); g.scale(dpr, dpr);
@@ -123,6 +149,22 @@
       g.fillStyle = n.v > 0.55 ? 'rgba(255,235,220,0.95)' : `rgba(${colore},${0.35 + prof * 0.5 + n.v * 0.4})`;
       g.beginPath(); g.arc(n.x, n.y, r, 0, 6.283); g.fill();
       if (!calmo && n.v > 0.5) { g.fillStyle = `rgba(${colore},${n.v * 0.25})`; g.beginPath(); g.arc(n.x, n.y, r * 3.2, 0, 6.283); g.fill(); }
+    }
+    // agenti: raggio dal centro, cerchio e nome (restano fermi mentre la rete gira)
+    for (const z of zone) {
+      const { a, th, ax, ay, rz } = z, lavora = a.fase === 'lavora', oro = a.fase === 'fatto', c = oro ? [255, 180, 84] : lavora ? [255, 42, 61] : [255, 120, 60];
+      const gr2 = g.createLinearGradient(cx, cy, ax, ay); gr2.addColorStop(0, `rgba(${c},0)`); gr2.addColorStop(1, `rgba(${c},${0.55 * a.i})`);
+      g.strokeStyle = gr2; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx, cy); g.lineTo(ax, ay); g.stroke();
+      g.strokeStyle = `rgba(${c},${0.6 * a.i})`; g.lineWidth = 1.4; g.beginPath(); g.arc(ax, ay, rz * (0.92 + 0.06 * Math.sin(adesso / 220)), 0, 6.283); g.stroke();
+      if (lavora) for (let j = 0; j < 4; j++) { const f = ((adesso / 1100) + j / 4) % 1; g.fillStyle = `rgba(255,200,190,${0.9 * a.i})`; g.beginPath(); g.arc(cx + (ax - cx) * f, cy + (ay - cy) * f, 2.4, 0, 6.283); g.fill(); }
+      g.globalCompositeOperation = 'source-over';
+      const lato = Math.cos(th) >= -0.3 ? 1 : -1, lx = ax + lato * (rz + 12), ly = ay;  // il nome sta di lato, mai sopra o sotto (non si taglia e non copre i sottotitoli)
+      g.textAlign = lato > 0 ? 'left' : 'right'; g.textBaseline = 'middle';
+      g.font = '600 12px ui-monospace, Consolas, monospace'; if ('letterSpacing' in g) g.letterSpacing = '2px';
+      g.shadowColor = `rgba(${c},.9)`; g.shadowBlur = 10; g.fillStyle = `rgba(255,255,255,${Math.min(1, a.i * 1.5)})`; g.fillText(z.nm.toUpperCase(), lx, ly - 8);
+      g.font = '10px ui-monospace, Consolas, monospace'; g.fillStyle = `rgba(${c},${Math.min(1, a.i * 1.5)})`;
+      g.fillText(lavora ? 'AL LAVORO' : oro ? 'FATTO' : 'NON RISPONDE', lx, ly + 8); g.shadowBlur = 0;
+      g.globalCompositeOperation = 'lighter';
     }
     g.restore();
   }
