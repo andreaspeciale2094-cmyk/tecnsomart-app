@@ -23,6 +23,8 @@ PAROLA = "hey_jarvis"
 stato = {"attivo": True, "risvegli": 0, "errore": "", "in_ascolto": False, "fase": "", "ultimo_errore_log": 0.0,
          "livello": 0.0, "punteggio": 0.0, "dispositivo": "", "riapri": False}
 FILE_MIC = Path(__file__).parent.parent / "memoria" / "ascolto_microfono.txt"  # microfono scelto dalla pagina (solo sul PC)
+FILE_SOGLIA = Path(__file__).parent.parent / "memoria" / "ascolto_soglia.txt"  # sensibilita' scelta dalla pagina (vince su ASCOLTO_SOGLIA del .env)
+_soglia = {"v": None}
 
 
 def _fase(f: str):
@@ -380,6 +382,24 @@ def _ciclo():
         logs.log_error(e, "ascolto: avvio")
 
 
+def soglia() -> float:
+    """Quanto deve somigliare a 'Hey Jarvis' per svegliarsi: quella scelta dalla pagina, altrimenti ASCOLTO_SOGLIA."""
+    if _soglia["v"] is None:
+        try:
+            _soglia["v"] = float(FILE_SOGLIA.read_text(encoding="utf-8").strip()) if FILE_SOGLIA.exists() else config.ASCOLTO_SOGLIA
+        except (OSError, ValueError):
+            _soglia["v"] = config.ASCOLTO_SOGLIA
+    return _soglia["v"]
+
+
+def imposta_soglia(valore: float):
+    if not 0.15 <= valore <= 0.9:
+        raise ValueError("Sensibilita' non valida.")
+    FILE_SOGLIA.parent.mkdir(parents=True, exist_ok=True)
+    FILE_SOGLIA.write_text(str(round(valore, 2)), encoding="utf-8")
+    _soglia["v"] = round(valore, 2)
+
+
 def microfoni() -> list[str]:
     """Nomi dei microfoni del PC (senza doppioni tra i vari sistemi audio di Windows)."""
     import sounddevice as sd
@@ -456,7 +476,7 @@ def _ciclo_vero():
                         continue
                     punteggio = float(model.predict(blocco).get(PAROLA, 0))
                     stato["punteggio"] = max(punteggio, stato["punteggio"] * 0.97)
-                    if punteggio >= config.ASCOLTO_SOGLIA and time.time() - ultimo > 2:
+                    if punteggio >= soglia() and time.time() - ultimo > 2:
                         try:
                             gestisci_chiamata(leggi, vad)
                         except sd.PortAudioError:

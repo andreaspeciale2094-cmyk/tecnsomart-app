@@ -229,7 +229,7 @@ def ascolto_stato():
     """Stato vero dell'ascolto in stanza (il programma che sente 'Hey Jarvis' anche a pagina chiusa)."""
     return {"abilitato": config.ENABLE_ASCOLTO, "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"],
             "risvegli": ascolto.stato["risvegli"], "errore": ascolto.stato["errore"], "stt": voice.stt_available(), "fase": ascolto.stato["fase"],
-            "livello": round(ascolto.stato["livello"], 2), "punteggio": round(ascolto.stato["punteggio"], 2), "dispositivo": ascolto.stato["dispositivo"], "soglia": config.ASCOLTO_SOGLIA}
+            "livello": round(ascolto.stato["livello"], 2), "punteggio": round(ascolto.stato["punteggio"], 2), "dispositivo": ascolto.stato["dispositivo"], "soglia": ascolto.soglia()}
 
 
 @app.get("/api/ascolto/microfoni")
@@ -240,6 +240,22 @@ def ascolto_microfoni(request: Request):
         return {"nomi": ascolto.microfoni(), "scelto": ascolto.stato["dispositivo"]}
     except Exception:
         return JSONResponse({"error": "non riesco a leggere i microfoni"}, status_code=500)
+
+
+class Sensibilita(BaseModel):
+    valore: float
+
+
+@app.post("/api/ascolto/soglia")
+def ascolto_soglia(body: Sensibilita, request: Request):
+    """Cambia quanto e' facile svegliare Jarvis con 'Hey Jarvis' (solo dal PC)."""
+    if not _dal_pc(request):
+        return JSONResponse({"error": "non disponibile"}, status_code=403)
+    try:
+        ascolto.imposta_soglia(body.valore)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"ok": True, "soglia": ascolto.soglia()}
 
 
 class Microfono(BaseModel):

@@ -532,6 +532,11 @@ async function init() {
       const pk = $('#picker'); pk.querySelector('.pkt').textContent = 'Quale microfono deve usare Jarvis?'; $('#pk-q').style.display = 'none'; pk.querySelector('.pkn').textContent = 'Scegli quello delle cuffie. Dopo il clic guarda la barra: deve muoversi quando parli.';
       const L = $('#pk-l'); L.replaceChildren(...['', ...d.nomi].map(n => { const b = document.createElement('button'); b.textContent = n || '(quello predefinito di Windows)'; if (n && d.scelto && d.scelto.startsWith(n.slice(0, 30))) b.textContent += '  ← in uso';
         b.onclick = () => api('/api/ascolto/microfono', { method: 'POST', body: JSON.stringify({ nome: n }) }).then(() => { pk.classList.remove('on'); $('#pk-q').style.display = ''; }).catch(() => {}); return b; }));
+      const sens = document.createElement('div'); sens.style.cssText = 'display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap'; sens.innerHTML = '<span style="font:10px ui-monospace,monospace;letter-spacing:.12em;color:var(--dim);text-transform:uppercase">Sensibilità</span>';
+      [['Normale', 0.5], ['Alta', 0.35], ['Molto alta', 0.25]].forEach(([nome, v]) => { const b = document.createElement('button'); b.textContent = nome + ' (' + v + ')'; b.style.cssText = 'padding:6px 10px;background:transparent;border:1px solid var(--red-dim);color:var(--text);cursor:pointer;font-size:12px';
+        b.onmouseenter = () => b.style.borderColor = 'var(--red)'; b.onmouseleave = () => b.style.borderColor = 'var(--red-dim)';
+        b.onclick = () => api('/api/ascolto/soglia', { method: 'POST', body: JSON.stringify({ valore: v }) }).then(() => { sens.querySelectorAll('button').forEach(x => x.style.background = 'transparent'); b.style.background = 'rgba(255,42,61,.25)'; }).catch(() => {}); sens.append(b); });
+      pk.querySelectorAll('.sens').forEach(x => x.remove()); sens.className = 'sens'; L.after(sens);
       pk.classList.add('on'); };
     const aggiorna = async () => { try { const a = await (await api('/api/ascolto')).json();
       if (a.errore) { asc.textContent = 'ascolto: problema (' + a.errore + ')'; asc.className = 'no'; }
@@ -566,7 +571,7 @@ speechSynthesis?.getVoices();
     } catch (e) {}
   }
   const chiudiPicker = () => $('#picker').classList.remove('on');
-  async function apriPicker() { const pk = $('#picker'); pk.querySelector('.pkt').textContent = 'Aggiungi alla schermata di Jarvis'; pk.querySelector('.pkn').textContent = 'Non cambia niente in Windows: l\'app resta dov\'è. Puoi anche dire: «aggiungi Spotify al desktop».'; $('#pk-q').style.display = ''; pk.classList.add('on'); $('#pk-q').value = ''; $('#pk-l').textContent = 'Cerco le app…'; $('#pk-q').focus();
+  async function apriPicker() { const pk = $('#picker'); pk.querySelectorAll('.sens').forEach(x => x.remove()); pk.querySelector('.pkt').textContent = 'Aggiungi alla schermata di Jarvis'; pk.querySelector('.pkn').textContent = 'Non cambia niente in Windows: l\'app resta dov\'è. Puoi anche dire: «aggiungi Spotify al desktop».'; $('#pk-q').style.display = ''; pk.classList.add('on'); $('#pk-q').value = ''; $('#pk-l').textContent = 'Cerco le app…'; $('#pk-q').focus();
     try { const nomi = (await (await api('/api/desk/catalogo')).json()).nomi; const mostra = () => { const q = $('#pk-q').value.trim().toLowerCase();
         $('#pk-l').replaceChildren(...nomi.filter(n => n.toLowerCase().includes(q)).slice(0, 80).map(n => { const b = document.createElement('button'); b.textContent = n;
           b.onclick = () => postD('aggiungi', n).then(() => { chiudiPicker(); firmaDesk = ''; disegnaDesk(); }).catch(() => { b.textContent = n + ' — non riesco ad aggiungerla'; }); return b; })); };
