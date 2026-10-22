@@ -107,8 +107,8 @@
       for (const [nm, a] of Object.entries(ag)) {
         if (a.i <= 0.02) continue;
         const k = AGENTI_ORD.indexOf(nm), idx = k < 0 ? AGENTI_ORD.length + Object.keys(ag).indexOf(nm) : k, th = -Math.PI / 2 + idx * 2 * Math.PI / Math.max(5, AGENTI_ORD.length);
-        const ax = cx + Math.cos(th) * R * 0.82, ay = cy + Math.sin(th) * R * 0.74, rz = R * 0.33;
-        for (const q of p) { const d = Math.hypot(q.x - ax, q.y - ay) / rz; if (d < 1 && q.z > -0.35) q.v = Math.max(q.v, Math.pow(1 - d, 1.2) * a.i * 1.15); }
+        const ax = cx + Math.cos(th) * R * 0.82, ay = cy + Math.sin(th) * R * 0.74, rz = R * 0.27;
+        for (const q of p) { const d = Math.hypot(q.x - ax, q.y - ay) / rz; if (d < 1 && q.z > -0.35) q.v = Math.max(q.v, Math.pow(1 - d, 1.4) * a.i * 0.6); }
         zone.push({ nm, a, th, ax, ay, rz });
       }
     }
@@ -153,17 +153,17 @@
     // agenti: raggio dal centro, cerchio e nome (restano fermi mentre la rete gira)
     for (const z of zone) {
       const { a, th, ax, ay, rz } = z, lavora = a.fase === 'lavora', oro = a.fase === 'fatto', c = oro ? [255, 180, 84] : lavora ? [255, 42, 61] : [255, 120, 60];
-      const gr2 = g.createLinearGradient(cx, cy, ax, ay); gr2.addColorStop(0, `rgba(${c},0)`); gr2.addColorStop(1, `rgba(${c},${0.55 * a.i})`);
-      g.strokeStyle = gr2; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx, cy); g.lineTo(ax, ay); g.stroke();
-      g.strokeStyle = `rgba(${c},${0.6 * a.i})`; g.lineWidth = 1.4; g.beginPath(); g.arc(ax, ay, rz * (0.92 + 0.06 * Math.sin(adesso / 220)), 0, 6.283); g.stroke();
-      if (lavora) for (let j = 0; j < 4; j++) { const f = ((adesso / 1100) + j / 4) % 1; g.fillStyle = `rgba(255,200,190,${0.9 * a.i})`; g.beginPath(); g.arc(cx + (ax - cx) * f, cy + (ay - cy) * f, 2.4, 0, 6.283); g.fill(); }
+      const gr2 = g.createLinearGradient(cx, cy, ax, ay); gr2.addColorStop(0, `rgba(${c},0)`); gr2.addColorStop(1, `rgba(${c},${0.22 * a.i})`);
+      g.strokeStyle = gr2; g.lineWidth = 1; g.beginPath(); g.moveTo(cx, cy); g.lineTo(ax, ay); g.stroke();
+      g.strokeStyle = `rgba(${c},${0.28 * a.i})`; g.lineWidth = 1; g.beginPath(); g.arc(ax, ay, rz * (0.92 + 0.06 * Math.sin(adesso / 220)), 0, 6.283); g.stroke();
+      if (lavora) for (let j = 0; j < 2; j++) { const f = ((adesso / 1400) + j / 2) % 1; g.fillStyle = `rgba(255,200,190,${0.55 * a.i})`; g.beginPath(); g.arc(cx + (ax - cx) * f, cy + (ay - cy) * f, 1.8, 0, 6.283); g.fill(); }
       g.globalCompositeOperation = 'source-over';
       const lato = Math.cos(th) >= -0.3 ? 1 : -1, lx = ax + lato * (rz + 12), ly = ay;  // il nome sta di lato, mai sopra o sotto (non si taglia e non copre i sottotitoli)
       g.textAlign = lato > 0 ? 'left' : 'right'; g.textBaseline = 'middle';
-      g.font = '600 12px ui-monospace, Consolas, monospace'; if ('letterSpacing' in g) g.letterSpacing = '2px';
-      g.shadowColor = `rgba(${c},.9)`; g.shadowBlur = 10; g.fillStyle = `rgba(255,255,255,${Math.min(1, a.i * 1.5)})`; g.fillText(z.nm.toUpperCase(), lx, ly - 8);
-      g.font = '10px ui-monospace, Consolas, monospace'; g.fillStyle = `rgba(${c},${Math.min(1, a.i * 1.5)})`;
-      g.fillText(lavora ? 'AL LAVORO' : oro ? 'FATTO' : 'NON RISPONDE', lx, ly + 8); g.shadowBlur = 0;
+      g.font = '600 10px ui-monospace, Consolas, monospace'; if ('letterSpacing' in g) g.letterSpacing = '2px';
+      g.shadowColor = `rgba(${c},.9)`; g.shadowBlur = 5; g.fillStyle = `rgba(255,255,255,${Math.min(0.75, a.i * 1.1)})`; g.fillText(z.nm.toUpperCase(), lx, ly - 7);
+      g.font = '9px ui-monospace, Consolas, monospace'; g.fillStyle = `rgba(${c},${Math.min(0.7, a.i * 1.1)})`;
+      g.fillText(lavora ? 'AL LAVORO' : oro ? 'FATTO' : 'NON RISPONDE', lx, ly + 7); g.shadowBlur = 0;
       g.globalCompositeOperation = 'lighter';
     }
     g.restore();
