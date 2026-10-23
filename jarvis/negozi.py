@@ -188,3 +188,20 @@ def riepilogo(day: str = "", tipo: str = "tutti") -> str:
         if tipo in ("tutti", kind) and kind in cfg.get("run", {}):
             parts.append(format_summary(label, analyze(cfg["run"][kind], raw.get(kind) or {}, d), d))
     return "\n\n".join(parts) or "Niente da riassumere: controlla il tipo (mono, multi o tutti)."
+
+
+def sintesi() -> dict:
+    """Per il vigile (solo RAM, nessun testo salvato): {nome_negozio: {'dati': bool, 'rosse': n, 'gialle': n}} di oggi, mono e multi brand insieme."""
+    cfg = load_config()
+    oggi = date.today()
+    raw = fetch(cfg["url"], oggi.isoformat())
+    out: dict[str, dict] = {}
+    for kind in ("mono", "multi"):
+        if kind not in cfg.get("run", {}):
+            continue
+        a = analyze(cfg["run"][kind], raw.get(kind) or {}, oggi)
+        for n in a["negozi"]:
+            nome = n["negozio"] if kind == "mono" else f"{n['negozio']} (multi brand)"
+            cat = n["categorie"]
+            out[nome] = {"dati": bool(n["dati_oggi"]), "rosse": sum(1 for c in cat if c["stato"] in ("rosso", "zero")), "gialle": sum(1 for c in cat if c["stato"] == "giallo")}
+    return out
