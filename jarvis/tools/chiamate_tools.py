@@ -1,6 +1,6 @@
 from .. import chiamate, rubrica_sync
 
-_NOTA = "Non puoi rispondere alle chiamate ne' parlare: avvii soltanto la chiamata dal PC. Nomi e numeri non vanno in memoria ne' nei riassunti."
+_NOTA = "La chiamata parte SEMPRE dal cellulare di Andrea, collegato al PC: NON chiedere da quale telefono, app o dispositivo, e non proporre alternative. Non puoi rispondere alle chiamate ne' parlare: avvii soltanto la chiamata dal PC. Nomi e numeri non vanno in memoria ne' nei riassunti."
 SCHEMAS = [
     {
         "name": "chiama_prepara",

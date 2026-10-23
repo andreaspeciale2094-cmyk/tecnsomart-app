@@ -244,7 +244,7 @@ def registra_frase(leggi, vad, attesa: float = 5.0, breve: bool = False) -> list
     while True:
         blocco = leggi()
         frames.append(blocco)
-        if float(vad.predict(blocco, 640)) > 0.5:
+        if float(vad.predict(blocco, 640)) > (0.35 if breve else 0.5):
             voce += 1
             parlato, silenzio = voce >= (1 if breve else 2), 0
         else:
@@ -320,7 +320,9 @@ _APRI = re.compile(r"^\W*(?:apri|avvia|lancia|fammi partire)(?:mi)?\W+(?:l[ao']\
 _VOLUME = re.compile(r"^\W*(?:(?:alza|aumenta|metti piu' alto)\s+(?:il\s+)?volume|volume\s+(?:su|piu'? alto)|(?:abbassa|diminuisci)\s+(?:il\s+)?volume|volume\s+(?:giu'?|piu'? basso)|muto|togli l'audio|metti il muto)\W*$", re.IGNORECASE)
 
 
-_CHIAMA = re.compile(r"^\W*(?:chiama(?:mi)?|telefona(?:\s+a)?|fai(?:mi)? una telefonata a|fai partire una chiamata a)\W+(?:a\s+|il\s+|la\s+|l'\s*)?(.+?)\W*$", re.IGNORECASE)
+_RIEMPITIVI = r"(?:ok|okay|senti|dai|scusa|ehi|jarvis|puoi|potresti|riesci a|vorrei|voglio|devo|fammi|mi|fai|farmi|per favore|per piacere|adesso|ora|subito)"
+_CHIAMA = re.compile(r"^\W*(?:" + _RIEMPITIVI + r"\W+){0,4}(?:chiama(?:re|mi|lo|la)?|telefona(?:re)?(?:\s+a)?|(?:una\s+)?(?:telefonata|chiamata)\s+a)\W+(?:a\s+|il\s+|la\s+|l'\s*)?(.+?)\W*$", re.IGNORECASE)
+_CODA_CHIAMA = re.compile(r"(?:\s+(?:al|sul|dal|col|con il|con|sul mio|dal mio|con il mio)\s+(?:mio\s+)?(?:cellulare|telefono|smartphone))?(?:\s+(?:per favore|per piacere|grazie|subito|adesso|ora))*$", re.IGNORECASE)
 _AFFERMA = {"si", "sì", "certo", "ok", "okay", "vai", "esatto", "conferma", "confermo", "procedi", "chiama", "chiamalo", "chiamala", "pure", "dai", "assolutamente", "yes", "perfetto", "va", "bene", "subito", "ora", "grazie", "per", "favore", "piacere", "avanti", "fallo", "fai", "partire"}
 _NEGA = {"no", "non", "aspetta", "ferma", "fermati", "annulla", "stop", "basta", "lascia", "stare", "mai", "niente", "nessuno"}
 
@@ -334,8 +336,34 @@ def _e_un_si(testo: str) -> bool:
 
 
 _chiamata_pronta = {"id": "", "nome": "", "t": 0.0}
+VALIDITA_CONFERMA = 120  # secondi in cui la chiamata preparata aspetta il si' (a voce o con il clic sulla pagina)
 _chiamata_scelta = {"nomi": [], "t": 0.0}   # piu' persone con lo stesso nome: aspetta che dica quale
 _ORDINALI = {"primo": 0, "prima": 0, "uno": 0, "secondo": 1, "seconda": 1, "due": 1, "terzo": 2, "terza": 2, "tre": 2, "quarto": 3, "quarta": 3, "quattro": 3}
+
+
+def chiamata_in_attesa() -> dict | None:
+    """La chiamata che aspetta il si' (per la scheda con i pulsanti sulla pagina), oppure None."""
+    p = _chiamata_pronta
+    if not p["id"] or time.time() - p["t"] >= VALIDITA_CONFERMA:
+        return None
+    return {"id": p["id"], "nome": __import__("jarvis.chiamate", fromlist=["x"]).parlabile(p["nome"]), "eta": round(time.time() - p["t"], 1)}
+
+
+def conferma_da_pagina(cid: str, si: bool) -> str:
+    """Il clic su 'Si', chiama' (o 'No') della scheda sulla pagina vale come risposta. Solo dal PC."""
+    from . import chiamate
+
+    p = chiamata_in_attesa()
+    if not p or p["id"] != cid:
+        raise chiamate.ChiamataError("Quella chiamata non e' piu' in attesa.")
+    if time.time() - _chiamata_pronta["t"] < 1.0:
+        raise chiamate.ChiamataError("Un attimo: leggi prima a chi stai chiamando.")
+    nome = _chiamata_pronta["nome"]
+    _chiamata_pronta.update(id="", nome="", t=0.0)
+    if not si:
+        return "Va bene, non chiamo."
+    chiamate.avvia(cid, da_voce=True)
+    return f"Faccio partire la chiamata a {chiamate.parlabile(nome)}."
 
 
 def chiamata_veloce(testo: str) -> str | None:
@@ -363,20 +391,20 @@ def chiamata_veloce(testo: str) -> str | None:
     if _chiamata_pronta["id"]:
         cid, nome, attesa = _chiamata_pronta["id"], _chiamata_pronta["nome"], time.time() - _chiamata_pronta["t"]
         _chiamata_pronta.update(id="", nome="", t=0.0)  # una conferma vale una volta sola: qualunque cosa si dica dopo la azzera
-        logs.log_route(f"CHIAMATA: risposta alla conferma {'capita come si' if (attesa < 60 and _e_un_si(t)) else 'NON capita come si'}")
-        if attesa < 60 and _e_un_si(t):
+        logs.log_route("CHIAMATA: risposta alla conferma " + ("scaduta (troppo tardi)" if attesa >= VALIDITA_CONFERMA else "capita come si" if _e_un_si(t) else "NON capita come si"))
+        if attesa < VALIDITA_CONFERMA and _e_un_si(t):
             try:
                 chiamate.avvia(cid, da_voce=True)
                 return f"Faccio partire la chiamata a {chiamate.parlabile(nome)}."
             except chiamate.ChiamataError as e:
                 return str(e).replace("Errore: ", "")
-        if attesa < 60 and re.match(r"^\W*(?:no|annulla|lascia stare|fermati|stop|aspetta)\W*$", t, re.IGNORECASE):
+        if attesa < VALIDITA_CONFERMA and re.match(r"^\W*(?:no|annulla|lascia stare|fermati|stop|aspetta)\W*$", t, re.IGNORECASE):
             return "Va bene, non chiamo."
     m = _CHIAMA.match(t)
     if not m:
         return None
     logs.log_route("CHIAMATA: richiesta a voce riconosciuta")
-    nome = re.sub(r"\s+(?:per favore|per piacere|grazie|subito|adesso|ora)$", "", m.group(1).strip(), flags=re.IGNORECASE)
+    nome = _CODA_CHIAMA.sub("", m.group(1).strip()).strip()
     try:
         cid, nome_vero = chiamate.prepara_veloce(nome)
     except chiamate.ChiamataAmbigua as e:

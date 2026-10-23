@@ -292,6 +292,30 @@ def _chiama(f, *a):
         return JSONResponse({"error": str(e) or "Dati non validi."}, status_code=400)
 
 
+@app.get("/api/chiamata")
+def api_chiamata(request: Request):
+    """La chiamata che aspetta il si' (solo dal PC): la pagina mostra 'Chiamo X?' con i pulsanti Si'/No."""
+    if not _dal_pc(request):
+        return {"in_attesa": None}
+    return {"in_attesa": ascolto.chiamata_in_attesa()}
+
+
+class ChiamataSi(BaseModel):
+    id: str
+    si: bool
+
+
+@app.post("/api/chiamata/conferma")
+def api_chiamata_conferma(body: ChiamataSi, request: Request):
+    from . import chiamate
+    if not _dal_pc(request):
+        return JSONResponse({"error": "Questa funzione e' disponibile solo dal PC."}, status_code=403)
+    try:
+        return {"ok": True, "testo": ascolto.conferma_da_pagina(body.id[:12], body.si)}
+    except chiamate.ChiamataError as e:
+        return JSONResponse({"error": str(e).replace("Errore: ", "")}, status_code=400)
+
+
 @app.get("/api/impegni")
 def api_impegni(request: Request, data: str = ""):
     return _pc_o_errore(request) or _chiama(interazioni.impegni, data)
