@@ -9,6 +9,8 @@ SCHEMAS = [
             "testo": {"type": "string"}, "ora": {"type": "string", "description": "HH:MM"}, "tra_minuti": {"type": "integer"},
             "giorno": {"type": "string", "description": "oggi, domani o AAAA-MM-GG"}}, "required": ["testo"]},
     },
+    {"name": "diario_agenti", "description": "Cosa hanno fatto oggi gli agenti di sottofondo (treno, promemoria, avvisi, riparazioni). Da leggere nel resoconto serale, quando Andrea chiude la giornata.",
+     "input_schema": {"type": "object", "properties": {}}},
     {"name": "promemoria_elenco", "description": "Elenca i promemoria in attesa.", "input_schema": {"type": "object", "properties": {}}},
     {"name": "promemoria_togli", "description": "Toglie un promemoria (per id o per parole del testo) oppure 'tutti'.",
      "input_schema": {"type": "object", "properties": {"id_o_testo": {"type": "string"}}, "required": ["id_o_testo"]}},
@@ -22,4 +24,9 @@ def _crea(testo: str, ora: str = "", giorno: str = "", tra_minuti: int = 0) -> s
         return f"Errore: {e}"
 
 
-HANDLERS = {"promemoria_crea": _crea, "promemoria_elenco": promemoria.elenco, "promemoria_togli": promemoria.togli}
+def _diario() -> str:
+    from .. import vigile
+    return vigile.diario_testo()
+
+
+HANDLERS = {"diario_agenti": _diario, "promemoria_crea": _crea, "promemoria_elenco": promemoria.elenco, "promemoria_togli": promemoria.togli}

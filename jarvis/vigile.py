@@ -48,8 +48,32 @@ def segna_letto(id_: str):
         _avvisi[:] = [a for a in _avvisi if a["id"] != id_]
 
 
+_diario: list[tuple[str, str, str]] = []   # (ora, tipo, testo): cosa hanno fatto gli agenti oggi, solo RAM, svuotato a mezzanotte
+_TESTO_NEL_DIARIO = {"treno", "salute", "promemoria", "domani", "obiettivi"}  # degli altri (banca, posta, WhatsApp, negozi, impegni) il diario tiene solo che e' successo
+
+
+def diario_testo() -> str:
+    """Per il resoconto serale: cosa hanno fatto oggi gli agenti di sottofondo."""
+    with _lock:
+        voci = list(_diario)
+    if not voci:
+        return "Oggi gli agenti di sottofondo non hanno avuto niente da segnalare."
+    righe = []
+    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "impegno": "ricordi di impegni"}
+    conta: dict[str, int] = {}
+    for ora, tipo, testo in voci:
+        if tipo in _TESTO_NEL_DIARIO:
+            righe.append(f"{ora} {testo}")
+        else:
+            conta[tipo] = conta.get(tipo, 0) + 1
+    righe += [f"{n} avvisi su {nomi.get(t, t)}" for t, n in conta.items()]
+    return "Gli agenti di sottofondo oggi: " + "; ".join(righe) + "."
+
+
 def _aggiungi(tipo: str, testo: str, urgente: bool, anteprima: str = ""):
     with _lock:
+        _diario.append((datetime.now(ZoneInfo(config.FUSO)).strftime("%H:%M"), tipo, testo[:140]))
+        del _diario[:-60]
         _avvisi.append({"id": uuid.uuid4().hex[:8], "tipo": tipo, "testo": testo[:140], "anteprima": anteprima[:160], "urgente": bool(urgente), "ora": datetime.now(ZoneInfo(config.FUSO)).strftime("%H:%M"), "t": time.time()})
         del _avvisi[:-20]
 
@@ -363,6 +387,8 @@ def svuota_dati():
     from . import negozi
     negozi.svuota()
     _neg.update(pronto=None, ultimo=0.0)
+    with _lock:
+        _diario.clear()
 
 
 def negozi_pronto() -> str:

@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agenti, ascolto, ritmo, rubrica_sync, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import agenti, ascolto, salute, ritmo, rubrica_sync, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 def _avvio_scaglionato():
@@ -30,6 +30,7 @@ def _avvio_scaglionato():
         (14, pulizia.avvia),
         (15, vigile.avvia),
         (22, lambda: barra.precarica_app("whatsapp://", "whatsapp") if (config.WHATSAPP_PRECARICA and config.ENABLE_WHATSAPP) else None),  # l'app WhatsApp gia' pronta in memoria: al clic si apre all'istante
+        (24, salute.avvia),  # salute di Jarvis + guardiano dei consumi
         (30, rubrica_sync.avvia),  # contatti Google sempre aggiornati (se configurati)
     ]
     t0 = _t.time()

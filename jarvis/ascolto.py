@@ -822,8 +822,15 @@ def _ciclo_vero():
             time.sleep(2)
 
 
+_thread = None  # il filo dell'ascolto: serve a salute.py per accorgersi se si e' fermato
+
+
 def avvia():
+    global _thread
     if config.ENABLE_ASCOLTO:
-        threading.Thread(target=_ciclo, daemon=True).start()
+        if _thread is not None and _thread.is_alive():
+            return
+        _thread = threading.Thread(target=_ciclo, daemon=True)
+        _thread.start()
         if sys.platform == "win32":
             threading.Thread(target=_scorciatoia, daemon=True).start()
