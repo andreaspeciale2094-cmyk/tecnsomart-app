@@ -3,6 +3,7 @@ con le STESSE regole dell'app (passo giornaliero, giorni rimasti, soglie verde/g
 I target stanno solo sul PC di Andrea, in memoria/negozi.json (mai su GitHub). I dati dei negozi non vengono salvati."""
 import json
 import math
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -26,7 +27,29 @@ def load_config() -> dict:
         raise NegoziError(f"Il file memoria\\negozi.json non e' valido ({e}).")
 
 
-def fetch(url: str, day: str = "", azione: str = "jarvis", **extra) -> dict:
+_ram: dict = {"giorno": "", "dati": {}}  # ultime risposte dell'app, SOLO in RAM: si buttano allo scattare del giorno dopo e con svuota()
+
+
+def svuota():
+    """Butta via tutti i dati dell'app tenuti in memoria (mezzanotte, o quando serve)."""
+    _ram.update(giorno="", dati={})
+
+
+def fetch(url: str, day: str = "", azione: str = "jarvis", fresco: float = 0.0, **extra) -> dict:
+    """Legge l'app. Con fresco > 0 usa la copia in memoria se ha meno di quei secondi (l'agente negozi la tiene aggiornata); senza, legge sempre."""
+    oggi = date.today().isoformat()
+    if _ram["giorno"] != oggi:
+        _ram.update(giorno=oggi, dati={})
+    chiave = (azione, day, tuple(sorted((k, str(v)) for k, v in extra.items())))
+    c = _ram["dati"].get(chiave)
+    if fresco and c and time.time() - c[0] < fresco:
+        return c[1]
+    dati = _fetch_rete(url, day, azione, **extra)
+    _ram["dati"][chiave] = (time.time(), dati)
+    return dati
+
+
+def _fetch_rete(url: str, day: str = "", azione: str = "jarvis", **extra) -> dict:
     if not config.TECNOSMART_TOKEN:
         raise NegoziError("Manca la chiave TECNOSMART_TOKEN nel file .env.")
     try:
@@ -182,7 +205,7 @@ def format_summary(label: str, a: dict, day: date) -> str:
 def riepilogo(day: str = "", tipo: str = "tutti") -> str:
     cfg = load_config()
     d = datetime.strptime(day, "%Y-%m-%d").date() if day else date.today()
-    raw = fetch(cfg["url"], d.isoformat())
+    raw = fetch(cfg["url"], d.isoformat(), fresco=900)
     parts = []
     for kind, label in (("mono", "mono brand"), ("multi", "multi brand")):
         if tipo in ("tutti", kind) and kind in cfg.get("run", {}):
@@ -190,17 +213,9 @@ def riepilogo(day: str = "", tipo: str = "tutti") -> str:
     return "\n\n".join(parts) or "Niente da riassumere: controlla il tipo (mono, multi o tutti)."
 
 
-_pronti: dict = {"t": 0.0, "giorno": "", "raw": None}  # ultima lettura dell'app (solo RAM), tenuta fresca dall'agente negozi
-
-
 def _leggi(cfg: dict, oggi: date, max_eta: float = 0.0) -> dict:
-    """I dati di oggi: quelli gia' pronti se hanno meno di max_eta secondi, altrimenti li legge dall'app."""
-    import time
-    if max_eta and _pronti["raw"] is not None and _pronti["giorno"] == oggi.isoformat() and time.time() - _pronti["t"] < max_eta:
-        return _pronti["raw"]
-    raw = fetch(cfg["url"], oggi.isoformat())
-    _pronti.update(t=time.time(), giorno=oggi.isoformat(), raw=raw)
-    return raw
+    """I dati di oggi: la copia pronta in memoria se ha meno di max_eta secondi, altrimenti dall'app."""
+    return fetch(cfg["url"], oggi.isoformat(), fresco=max_eta)
 
 
 def parlato() -> str:

@@ -249,10 +249,21 @@ def _controlla_negozi(adesso: datetime) -> int:
         return 0
     _neg["ultimo"] = time.time()
     try:
-        _neg["pronto"] = (time.time(), negozi.parlato())
+        _neg["pronto"] = (time.time(), negozi.parlato())  # legge l'app e lascia la copia in memoria (oggi, mese, categorie)
+        if config.ENABLE_ADDETTI:
+            from . import addetti
+            for tipo in addetti.RUN:
+                addetti.leggi(tipo=tipo, fresco=0)  # anche gli addetti restano pronti in memoria
     except Exception as e:
         logs.log_error(e, "vigile negozi")
     return 0
+
+
+def svuota_dati():
+    """Mezzanotte: via tutti i dati dell'app dalla memoria (resoconto pronto, copia dei dati, addetti)."""
+    from . import negozi
+    negozi.svuota()
+    _neg.update(pronto=None, ultimo=0.0)
 
 
 def negozi_pronto() -> str:
@@ -269,6 +280,11 @@ def negozi_pronto() -> str:
 def controlla(adesso: datetime | None = None) -> int:
     """Un giro di controllo: ritorna quanti avvisi nuovi ha creato."""
     adesso = adesso or _adesso()
+    if _neg.get("giorno") != adesso.strftime("%Y-%m-%d"):  # scattato il giorno dopo: i dati dell'app di ieri si buttano
+        if _neg.get("giorno"):
+            svuota_dati()
+            logs.log_route("VIGILE: dati dell'app svuotati (nuovo giorno)")
+        _neg["giorno"] = adesso.strftime("%Y-%m-%d")
     creati = 0
     try:
         creati += _controlla_banca(adesso)

@@ -129,10 +129,10 @@ def focus(raw: dict, nome: str = "", tipo: str = "mono") -> str | None:
     return "\n".join(righe)
 
 
-def leggi(mese: str = "", tipo: str = "mono") -> dict:
+def leggi(mese: str = "", tipo: str = "mono", fresco: float = 900) -> dict:
     mese = mese or date.today().strftime("%Y-%m")
     url = negozi.load_config().get("url", "")
-    return negozi.fetch(url, azione="jarvis_addetti", mese=mese, tipo=tipo)
+    return negozi.fetch(url, azione="jarvis_addetti", fresco=fresco, mese=mese, tipo=tipo)
 
 
 def riepilogo(nome: str = "", mese: str = "") -> str:
