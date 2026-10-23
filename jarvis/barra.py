@@ -429,6 +429,8 @@ def porta_davanti_per_nome(parola: str, attesa: float = 8.0) -> bool:
             h = trova_finestra(parola)
             if h:
                 porta_davanti_veloce(h)
+                from . import logs
+                logs.log_route(f"APP: {parola} portata davanti dopo {time.time() - t0:.1f} s")
                 return True
         except Exception:
             pass
@@ -442,16 +444,20 @@ def precarica_app(uri: str, parola: str, attesa: float = 40.0) -> bool:
     si addormentano e ci mettono secondi a svegliarsi). Al clic basta portarla davanti, all'istante. Solo Windows."""
     if not disponibile():
         return False
+    from . import logs
     if trova_finestra(parola):
+        logs.log_route(f"APP: {parola} era gia' aperta")
         return True
     os.startfile(uri)  # type: ignore[attr-defined]
     t0 = time.time()
     while time.time() - t0 < attesa:
         if trova_finestra(parola):
+            logs.log_route(f"APP: {parola} precaricata, finestra comparsa dopo {time.time() - t0:.1f} s")
             time.sleep(2.5)  # il tempo di finire di caricare
             porta_jarvis_davanti()
             return True
         time.sleep(0.4)
+    logs.log_route(f"APP: {parola} NON ha mostrato nessuna finestra in {attesa:.0f} s (precaricamento fallito)")
     porta_jarvis_davanti()
     return False
 
