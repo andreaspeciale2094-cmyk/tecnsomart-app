@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agenti, ascolto, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import agenti, ascolto, ritmo, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 def _avvio_scaglionato():
@@ -58,7 +58,7 @@ CHIUDI_TOKEN = Path(__file__).parent.parent / "memoria" / "chiudi.token"
 app = FastAPI(title="Jarvis", lifespan=lifespan)
 _sessions = sessions.histories
 STATIC = Path(__file__).parent.parent / "static"
-PUBLIC = {"/api/login", "/api/auth", "/api/chiudi", "/api/davanti", "/api/stato_ascolto"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
+PUBLIC = {"/api/login", "/api/auth", "/api/chiudi", "/api/davanti", "/api/stato_ascolto", "/api/ritmo"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
 
 
 @app.middleware("http")
@@ -131,6 +131,14 @@ def stato_ascolto(request: Request):
     if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
         return JSONResponse({"error": "non autorizzato"}, status_code=403)
     return {"fase": ascolto.stato["fase"] or fase.leggi(), "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"]}
+
+
+@app.get("/api/ritmo")
+def ritmo_voce(request: Request, visto: int = 0):
+    """Forza della voce di Jarvis (solo numeri) per far muovere la sfera a tempo: solo da questo computer."""
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return {"parla": False, "id": 0}
+    return ritmo.stato(visto)
 
 
 @app.get("/api/vigile")

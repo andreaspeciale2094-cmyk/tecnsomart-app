@@ -15,7 +15,7 @@ import time
 import wave
 from pathlib import Path
 
-from . import config, dialogo, logs, voce_id, voice
+from . import config, dialogo, logs, ritmo, voce_id, voice
 
 SESSIONE = "ascolto"
 RATE = 16000
@@ -97,9 +97,11 @@ def _suona(mp3: bytes):
             f.write(mp3)
         mci = ctypes.windll.winmm.mciSendStringW
         alias = f"jv{time.time_ns()}"
+        env = ritmo.inviluppo(mp3)  # forza della voce, per far muovere la sfera a tempo
         try:
             mci(f'open "{path}" type mpegvideo alias {alias}', None, 0, None)
             mci(f"play {alias}", None, 0, None)
+            ritmo.inizia(env)
             fine = time.time() + 120  # mai oltre due minuti, anche se la scheda audio (cuffie bluetooth) si pianta
             buf = ctypes.create_unicode_buffer(32)
             time.sleep(0.15)
@@ -109,6 +111,7 @@ def _suona(mp3: bytes):
                     break
                 time.sleep(0.1)
         finally:
+            ritmo.fine()
             mci(f"stop {alias}", None, 0, None)
             mci(f"close {alias}", None, 0, None)
     finally:

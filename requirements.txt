@@ -12,3 +12,4 @@ sounddevice>=0.5
 openwakeword==0.6.0
 onnxruntime>=1.18
 sherpa-onnx>=1.12
+miniaudio>=1.60

@@ -19,6 +19,21 @@
   async function sondaAgenti() { if (!sondaggio || document.hidden) return;
     try { const r = await fetch('/api/agenti', { credentials: 'same-origin' }); if (r.status === 401 || r.status === 404) { sondaggio = false; return; } if (r.ok) agenti = (await r.json()).agenti || {}; } catch (e) {} }
   setInterval(sondaAgenti, 700);
+  // voce di Jarvis in stanza: il programma misura la forza della voce e la pagina la segue a tempo (solo dal PC; altrove resta il ritmo simulato)
+  let ritmo = { id: 0, env: null, inizio: 0, dt: 0.02, fine: 0 }, sondaRitmo = true;
+  async function sondaVoce() { if (!sondaRitmo || document.hidden) return;
+    try { const r = await fetch('/api/ritmo?visto=' + ritmo.id, { credentials: 'same-origin', cache: 'no-store' }); if (r.status === 404) { sondaRitmo = false; return; } if (!r.ok) return; const j = await r.json();
+      if (!j.parla) { ritmo.fine = 0; return; }
+      if (j.env) { ritmo.env = j.env; ritmo.dt = j.dt; ritmo.id = j.id; }
+      if (ritmo.env) { ritmo.inizio = performance.now() - j.t * 1000; ritmo.fine = ritmo.inizio + ritmo.env.length * ritmo.dt * 1000 + 300; }
+    } catch (e) {} }
+  setInterval(sondaVoce, 300);
+  function livelloVoce() {  // forza della voce adesso (0-1), o -1 se il programma non sta parlando
+    if (!ritmo.env || performance.now() > ritmo.fine) return -1;
+    const k = (performance.now() - ritmo.inizio) / 1000 / ritmo.dt; if (k < 0) return 0;
+    const i = Math.floor(k), f = k - i, a = ritmo.env[i], b = ritmo.env[i + 1];
+    return a === undefined ? 0 : a + ((b === undefined ? a : b) - a) * f;
+  }
 
   // due gusci di nodi (esterno fitto e interno piu' piccolo) su sfere con un po' di disordine: la rete e' fitta e ha profondita'
   function guscio(n, raggio, variazione) {
@@ -57,13 +72,16 @@
 
   function stato() {
     const c = orb ? orb.className : '';
+    if (livelloVoce() >= 0) return 'parla';
     return c.includes('speaking') ? 'parla' : c.includes('thinking') ? 'pensa' : c.includes('listening') ? 'ascolta' : 'riposo';
   }
 
   function leggiSuono(modo, t) {
     const a = window.JarvisAnalyser;
     let reale = 0;
-    if (a && modo === 'parla') {
+    const lv = livelloVoce();
+    if (lv >= 0 && modo === 'parla') { reale = Math.max(0.03, lv); }
+    else if (a && modo === 'parla') {
       a.getByteFrequencyData(dati);
       let s = 0; for (let i = 2; i < 70; i++) s += dati[i];
       reale = Math.min(1, (s / 68 / 255) * 2.2);
