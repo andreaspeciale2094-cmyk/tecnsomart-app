@@ -28,6 +28,7 @@ BANCA_APP_ID = os.getenv("ENABLE_BANKING_APP_ID", "")
 BANCA_CHIAVE = os.getenv("ENABLE_BANKING_KEY", "")  # percorso del file .pem (predefinito: memoria/banca/chiave.pem)
 BANCA_RITORNO = os.getenv("ENABLE_BANKING_RITORNO", "https://localhost:8000/banca/ritorno")
 BANCA_PRESENTE = _flag("ENABLE_BANKING_PRESENTE", True)  # avvisa la banca che Andrea e' presente (meno limiti)
+ENABLE_CHIAMATE = _flag("JARVIS_CHIAMATE", True)  # telefonate dal PC con il si' di Andrea (spegnere con false)
 ENABLE_WHATSAPP = _flag("JARVIS_WHATSAPP")  # prepara messaggi WhatsApp e apre l'app con il testo pronto (invia Andrea)
 ENABLE_WHATSAPP_INVIO = _flag("JARVIS_WHATSAPP_INVIO")  # invio senza finestre (eccezione regola 5); richiede JARVIS_WHATSAPP
 ENABLE_PULIZIA = _flag("JARVIS_PULIZIA", True)  # pulizia di fine giornata a mezzanotte e alla chiusura (spegnere con false)

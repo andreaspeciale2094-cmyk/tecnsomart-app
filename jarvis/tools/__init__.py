@@ -5,7 +5,7 @@ import threading
 import time
 
 from .. import config
-from . import addetti_tools, pc_comandi_tools, ascolto_tools, agenda_tools, agenti_tools, banca_tools, cassa_tools, agents, home, mail_calendar, memory_tools, negozi_tools, pc, posta_tools, pulizia_tools, schede_tools, web, whatsapp_tools
+from . import addetti_tools, chiamate_tools, pc_comandi_tools, ascolto_tools, agenda_tools, agenti_tools, banca_tools, cassa_tools, agents, home, mail_calendar, memory_tools, negozi_tools, pc, posta_tools, pulizia_tools, schede_tools, web, whatsapp_tools
 
 _MODULES = [memory_tools, web]
 if config.ENABLE_ASCOLTO:
@@ -34,6 +34,8 @@ if config.ENABLE_POSTA:
     _MODULES.append(posta_tools)
 if config.ENABLE_WHATSAPP:
     _MODULES.append(whatsapp_tools)
+if config.ENABLE_CHIAMATE:
+    _MODULES.append(chiamate_tools)
 if config.ENABLE_AGENDA:
     _MODULES.append(agenda_tools)
 if config.ENABLE_AGENTI:
