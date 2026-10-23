@@ -233,6 +233,12 @@ def non_lette() -> str:
     return ("Chat con messaggi non letti (solo i nomi e quanti; per il testo usa whatsapp_leggi):\n" + "\n".join(righe))
 
 
+def anteprime() -> dict[str, str]:
+    """Nome della chat -> ultimo messaggio non letto (breve). Solo per la scheda sullo schermo: mai nei registri, mai al modello."""
+    chat = _helper_json("/chat").get("chat", [])
+    return {_nome_da_rubrica(c.get("numero", ""), c.get("nome", "")): c.get("anteprima", "") for c in chat if c.get("anteprima")}
+
+
 def chat_recenti(quante: int = 15) -> str:
     """Le chat piu' recenti (anche quelle senza messaggi nuovi): nome, ultimo messaggio, quanti messaggi in archivio."""
     chat = _helper_json("/chat?tutte=1").get("chat", [])

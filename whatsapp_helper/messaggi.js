@@ -140,10 +140,12 @@ export function totali() {
 }
 
 export function elenco(tutte = false) {
-  return [...chats.values()].map((c) => ({
-    id: c.id, numero: c.numero, nome: c.nome, ultimo: c.ultimo, messaggi: c.msgs.length,
-    non_lette: c.msgs.filter((x) => !x.da_me && x.ts > c.lettoFino).length,
-  })).filter((c) => tutte || c.non_lette > 0).sort((a, b) => b.ultimo - a.ultimo);
+  return [...chats.values()].map((c) => {
+    ordina(c);
+    const nuovi = c.msgs.filter((x) => !x.da_me && x.ts > c.lettoFino);
+    return { id: c.id, numero: c.numero, nome: c.nome, ultimo: c.ultimo, messaggi: c.msgs.length, non_lette: nuovi.length,
+             anteprima: nuovi.length ? String(nuovi[nuovi.length - 1].testo).slice(0, 160) : '' };  // l'ultimo messaggio non letto, solo per la scheda sullo schermo
+  }).filter((c) => tutte || c.non_lette > 0).sort((a, b) => b.ultimo - a.ultimo);
 }
 
 export function leggi(id, n = 10) {

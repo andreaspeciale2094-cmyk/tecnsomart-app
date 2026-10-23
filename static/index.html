@@ -131,6 +131,7 @@
   .avviso.urgente { border-left-color:var(--gold); box-shadow:0 0 26px rgba(255,180,84,.35); }
   .avviso:hover { transform:translateX(4px); box-shadow:0 0 30px rgba(255,42,61,.5); }
   .avviso .tag { flex:none; font:10px ui-monospace, Consolas, monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--red); } .avviso.urgente .tag { color:var(--gold); }
+  .avviso .prev { color:var(--dim); font-size:13px; font-style:italic; margin-top:2px; }
   .avviso .x { position:absolute; top:6px; right:8px; width:20px; height:20px; border:0; background:transparent; color:var(--dim); font-size:16px; cursor:pointer; line-height:1; } .avviso .x:hover { color:#fff; }
   /* riquadri cliccabili: cambiano aspetto al passaggio del mouse */
   .box .cl { pointer-events:auto; cursor:pointer; padding:6px 10px; margin:-6px -10px; transition:background .15s, box-shadow .15s, transform .15s; }
@@ -716,7 +717,7 @@ speechSynthesis?.getVoices();
     try { const d = await (await api('/api/vigile')).json();
       for (const a of d.avvisi) { if (mostrati.has(a.id)) continue; mostrati.add(a.id);
         const el = document.createElement('div'); el.className = 'avviso' + (a.urgente ? ' urgente' : ''); const t = document.createElement('span'); t.className = 'tag'; t.textContent = TAG[a.tipo] || 'avviso';
-        const m = document.createElement('span'); m.textContent = a.testo; const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'Chiudi';
+        const m = document.createElement('span'); m.textContent = a.testo; if (a.anteprima) { const pv = document.createElement('div'); pv.className = 'prev'; pv.textContent = '\u201c' + a.anteprima + '\u201d'; m.append(pv); } const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'Chiudi';
         x.onclick = e => { e.stopPropagation(); chiudi(a.id, el); };
         el.onclick = () => { if (document.body.classList.contains('conbarra')) { if (a.tipo === 'impegno') window.jarvisApri?.impegni(); else if (a.tipo === 'whatsapp') window.jarvisApri?.whatsapp(); } chiudi(a.id, el); };
         el.append(t, m, x); C.append(el); while (C.children.length > 3) C.firstChild.remove(); setTimeout(() => { if (el.isConnected) chiudi(a.id, el); }, 60000); }
@@ -774,6 +775,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261026"></script>
+<script src="/static/rete.js?v=20261027"></script>
 </body>
 </html>

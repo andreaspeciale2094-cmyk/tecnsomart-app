@@ -42,9 +42,9 @@ def segna_letto(id_: str):
         _avvisi[:] = [a for a in _avvisi if a["id"] != id_]
 
 
-def _aggiungi(tipo: str, testo: str, urgente: bool):
+def _aggiungi(tipo: str, testo: str, urgente: bool, anteprima: str = ""):
     with _lock:
-        _avvisi.append({"id": uuid.uuid4().hex[:8], "tipo": tipo, "testo": testo[:140], "urgente": bool(urgente), "ora": datetime.now(ZoneInfo(config.FUSO)).strftime("%H:%M"), "t": time.time()})
+        _avvisi.append({"id": uuid.uuid4().hex[:8], "tipo": tipo, "testo": testo[:140], "anteprima": anteprima[:160], "urgente": bool(urgente), "ora": datetime.now(ZoneInfo(config.FUSO)).strftime("%H:%M"), "t": time.time()})
         del _avvisi[:-20]
 
 
@@ -221,7 +221,16 @@ def controlla(adesso: datetime | None = None) -> int:
             logs.log_error(e, "vigile")
             esito = None
         if esito and esito[0]:
-            _aggiungi("whatsapp" if wa and not mail else "posta", esito[2], esito[1])
+            anteprima = ""
+            if wa and not mail:  # il testo sta solo nella scheda (RAM): il modello ha visto solo i nomi delle chat
+                try:
+                    from . import whatsapp
+                    nomi = [r.lstrip("- ").split(":")[0].strip() for r in wa]
+                    ap = whatsapp.anteprime()
+                    anteprima = " / ".join(f"{n}: {ap[n]}" if len(nomi) > 1 else ap[n] for n in nomi if n in ap)[:160]
+                except Exception:
+                    anteprima = ""
+            _aggiungi("whatsapp" if wa and not mail else "posta", esito[2], esito[1], anteprima)
             creati += 1
         logs.log_route(f"VIGILE: {len(mail)} mail e {len(wa)} chat nuove, avviso: {'si' if esito and esito[0] else 'no'}")
     return creati
