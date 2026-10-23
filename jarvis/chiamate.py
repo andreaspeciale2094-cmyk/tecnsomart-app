@@ -104,6 +104,7 @@ def avvia(cid: str, da_voce: bool = False) -> str:
     if time.time() - p["t"] > 600:
         _pronte.pop(cid, None)
         raise ChiamataError("La chiamata e' scaduta: preparala di nuovo.")
+    logs.log_route(f"CHIAMATA: invio al telefono ({'indirizzo del telefono impostato' if config.TELEFONO_URL else 'NESSUN indirizzo del telefono: uso il programma di Windows'}; numero di {len(p['numero'])} cifre che inizia per {p['numero'][:2]})")
     if config.TELEFONO_URL:  # la chiamata la fa il telefono, senza finestre sul PC
         try:
             parametri = {"numero": "+" + p["numero"]}  # il telefono compone il numero con il prefisso internazionale
