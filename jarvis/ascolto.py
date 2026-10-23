@@ -241,18 +241,20 @@ def registra_frase(leggi, vad, attesa: float = 5.0, breve: bool = False) -> list
     None se nessuno parla entro `attesa` secondi, o se c'e' solo un rumore brevissimo.
     breve=True: accetta anche una parola sola (un "si'" dura meno di mezzo secondo): serve quando Jarvis aspetta una conferma."""
     minimo = 2 if breve else 3
-    frames, voce, silenzio, parlato, t0 = [], 0, 0, False, time.time()
+    frames, voce, silenzio, parlato, t0, t_voce = [], 0, 0, False, time.time(), None
     while True:
         blocco = leggi()
         frames.append(blocco)
         if float(vad.predict(blocco, 640)) > (0.35 if breve else 0.5):
             voce += 1
             parlato, silenzio = voce >= (1 if breve else 2), 0
+            if parlato and t_voce is None:
+                t_voce = time.time()  # da qui si contano i 15 secondi massimi di una frase
         else:
             silenzio += 1
         if parlato and silenzio >= config.ASCOLTO_PAUSA_FINE:  # silenzio di fine frase (0,7 s circa): ha finito
             return frames if voce >= minimo else None
-        if time.time() - t0 > 15:
+        if t_voce is not None and time.time() - t_voce > 15:  # una frase non dura piu' di 15 s (prima il limite partiva dall'inizio dell'attesa: la conversazione aperta si chiudeva dopo 15 s invece che dopo ASCOLTO_FINESTRA)
             return frames if parlato and voce >= minimo else None
         if not parlato and time.time() - t0 > attesa:
             return None
