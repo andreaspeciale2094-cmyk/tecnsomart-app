@@ -190,6 +190,32 @@ def riepilogo(day: str = "", tipo: str = "tutti") -> str:
     return "\n\n".join(parts) or "Niente da riassumere: controlla il tipo (mono, multi o tutti)."
 
 
+def parlato() -> str:
+    """Il resoconto dei negozi di oggi gia' pronto da dire a voce (solo numeri, calcolato dal codice, senza modello)."""
+    cfg = load_config()
+    oggi = date.today()
+    raw = fetch(cfg["url"], oggi.isoformat())
+    righe = []
+    for kind, etichetta in (("mono", "Mono brand"), ("multi", "Multi brand")):
+        if kind not in cfg.get("run", {}):
+            continue
+        a = analyze(cfg["run"][kind], raw.get(kind) or {}, oggi)
+        gr = "; ".join(f"{g['categoria']} {g['oggi']:g} su {g['target_giorno']:g}, {g['stato']}" for g in a["gruppo"])
+        negozi_txt = []
+        for n in a["negozi"]:
+            if not n["dati_oggi"]:
+                negozi_txt.append(f"{n['negozio']} non ha ancora inserito i dati")
+                continue
+            ros = sum(1 for c in n["categorie"] if c["stato"] in ("rosso", "zero"))
+            gia = sum(1 for c in n["categorie"] if c["stato"] == "giallo")
+            if ros or gia:
+                negozi_txt.append(f"{n['negozio']}: " + " e ".join(([f"{ros} rosse"] if ros else []) + ([f"{gia} gialle"] if gia else [])))
+            else:
+                negozi_txt.append(f"{n['negozio']} tutto verde")
+        righe.append(f"{etichetta}. Gruppo: {gr}. " + ". ".join(negozi_txt) + ".")
+    return " ".join(righe) or "Non ho target dei negozi da guardare."
+
+
 def sintesi() -> dict:
     """Per il vigile (solo RAM, nessun testo salvato): {nome_negozio: {'dati': bool, 'rosse': n, 'gialle': n}} di oggi, mono e multi brand insieme."""
     cfg = load_config()

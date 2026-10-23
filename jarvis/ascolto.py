@@ -464,6 +464,22 @@ def chiamata_veloce(testo: str) -> str | None:
     return f"Chiamo {chiamate.parlabile(nome_vero)}?"
 
 
+_NEGOZI = re.compile(r"\b(?:negozi|punti vendita)\b", re.IGNORECASE)
+_NEGOZI_CHIEDE = re.compile(r"(?:\bcome (?:sono|stanno|vanno)|\bandat[aoie]\b|\bnumeri\b|\bdati\b|\briepilogo\b|\bresoconto\b|\brisultati\b|\bsituazione\b|\bandamento\b|\brun\b)", re.IGNORECASE)
+
+
+def negozi_veloce(testo: str) -> str | None:
+    """'Come sono andati i negozi?', 'i numeri dei negozi': i numeri sono gia' pronti (li prepara l'agente negozi), si dicono subito senza passare dal cervello."""
+    if not config.ENABLE_NEGOZI or len(testo) > 80 or not _NEGOZI.search(testo) or not _NEGOZI_CHIEDE.search(testo):
+        return None
+    try:
+        from . import vigile
+        return vigile.negozi_pronto()
+    except Exception as e:
+        logs.log_error(e, "negozi veloce")
+        return None
+
+
 def comando_veloce(testo: str) -> str | None:
     """Comandi semplici e innocui (apri un'app, volume, blocca, desktop): partono subito, senza aspettare il cervello.
     Ritorna cosa dire, oppure None se non e' un comando semplice."""
@@ -547,6 +563,8 @@ def gestisci_chiamata(leggi, vad, pre=None):
             primo = False
             continue
         rapido = chiamata_veloce(resto or testo)
+        if rapido is None:
+            rapido = negozi_veloce(resto or testo)
         if rapido is None:
             rapido = comando_veloce(resto or testo)
         if rapido is not None:

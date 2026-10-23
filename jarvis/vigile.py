@@ -21,7 +21,7 @@ _visti = {"mail": None, "wa": None, "eventi": set()}   # None = prima lettura: s
 _chiamate = {"giorno": "", "n": 0, "ultima": 0.0}
 _banca = {"visti": None, "fatti": set(), "giorno": "", "errore_giorno": ""}   # solo RAM: nessun movimento viene salvato
 _treno = {"giorno": "", "primo": False, "ultimo": 0.0, "stato": None}   # agente treno: solo RAM
-_neg = {"giorno": "", "visti": None, "ultimo": 0.0, "senza_dati_avvisato": False}   # agente negozi: solo RAM
+_neg = {"ultimo": 0.0, "pronto": None}   # agente negozi: solo RAM
 _lock = threading.Lock()
 SISTEMA = ("Sei l'agente vigile di Andrea, che gestisce negozi TecnoSmart. Ti arrivano le NOVITA' appena comparse (mail non lette: mittente e oggetto; chat WhatsApp: solo il nome). "
            "Decidi se vale la pena interromperlo adesso. SI' per: persone vere (clienti, colleghi, ragazzi dei negozi, familiari), richieste, problemi, scadenze, soldi. "
@@ -231,41 +231,28 @@ def _controlla_treno(adesso: datetime) -> int:
 
 
 def _controlla_negozi(adesso: datetime) -> int:
-    """Agente negozi (senza modello, costo zero): dalle 12 alle 23, una richiesta di sola lettura ogni 10 minuti. Avvisa quando un negozio inserisce i dati di oggi
-    (con quante categorie rosse e gialle) e, dopo le 20:30, una volta, quali non li hanno ancora inseriti. La prima lettura dopo l'accensione memorizza soltanto."""
+    """Agente negozi (senza modello, costo zero): dalle 8 alle 23, una lettura di sola lettura ogni 10 minuti che tiene PRONTO in RAM il resoconto dei numeri di oggi.
+    Non avvisa mai da solo: quando Andrea lo chiede (anche a fine giornata) Jarvis lo dice subito, senza ragionare."""
     from . import negozi
-    if not config.ENABLE_NEGOZI or not (12 <= adesso.hour < 23) or time.time() - _neg["ultimo"] < 600:
+    if not config.ENABLE_NEGOZI or not (8 <= adesso.hour < 23) or time.time() - _neg["ultimo"] < 600:
         return 0
-    giorno = adesso.strftime("%Y-%m-%d")
-    if _neg["giorno"] != giorno:
-        _neg.update(giorno=giorno, visti=None, senza_dati_avvisato=False)
     _neg["ultimo"] = time.time()
     try:
-        ora = negozi.sintesi()
+        _neg["pronto"] = (time.time(), negozi.parlato())
     except Exception as e:
         logs.log_error(e, "vigile negozi")
-        return 0
-    creati = 0
-    if _neg["visti"] is not None:
-        for nome, d in ora.items():
-            if d["dati"] and not _neg["visti"].get(nome, {}).get("dati"):
-                if d["rosse"] or d["gialle"]:
-                    pezzi = ([f"{d['rosse']} rosse"] if d["rosse"] else []) + ([f"{d['gialle']} gialle"] if d["gialle"] else [])
-                    frase = f"{nome} ha inserito i dati: " + " e ".join(pezzi) + "."
-                else:
-                    frase = f"{nome} ha inserito i dati: tutto verde."
-                _aggiungi("negozi", frase, bool(d["rosse"]))
-                creati += 1
-        if adesso.hour * 60 + adesso.minute >= 20 * 60 + 30 and not _neg["senza_dati_avvisato"]:
-            _neg["senza_dati_avvisato"] = True
-            mancano = [n for n, d in ora.items() if not d["dati"]]
-            if mancano:
-                _aggiungi("negozi", "Non hanno ancora inserito i dati: " + ", ".join(mancano) + ".", True)
-                creati += 1
-    _neg["visti"] = ora
-    if creati:
-        logs.log_route(f"VIGILE: negozi, {creati} avvisi")
-    return creati
+    return 0
+
+
+def negozi_pronto() -> str:
+    """Il resoconto dei negozi: quello preparato dall'agente se ha meno di 15 minuti, altrimenti lo legge adesso."""
+    from . import negozi
+    t, testo = _neg.get("pronto") or (0.0, "")
+    if testo and time.time() - t < 900:
+        return testo
+    testo = negozi.parlato()
+    _neg["pronto"] = (time.time(), testo)
+    return testo
 
 
 def controlla(adesso: datetime | None = None) -> int:
