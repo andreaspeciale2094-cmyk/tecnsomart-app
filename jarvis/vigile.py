@@ -23,6 +23,7 @@ _chiamate = {"giorno": "", "n": 0, "ultima": 0.0}
 _banca = {"visti": None, "fatti": set(), "giorno": "", "errore_giorno": ""}   # solo RAM: nessun movimento viene salvato
 _treno = {"giorno": "", "primo": False, "ultimo": 0.0, "stato": None}   # agente treno: solo RAM
 _neg = {"ultimo": 0.0, "pronto": None}   # agente negozi: solo RAM
+_domani = {"giorno": ""}   # agente "domani": una volta la sera
 _lock = threading.Lock()
 SISTEMA = ("Sei l'agente vigile di Andrea, che gestisce negozi TecnoSmart. Ti arrivano le NOVITA' appena comparse (mail non lette: mittente e oggetto; chat WhatsApp: solo il nome). "
            "Decidi se vale la pena interromperlo adesso. SI' per: persone vere (clienti, colleghi, ragazzi dei negozi, familiari), richieste, problemi, scadenze, soldi. "
@@ -231,6 +232,49 @@ def _controlla_treno(adesso: datetime) -> int:
     return 1
 
 
+def _controlla_domani(adesso: datetime) -> int:
+    """Agente 'domani' (senza modello): una volta, dopo le 21:00, ti dice che impegni hai domani e, se non hai ancora detto il turno,
+    te lo chiede (serve all'agente dei treni). Solo schede sulla pagina e una frase a voce se Jarvis e' libero."""
+    if adesso.hour < 21 or adesso.hour >= 23 or _domani["giorno"] == adesso.strftime("%Y-%m-%d"):
+        return 0
+    _domani["giorno"] = adesso.strftime("%Y-%m-%d")
+    from datetime import timedelta
+    domani = (adesso + timedelta(days=1)).date()
+    creati = 0
+    frasi = []
+    if config.ENABLE_AGENDA:
+        try:
+            from . import agenda
+            ev = []
+            for url in (config.CALENDARIO_PERSONALE_ICS, config.CALENDARIO_LAVORO_ICS):
+                if url:
+                    ev += agenda.eventi(url, domani)
+            ev.sort(key=lambda e: (e["tutto_giorno"], e["inizio"]))
+            if ev:
+                primo = next((e for e in ev if not e["tutto_giorno"]), None)
+                f = f"Domani hai {len(ev)} impegn{'o' if len(ev) == 1 else 'i'}"
+                f += f", il primo alle {primo['inizio'].strftime('%H:%M')}: {primo['titolo']}." if primo else f": {ev[0]['titolo']}."
+                _aggiungi("domani", f, False)
+                frasi.append(f)
+                creati += 1
+        except Exception as e:
+            logs.log_error(e, "vigile domani")
+    if config.ENABLE_TRENI:
+        try:
+            from . import treni
+            if not treni.turno_del_giorno(domani):
+                f = "Domani che turno fai? Dimmi: domani faccio apertura, chiusura o riposo."
+                _aggiungi("domani", f, False)
+                frasi.append(f)
+                creati += 1
+        except Exception as e:
+            logs.log_error(e, "vigile domani")
+    if frasi:
+        logs.log_route(f"VIGILE: domani, {creati} schede")
+        threading.Thread(target=_parla, args=(" ".join(frasi),), daemon=True).start()
+    return creati
+
+
 def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
     """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
     try:
@@ -290,6 +334,10 @@ def controlla(adesso: datetime | None = None) -> int:
         creati += _controlla_banca(adesso)
     except Exception as e:
         logs.log_error(e, "vigile banca")
+    try:
+        creati += _controlla_domani(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile domani")
     try:
         creati += _controlla_negozi(adesso)
     except Exception as e:
