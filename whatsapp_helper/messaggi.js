@@ -148,13 +148,15 @@ export function elenco(tutte = false) {
   }).filter((c) => tutte || c.non_lette > 0).sort((a, b) => b.ultimo - a.ultimo);
 }
 
-export function leggi(id, n = 10) {
+export function leggi(id, n = 10, segna = true) {
   const c = chats.get(id);
   if (!c) return null;
   ordina(c);
   const ultimi = c.msgs.slice(-Math.max(1, Math.min(n, 100)));
-  c.lettoFino = c.ultimo;  // letto da Jarvis: non lo si conta piu' come nuovo (nessuna spunta blu viene mandata)
-  programmaSalvataggio();
+  if (segna) {  // letto da Jarvis: non lo si conta piu' come nuovo (nessuna spunta blu viene mandata); la lettura 'silenziosa' (promesse) non lo tocca
+    c.lettoFino = c.ultimo;
+    programmaSalvataggio();
+  }
   return { id: c.id, nome: c.nome, numero: c.numero, messaggi: ultimi };
 }
 

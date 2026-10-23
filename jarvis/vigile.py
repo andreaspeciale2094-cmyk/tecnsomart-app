@@ -26,6 +26,7 @@ _neg = {"ultimo": 0.0, "pronto": None}   # agente negozi: solo RAM
 _domani = {"giorno": ""}   # agente "domani": una volta la sera
 _prom = {"tentativi": {}}   # promemoria: quante volte si e' provato a dirlo a voce
 _obi = {"settimana": ""}   # obiettivi del mese: una volta il lunedi
+_prom_ag = {"giorno": ""}   # promesse di WhatsApp: una volta la sera
 _lock = threading.Lock()
 SISTEMA = ("Sei l'agente vigile di Andrea, che gestisce negozi TecnoSmart. Ti arrivano le NOVITA' appena comparse (mail non lette: mittente e oggetto; chat WhatsApp: solo il nome). "
            "Decidi se vale la pena interromperlo adesso. SI' per: persone vere (clienti, colleghi, ragazzi dei negozi, familiari), richieste, problemi, scadenze, soldi. "
@@ -49,7 +50,7 @@ def segna_letto(id_: str):
 
 
 _diario: list[tuple[str, str, str]] = []   # (ora, tipo, testo): cosa hanno fatto gli agenti oggi, solo RAM, svuotato a mezzanotte
-_TESTO_NEL_DIARIO = {"treno", "salute", "promemoria", "domani", "obiettivi"}  # degli altri (banca, posta, WhatsApp, negozi, impegni) il diario tiene solo che e' successo
+_TESTO_NEL_DIARIO = {"treno", "salute", "promemoria", "domani", "obiettivi", "promesse"}  # degli altri (banca, posta, WhatsApp, negozi, impegni) il diario tiene solo che e' successo
 
 
 def diario_testo() -> str:
@@ -354,6 +355,23 @@ def _controlla_obiettivi(adesso: datetime) -> int:
     return 1
 
 
+def _controlla_promesse(adesso: datetime) -> int:
+    """Una volta, tra le 21:30 e mezzanotte: ti ricorda cosa hai promesso oggi su WhatsApp e non hai ancora fatto (voce solo fino alle 23, se Jarvis e' libero)."""
+    if not (config.ENABLE_WHATSAPP and config.ENABLE_WHATSAPP_LEGGI) or (adesso.hour, adesso.minute) < (21, 30) or _prom_ag["giorno"] == adesso.strftime("%Y-%m-%d"):
+        return 0
+    _prom_ag["giorno"] = adesso.strftime("%Y-%m-%d")
+    from . import promesse
+    with _ag.lavora("whatsapp"):
+        a = promesse.aperte()
+    if not a:
+        return 0
+    frase = "Hai promesso: " + "; ".join(f"{x['chat']}: {x['cosa']}" for x in a[:5]) + "."
+    _aggiungi("promesse", frase, False)
+    if not _notte(adesso):
+        threading.Thread(target=_parla, args=(frase,), daemon=True).start()
+    return 1
+
+
 def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
     """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
     try:
@@ -390,6 +408,8 @@ def svuota_dati():
     _neg.update(pronto=None, ultimo=0.0)
     with _lock:
         _diario.clear()
+    from . import promesse
+    promesse.svuota()
 
 
 def negozi_pronto() -> str:
@@ -416,6 +436,10 @@ def controlla(adesso: datetime | None = None) -> int:
         creati += _controlla_banca(adesso)
     except Exception as e:
         logs.log_error(e, "vigile banca")
+    try:
+        creati += _controlla_promesse(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile promesse")
     try:
         creati += _controlla_obiettivi(adesso)
     except Exception as e:

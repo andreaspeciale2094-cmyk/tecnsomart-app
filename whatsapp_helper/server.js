@@ -187,7 +187,7 @@ createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/salva') { try { salvaSubito(); } catch (e) {} return rispondi(res, 200, { ok: true }); }
   if (req.method === 'GET' && req.url.startsWith('/messaggi?')) {
     const q = new URL(req.url, 'http://x').searchParams;
-    const r = leggi(q.get('id') || '', Number(q.get('n') || 10));
+    const r = leggi(q.get('id') || '', Number(q.get('n') || 10), q.get('segna') !== '0');
     return rispondi(res, r ? 200 : 404, r ? { ok: true, ...r } : { ok: false, errore: 'chat non trovata' });
   }
   if (req.method === 'POST' && req.url === '/invia') {

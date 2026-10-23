@@ -11,6 +11,8 @@ SCHEMAS = [
     },
     {"name": "diario_agenti", "description": "Cosa hanno fatto oggi gli agenti di sottofondo (treno, promemoria, avvisi, riparazioni). Da leggere nel resoconto serale, quando Andrea chiude la giornata.",
      "input_schema": {"type": "object", "properties": {}}},
+    {"name": "promesse_aperte", "description": "Le cose che Andrea ha promesso OGGI su WhatsApp ('ti faccio sapere', 'domani ti chiamo', 'ti mando il file') e non ha ancora mantenuto. Da leggere nel resoconto serale. Usa un modello leggero solo se ci sono candidati.",
+     "input_schema": {"type": "object", "properties": {}}},
     {"name": "promemoria_elenco", "description": "Elenca i promemoria in attesa.", "input_schema": {"type": "object", "properties": {}}},
     {"name": "promemoria_togli", "description": "Toglie un promemoria (per id o per parole del testo) oppure 'tutti'.",
      "input_schema": {"type": "object", "properties": {"id_o_testo": {"type": "string"}}, "required": ["id_o_testo"]}},
@@ -29,4 +31,11 @@ def _diario() -> str:
     return vigile.diario_testo()
 
 
-HANDLERS = {"diario_agenti": _diario, "promemoria_crea": _crea, "promemoria_elenco": promemoria.elenco, "promemoria_togli": promemoria.togli}
+def _promesse() -> str:
+    from .. import config, promesse
+    if not (config.ENABLE_WHATSAPP and config.ENABLE_WHATSAPP_LEGGI):
+        return "La lettura di WhatsApp non e' attiva: non posso controllare le promesse."
+    return promesse.testo()
+
+
+HANDLERS = {"promesse_aperte": _promesse, "diario_agenti": _diario, "promemoria_crea": _crea, "promemoria_elenco": promemoria.elenco, "promemoria_togli": promemoria.togli}
