@@ -29,6 +29,7 @@ def _avvio_scaglionato():
         (13, telegram_bot.avvia),
         (14, pulizia.avvia),
         (15, vigile.avvia),
+        (22, lambda: barra.precarica_app("whatsapp://", "whatsapp") if (config.WHATSAPP_PRECARICA and config.ENABLE_WHATSAPP) else None),  # l'app WhatsApp gia' pronta in memoria: al clic si apre all'istante
     ]
     t0 = _t.time()
     for quando, f in passi:

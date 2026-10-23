@@ -398,7 +398,31 @@ def porta_davanti_per_nome(parola: str, attesa: float = 8.0) -> bool:
                     return True
         except Exception:
             pass
+        time.sleep(0.15)  # controlla spesso: appena compare la porta davanti
+    return False
+
+
+def precarica_app(uri: str, parola: str, attesa: float = 40.0) -> bool:
+    """Accende un'app all'avvio di Jarvis e la mette ridotta in basso: cosi' al clic si apre all'istante (l'app e' gia' in memoria).
+    Poi riporta davanti Jarvis. Solo Windows."""
+    if not disponibile():
+        return False
+    os.startfile(uri)  # type: ignore[attr-defined]
+    t0 = time.time()
+    ctypes, wintypes, u, k = _api()
+    while time.time() - t0 < attesa:
+        try:
+            for f in finestre():
+                if parola.lower() in (f["titolo"] + " " + f["exe"]).lower():
+                    time.sleep(2.0)  # il tempo di finire di caricare
+                    u.ShowWindow(f["id"], 6)  # SW_MINIMIZE
+                    time.sleep(0.4)
+                    porta_jarvis_davanti()
+                    return True
+        except Exception:
+            pass
         time.sleep(0.5)
+    porta_jarvis_davanti()
     return False
 
 

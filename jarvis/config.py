@@ -32,6 +32,7 @@ TELEFONO_URL = os.getenv("TELEFONO_URL", "").strip()  # indirizzo dell'app sul t
 TELEFONO_CHIAVE = os.getenv("TELEFONO_CHIAVE", "").strip()  # parola segreta che il telefono controlla
 ENABLE_CHIAMATE = _flag("JARVIS_CHIAMATE", True)  # telefonate dal PC con il si' di Andrea (spegnere con false)
 ENABLE_WHATSAPP = _flag("JARVIS_WHATSAPP")  # prepara messaggi WhatsApp e apre l'app con il testo pronto (invia Andrea)
+WHATSAPP_PRECARICA = _flag("JARVIS_WHATSAPP_PRECARICA", True)  # accende l'app WhatsApp del PC all'avvio (ridotta) cosi' al clic si apre subito; false per non farlo
 ENABLE_WHATSAPP_INVIO = _flag("JARVIS_WHATSAPP_INVIO")  # invio senza finestre (eccezione regola 5); richiede JARVIS_WHATSAPP
 ENABLE_PULIZIA = _flag("JARVIS_PULIZIA", True)  # pulizia di fine giornata a mezzanotte e alla chiusura (spegnere con false)
 ENABLE_TELEGRAM = _flag("JARVIS_TELEGRAM")  # parlare con Jarvis dal telefono con Telegram (solo l'account di Andrea)
