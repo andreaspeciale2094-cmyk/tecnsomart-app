@@ -4,19 +4,25 @@ SCHEMAS = [
     {
         "name": "treno_stato",
         "description": (
-            "Controlla ADESSO se il treno di Andrea (da Gaggiano verso Vigevano) e' in orario, in ritardo o soppresso. Treni abituali: apertura 7:48, chiusura 13:18. "
-            "Usalo quando chiede 'com'e' il mio treno', 'il treno c'e'?', 'e' in ritardo?'. Senza parametri guarda il prossimo treno abituale di oggi; con 'turno' "
-            "(apertura/chiusura) o 'ora' (per esempio 07:48) quello indicato. La fonte e' non ufficiale e per Trenord e' parziale: se dice che non trova il treno "
-            "non affermare che e' soppresso, di' che non risulta e di controllare l'app Trenord. Rispondi in una frase."
+            "Controlla ADESSO lo stato di QUALUNQUE treno o stazione (non solo quelli di Andrea): in orario, in ritardo o soppresso. Esempi: 'com'e' il mio treno' "
+            "(i suoi abituali, da Gaggiano verso Vigevano: apertura 7:48, chiusura 13:18), 'il treno delle 14:20 da Milano Porta Genova', 'ci sono ritardi da Abbiategrasso "
+            "verso Milano?', 'com'e' il treno 2431?'. Parametri: stazione (predefinita Gaggiano), ora (07:48), turno (apertura/chiusura), direzione (una parola, per esempio "
+            "Milano o Mortara), numero (numero del treno). Senza parametri guarda il prossimo treno abituale di Andrea. La fonte e' non ufficiale e per Trenord e' parziale: se "
+            "dice che non trova il treno non affermare che e' soppresso, di' che non risulta e di controllare l'app Trenord. Rispondi in una o due frasi."
         ),
-        "input_schema": {"type": "object", "properties": {"turno": {"type": "string", "description": "apertura o chiusura"}, "ora": {"type": "string", "description": "Orario di partenza, per esempio 07:48."}}},
+        "input_schema": {"type": "object", "properties": {
+            "stazione": {"type": "string", "description": "Stazione di partenza. Se manca: Gaggiano."},
+            "ora": {"type": "string", "description": "Orario di partenza, per esempio 07:48."},
+            "turno": {"type": "string", "description": "apertura o chiusura (solo per i treni abituali)"},
+            "direzione": {"type": "string", "description": "Una parola della destinazione, per esempio Milano."},
+            "numero": {"type": "string", "description": "Numero del treno."}}},
     },
 ]
 
 
-def _stato(turno: str = "", ora: str = "") -> str:
+def _stato(turno: str = "", ora: str = "", stazione: str = "", direzione: str = "", numero: str = "") -> str:
     try:
-        return treni.stato(ora, turno)
+        return treni.stato(ora, turno, stazione, direzione, numero)
     except treni.TreniError as e:
         return f"Errore: {e}"
 

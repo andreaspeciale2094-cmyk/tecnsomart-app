@@ -98,29 +98,47 @@ def _frase(t: dict, ora_attesa: str) -> str:
     return base + " risulta in orario" + (f", binario {binario}." if binario else ".")
 
 
-def stato(ora: str = "", turno: str = "") -> str:
+def _etichetta(t: dict) -> str:
+    ritardo = int(t.get("ritardo") or 0)
+    stato = "SOPPRESSO" if int(t.get("provvedimento") or 0) == 1 else (f"{ritardo} min di ritardo" if ritardo >= 3 else "in orario")
+    return f"{_ora_partenza(t)} per {str(t.get('destinazione','')).title()} (n. {t.get('numeroTreno') or '?'}): {stato}"
+
+
+def stato(ora: str = "", turno: str = "", stazione: str = "", direzione: str = "", numero: str = "") -> str:
+    """Stato di un treno qualunque: per orario (ora), per numero del treno, oppure i prossimi da una stazione (anche verso una direzione).
+    Senza niente: i treni abituali di Andrea (apertura/chiusura) dalla sua stazione."""
     imp = _impostazioni()
     adesso = datetime.now(ZoneInfo(config.FUSO))
-    if not ora:
-        treni = imp["treni"]
-        if turno and turno.lower() in treni:
-            ora = treni[turno.lower()]
-        else:  # il prossimo dei treni abituali di oggi
-            futuri = sorted(o for o in treni.values() if o >= adesso.strftime("%H:%M"))
-            if not futuri:
-                raise TreniError("I tuoi treni di oggi sono gia' passati. Dimmi quale orario vuoi controllare.")
+    sua = not stazione or stazione.strip().lower() == str(imp["partenza"]).lower()
+    nome, codice = codice_stazione(stazione.strip() if stazione.strip() else imp["partenza"])
+    parole = [p.strip().upper() for p in (direzione.replace(",", " ").split() if direzione.strip() else (imp["direzione"] if sua and not numero else []))]
+    verso = lambda t: not parole or any(p in str(t.get("destinazione", "")).upper() for p in parole)
+
+    if not ora and turno and sua and turno.lower() in imp["treni"]:
+        ora = imp["treni"][turno.lower()]
+    if not ora and not numero and not direzione and sua:  # nessuna richiesta precisa: il prossimo dei treni abituali di oggi
+        futuri = sorted(o for o in imp["treni"].values() if o >= adesso.strftime("%H:%M"))
+        if futuri:
             ora = futuri[0]
-    ora = ora.replace(".", ":").zfill(5)
-    nome, codice = codice_stazione(imp["partenza"])
-    h, m = (int(x) for x in ora.split(":"))
-    quando = adesso.replace(hour=h, minute=m, second=0, microsecond=0) - timedelta(minutes=10)
-    elenco = partenze(codice, quando)
-    parole = [p.upper() for p in imp["direzione"]]
-    candidati = [t for t in elenco if _ora_partenza(t) == ora]
-    giusti = [t for t in candidati if any(p in str(t.get("destinazione", "")).upper() for p in parole)] or candidati
-    logs.log_route(f"TRENI: controllo delle {ora} da {nome}: {len(elenco)} partenze lette, {len(giusti)} corrispondenti")
-    if not giusti:
-        vicini = sorted((t for t in elenco if any(p in str(t.get("destinazione", "")).upper() for p in parole)), key=_ora_partenza)[:3]
-        extra = (" Nelle vicinanze vedo: " + "; ".join(f"{_ora_partenza(t)} per {str(t.get('destinazione','')).title()}" for t in vicini) + ".") if vicini else ""
+    if ora:
+        ora = ora.replace(".", ":").zfill(5)
+        h, m = (int(x) for x in ora.split(":"))
+        quando = adesso.replace(hour=h, minute=m, second=0, microsecond=0) - timedelta(minutes=10)
+        elenco = partenze(codice, quando)
+        candidati = [t for t in elenco if _ora_partenza(t) == ora]
+        giusti = [t for t in candidati if verso(t)] or candidati
+        logs.log_route(f"TRENI: controllo delle {ora} da {nome}: {len(elenco)} partenze lette, {len(giusti)} corrispondenti")
+        if giusti:
+            return _frase(giusti[0], ora)
+        vicini = sorted((t for t in elenco if verso(t)), key=_ora_partenza)[:3]
+        extra = (" Nelle vicinanze vedo: " + "; ".join(_etichetta(t) for t in vicini) + ".") if vicini else ""
         return f"Non vedo il treno delle {ora} tra le partenze di {nome}: potrebbe non essere ancora tracciato oppure soppresso.{extra} Controlla anche l'app Trenord."
-    return _frase(giusti[0], ora)
+    elenco = partenze(codice, adesso)
+    logs.log_route(f"TRENI: prossime partenze da {nome}: {len(elenco)} lette")
+    if numero:
+        trovati = [t for t in elenco if str(t.get("numeroTreno")) == str(numero).strip()]
+        return ("Treno " + _etichetta(trovati[0]) + f" da {nome}.") if trovati else f"Il treno {numero} non risulta tra le prossime partenze di {nome}."
+    prossimi = sorted((t for t in elenco if verso(t)), key=_ora_partenza)[:4]
+    if not prossimi:
+        return f"Non vedo partenze da {nome}" + (f" verso {direzione}" if direzione else "") + " nei dati: controlla l'app Trenord."
+    return f"Prossime da {nome}" + (f" verso {direzione}" if direzione else "") + ": " + "; ".join(_etichetta(t) for t in prossimi) + "."
