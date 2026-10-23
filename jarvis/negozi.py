@@ -190,12 +190,25 @@ def riepilogo(day: str = "", tipo: str = "tutti") -> str:
     return "\n\n".join(parts) or "Niente da riassumere: controlla il tipo (mono, multi o tutti)."
 
 
+_pronti: dict = {"t": 0.0, "giorno": "", "raw": None}  # ultima lettura dell'app (solo RAM), tenuta fresca dall'agente negozi
+
+
+def _leggi(cfg: dict, oggi: date, max_eta: float = 0.0) -> dict:
+    """I dati di oggi: quelli gia' pronti se hanno meno di max_eta secondi, altrimenti li legge dall'app."""
+    import time
+    if max_eta and _pronti["raw"] is not None and _pronti["giorno"] == oggi.isoformat() and time.time() - _pronti["t"] < max_eta:
+        return _pronti["raw"]
+    raw = fetch(cfg["url"], oggi.isoformat())
+    _pronti.update(t=time.time(), giorno=oggi.isoformat(), raw=raw)
+    return raw
+
+
 def parlato() -> str:
     """Il resoconto dei negozi di oggi gia' pronto da dire a voce (solo numeri, calcolato dal codice, senza modello). Frasi corte, una per negozio.
     Nel Multi Brand un negozio che non ha MAI inserito dati questo mese non viene detto 'mancante': magari non fa multi brand."""
     cfg = load_config()
     oggi = date.today()
-    raw = fetch(cfg["url"], oggi.isoformat())
+    raw = _leggi(cfg, oggi)
     blocchi = []
     for kind, etichetta in (("mono", "Mono brand"), ("multi", "Multi brand")):
         if kind not in cfg.get("run", {}):
@@ -245,7 +258,7 @@ def parlato_negozio(nome: str) -> str:
     """Solo quel negozio: per ogni categoria quanto ha inserito oggi rispetto all'obiettivo del giorno (mono e multi brand)."""
     cfg = load_config()
     oggi = date.today()
-    raw = fetch(cfg["url"], oggi.isoformat())
+    raw = _leggi(cfg, oggi, 900)
     parti = []
     for kind, etichetta in (("mono", "Mono brand"), ("multi", "Multi brand")):
         if kind not in cfg.get("run", {}):
