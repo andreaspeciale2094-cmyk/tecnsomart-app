@@ -329,6 +329,33 @@ def porta_davanti(hwnd: int) -> str:
     return "ok"
 
 
+_explorer = {"t": 0.0, "v": True}
+
+
+def explorer_attivo() -> bool:
+    """Vero se c'e' il desktop normale di Windows (explorer.exe); falso se al suo posto c'e' Jarvis. Controllato al massimo ogni 10 secondi."""
+    if not disponibile():
+        return True
+    if time.time() - _explorer["t"] > 10:
+        try:
+            out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq explorer.exe", "/NH"], capture_output=True, text=True, timeout=8, creationflags=NASCONDI).stdout
+            _explorer["v"] = "explorer.exe" in out.lower()
+        except (OSError, subprocess.SubprocessError):
+            _explorer["v"] = True
+        _explorer["t"] = time.time()
+    return _explorer["v"]
+
+
+def desktop_windows() -> str:
+    """Fa comparire il desktop normale di Windows (barra, menu Start, icone) accanto a Jarvis."""
+    if not disponibile():
+        raise ValueError("Funziona solo sul PC Windows.")
+    subprocess.Popen(["explorer.exe"])
+    _explorer["t"] = 0.0
+    logs.log_azione("BARRA: avviato il desktop di Windows")
+    return "ok"
+
+
 def porta_davanti_per_nome(parola: str, attesa: float = 8.0) -> bool:
     """Aspetta che compaia una finestra con quel nome (titolo o programma) e la porta davanti. Serve dopo aver aperto un'app: da dietro le quinte Windows non la mette da solo in primo piano."""
     t0 = time.time()

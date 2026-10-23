@@ -64,6 +64,10 @@ def chiudi(request: Request):
 
     def fine():
         try:
+            (CHIUDI_TOKEN.parent / "spegnimento_voluto.flag").write_text("1", encoding="utf-8")  # dice al sorvegliante (se Jarvis e' al posto del desktop) che non e' un guasto
+        except OSError:
+            pass
+        try:
             pulizia.alla_chiusura()
             whatsapp.chiudi_helper()
         finally:
@@ -125,7 +129,7 @@ def barra_dati(request: Request):
     """Barra in basso: finestre aperte. Solo sul PC Windows e solo dal PC."""
     if not (barra.disponibile() and _dal_pc(request)):
         return {"attiva": False}
-    return {"attiva": True, "finestre": barra.finestre()}
+    return {"attiva": True, "finestre": barra.finestre(), "shell_jarvis": not barra.explorer_attivo()}
 
 
 @app.get("/api/desk")
@@ -213,6 +217,8 @@ def barra_azione(azione: str, body: BarraAzione, request: Request):
             barra.apri_start()
         elif azione == "schermo":
             barra.schermo_intero_alterna()
+        elif azione == "windows":
+            barra.desktop_windows()
         else:
             return JSONResponse({"error": "azione sconosciuta"}, status_code=404)
     except (ValueError, OSError) as e:

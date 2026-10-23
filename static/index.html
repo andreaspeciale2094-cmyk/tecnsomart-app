@@ -229,6 +229,7 @@
   <span class="sep"></span>
   <div class="gruppo" id="b-fin"></div>
   <div class="molla"></div>
+  <button class="vb" id="b-win" style="display:none; width:auto; padding:0 12px; font:600 11px ui-monospace, Consolas, monospace; letter-spacing:.12em; text-transform:uppercase" data-tip="Torna al desktop normale di Windows (barra, menu Start, icone)">⊞ Windows</button>
   <button class="vb" id="b-esci" data-tip="Esce dal tutto schermo senza chiudere Jarvis (o rientra)">⤢ schermo</button>
   <div id="b-ora"><b id="b-h"></b><span id="b-d"></span></div>
 </nav>
@@ -704,13 +705,14 @@ speechSynthesis?.getVoices();
   async function aggiornaBarra() {
     if (document.hidden) return;
     try { const r = await api('/api/barra'); if (!r.ok) return; const d = await r.json();
-      document.body.classList.toggle('conbarra', !!d.attiva); if (!d.attiva) return;
+      document.body.classList.toggle('conbarra', !!d.attiva); if (!d.attiva) return; $('#b-win').style.display = d.shell_jarvis ? '' : 'none';
       const firma = JSON.stringify([d.finestre.map(f => [f.id, f.attiva, f.ridotta, !!f.icona, f.titolo])]);
       if (firma === ultimaFirma) return; ultimaFirma = firma;
       $('#b-fin').replaceChildren(...d.finestre.map(f => tasto('aperta' + (f.attiva ? ' attiva' : '') + (f.ridotta ? ' ridotta' : ''), f.titolo || f.nome, f.icona, f.nome, () => { post('porta', { id: f.id }); setTimeout(aggiornaBarra, 400); })));
     } catch (e) {}
   }
   $('#b-start').onclick = () => post('start');
+  $('#b-win').onclick = () => post('windows');
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
