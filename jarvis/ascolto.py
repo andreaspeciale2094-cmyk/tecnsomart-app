@@ -712,22 +712,30 @@ def _ciclo_vero():
                     if parlando and not interruzione:  # Jarvis sta parlando: senza cuffie non si ascolta (sentirebbe se stesso)
                         continue
                     ring.append(blocco)
-                    if parlando and con_cuffie and str(config.ASCOLTO_INTERRUZIONE).strip().lower() != "false":  # con le cuffie: se parli sopra la voce di Jarvis si ferma e ti ascolta, senza dire "Hey Jarvis"
-                        voce_sopra = voce_sopra + 1 if float(vad.predict(blocco, 640)) > 0.6 else 0
-                        if voce_sopra >= 4:
+                    if parlando and str(config.ASCOLTO_INTERRUZIONE).strip().lower() != "false" and (con_cuffie or voce_id.attiva()):
+                        # Parli sopra la voce di Jarvis: con le cuffie basta ~0,3 s di voce; con le casse la voce deve essere QUELLA DI ANDREA (impronta), controllata ogni ~1,2 s di voce
+                        voce_sopra = voce_sopra + 1 if float(vad.predict(blocco, 640)) > 0.6 else voce_sopra
+                        if voce_sopra >= (4 if con_cuffie else 15):
                             voce_sopra = 0
-                            interrompi()
-                            logs.log_route("ASCOLTO: interrotto parlando sopra (cuffie)")
-                            try:
-                                gestisci_chiamata(leggi, vad, list(ring))
-                            except sd.PortAudioError:
-                                raise
-                            except Exception as e:
-                                _fase("")
-                                logs.log_error(e, "ascolto: conversazione")
-                            model.reset()
-                            ultimo = time.time()
-                            continue
+                            if con_cuffie:
+                                e_lui = True
+                            else:
+                                e_lui, p_voce = voce_id.verifica(list(ring))
+                                if not e_lui:
+                                    logs.log_route(f"ASCOLTO: voce sopra Jarvis non e' la tua (somiglianza {p_voce})")
+                            if e_lui:
+                                interrompi()
+                                logs.log_route("ASCOLTO: interrotto parlando sopra (" + ("cuffie" if con_cuffie else "voce riconosciuta") + ")")
+                                try:
+                                    gestisci_chiamata(leggi, vad, list(ring))
+                                except sd.PortAudioError:
+                                    raise
+                                except Exception as e:
+                                    _fase("")
+                                    logs.log_error(e, "ascolto: conversazione")
+                                model.reset()
+                                ultimo = time.time()
+                                continue
                     else:
                         voce_sopra = 0
                     punteggio = float(model.predict(blocco).get(PAROLA, 0))
