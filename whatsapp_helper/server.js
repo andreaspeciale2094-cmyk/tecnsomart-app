@@ -14,13 +14,15 @@ import { connect } from 'node:net';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { registra, registraStorico, impostaNomi, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, fetchLatestWaWebVersion, Browsers } from '@whiskeysockets/baileys';
 
 const QUI = dirname(fileURLToPath(import.meta.url));
 const DATI = join(QUI, '..', 'memoria', 'whatsapp');
 const AUTH = join(DATI, 'auth');
 const PORTA = 8787;
 const MOSTRA_QR = process.argv.includes('--collega');
+const NUMERO = (process.argv.find((a) => a.startsWith('--numero=')) || '').slice(9).replace(/\D/g, '');  // collegamento con codice al posto del QR
+let codiceChiesto = false;
 mkdirSync(AUTH, { recursive: true });
 
 const TOKEN_FILE = join(DATI, 'token.txt');
@@ -64,10 +66,13 @@ let chiusure = 0;  // chiusure di fila senza arrivare al collegamento: dopo 3 si
 async function avvia() {
   if (MOSTRA_QR) console.log('Mi collego a WhatsApp, attendi qualche secondo...');
   const { state, saveCreds } = await useMultiFileAuthState(AUTH);
-  const { version } = await fetchLatestBaileysVersion();
-  const provaVersioneInterna = chiusure >= 3 && chiusure % 2 === 1;  // dopo 3 chiusure si alternano la versione scaricata e quella inclusa nel programma
-  if (MOSTRA_QR && chiusure >= 3) console.log(provaVersioneInterna ? '  (provo con la versione di WhatsApp inclusa nel programma)' : '  (provo con la versione di WhatsApp piu\' recente)');
-  sock = makeWASocket({ ...(provaVersioneInterna ? {} : { version }), auth: state, logger: pino({ level: MOSTRA_QR ? 'warn' : 'silent' }), browser: Browsers.macOS('Desktop'), ...(chiusure >= 3 ? {} : { syncFullHistory: true, shouldSyncHistoryMessage: () => true }), markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
+  // La versione di WhatsApp dichiarata conta: se e' vecchia, WhatsApp chiude la connessione. Si provano tre fonti a rotazione.
+  const fonte = chiusure % 3;  // 0 = versione vera del sito di WhatsApp, 1 = elenco della libreria, 2 = quella inclusa nel programma
+  let version;
+  if (fonte === 0) { const r = await fetchLatestWaWebVersion(); version = r.isLatest ? r.version : (await fetchLatestBaileysVersion()).version; }
+  else if (fonte === 1) version = (await fetchLatestBaileysVersion()).version;
+  if (MOSTRA_QR && chiusure > 0) console.log('  (versione di WhatsApp: ' + (version ? version.join('.') : 'quella inclusa nel programma') + ')');
+  sock = makeWASocket({ ...(version ? { version } : {}), auth: state, logger: pino({ level: MOSTRA_QR ? 'warn' : 'silent' }), browser: Browsers.macOS('Desktop'), ...(chiusure >= 3 ? {} : { syncFullHistory: true, shouldSyncHistoryMessage: () => true }), markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('messages.upsert', ({ messages }) => { for (const m of messages || []) { try { registra(m); } catch (e) {} } });
   sock.ev.on('messaging-history.set', (h) => {
@@ -79,7 +84,13 @@ async function avvia() {
   });
   sock.ev.on('contacts.upsert', (c) => { try { impostaNomi(c); } catch (e) {} });
   sock.ev.on('connection.update', async (u) => {
-    if (u.qr) {
+    if (u.qr && NUMERO && MOSTRA_QR && !codiceChiesto && !state.creds.registered) {
+      codiceChiesto = true;
+      try {
+        const c = await sock.requestPairingCode(NUMERO);
+        console.log(`\nCODICE DA SCRIVERE SUL TELEFONO: ${c}\nWhatsApp > Impostazioni > Dispositivi collegati > Collega un dispositivo > "Collega con numero di telefono".`);
+      } catch (e) { console.log('Non riesco a ottenere il codice: ' + String(e?.message || e).slice(0, 100)); codiceChiesto = false; }
+    } else if (u.qr) {
       stato.bisogna_qr = true;
       if (MOSTRA_QR) {
         console.log('\nScansiona questo codice con WhatsApp sul telefono: Impostazioni > Dispositivi collegati > Collega un dispositivo.\n');
