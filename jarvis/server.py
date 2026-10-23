@@ -316,6 +316,10 @@ def api_wa_app(request: Request):
     """Apre l'app WhatsApp del PC e la porta davanti (solo la apre: non invia niente). Se l'app non c'e', apre WhatsApp Web."""
     def apri():
         try:
+            h = barra.trova_finestra("whatsapp")
+            if h:  # gia' accesa (dietro Jarvis): basta portarla davanti, all'istante
+                barra.porta_davanti_veloce(h)
+                return {"ok": True}
             os.startfile("whatsapp://")  # type: ignore[attr-defined]
             threading.Thread(target=barra.porta_davanti_per_nome, args=("whatsapp",), daemon=True).start()
         except (OSError, AttributeError):

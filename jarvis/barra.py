@@ -387,41 +387,71 @@ def porta_jarvis_davanti() -> bool:
     return True
 
 
-def porta_davanti_per_nome(parola: str, attesa: float = 8.0) -> bool:
-    """Aspetta che compaia una finestra con quel nome (titolo o programma) e la porta davanti. Serve dopo aver aperto un'app: da dietro le quinte Windows non la mette da solo in primo piano."""
-    t0 = time.time()
-    while time.time() - t0 < attesa:
+def trova_finestra(parola: str) -> int | None:
+    """Cerca al volo (senza icone ne' altro di pesante) una finestra visibile col nome nel titolo: ritorna l'id oppure None."""
+    if not disponibile():
+        return None
+    ctypes, wintypes, u, k = _api()
+    trovata: list[int] = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def passo(hwnd, _):
         try:
-            for f in finestre():
-                if parola.lower() in (f["titolo"] + " " + f["exe"]).lower():
-                    porta_davanti(f["id"])
-                    return True
+            if u.IsWindowVisible(hwnd):
+                n = u.GetWindowTextLengthW(hwnd)
+                if n:
+                    buf = ctypes.create_unicode_buffer(n + 1)
+                    u.GetWindowTextW(hwnd, buf, n + 1)
+                    if parola.lower() in buf.value.lower() and "J.A.R.V.I.S." not in buf.value:
+                        trovata.append(int(hwnd or 0))
         except Exception:
             pass
-        time.sleep(0.15)  # controlla spesso: appena compare la porta davanti
-    return False
+        return True
+
+    u.EnumWindows(passo, 0)
+    return trovata[0] if trovata else None
+
+
+def porta_davanti_veloce(hwnd: int):
+    """Porta davanti una finestra gia' trovata con trova_finestra (senza ricontrollare l'elenco, che e' lento)."""
+    ctypes, wintypes, u, k = _api()
+    if u.IsIconic(hwnd):
+        u.ShowWindow(hwnd, 9)  # SW_RESTORE
+    _tasto(0x12)  # un tocco su Alt: Windows altrimenti non lascia passare in primo piano un'altra app
+    u.SetForegroundWindow(hwnd)
+
+
+def porta_davanti_per_nome(parola: str, attesa: float = 8.0) -> bool:
+    """Se la finestra c'e' gia' la porta davanti subito; altrimenti aspetta che compaia (dopo aver aperto un'app) e poi la porta davanti."""
+    t0 = time.time()
+    while True:
+        try:
+            h = trova_finestra(parola)
+            if h:
+                porta_davanti_veloce(h)
+                return True
+        except Exception:
+            pass
+        if time.time() - t0 >= attesa:
+            return False
+        time.sleep(0.1)
 
 
 def precarica_app(uri: str, parola: str, attesa: float = 40.0) -> bool:
-    """Accende un'app all'avvio di Jarvis e la mette ridotta in basso: cosi' al clic si apre all'istante (l'app e' gia' in memoria).
-    Poi riporta davanti Jarvis. Solo Windows."""
+    """Accende un'app all'avvio di Jarvis e la lascia DIETRO la sua finestra a tutto schermo (non ridotta: le app dello Store ridotte
+    si addormentano e ci mettono secondi a svegliarsi). Al clic basta portarla davanti, all'istante. Solo Windows."""
     if not disponibile():
         return False
+    if trova_finestra(parola):
+        return True
     os.startfile(uri)  # type: ignore[attr-defined]
     t0 = time.time()
-    ctypes, wintypes, u, k = _api()
     while time.time() - t0 < attesa:
-        try:
-            for f in finestre():
-                if parola.lower() in (f["titolo"] + " " + f["exe"]).lower():
-                    time.sleep(2.0)  # il tempo di finire di caricare
-                    u.ShowWindow(f["id"], 6)  # SW_MINIMIZE
-                    time.sleep(0.4)
-                    porta_jarvis_davanti()
-                    return True
-        except Exception:
-            pass
-        time.sleep(0.5)
+        if trova_finestra(parola):
+            time.sleep(2.5)  # il tempo di finire di caricare
+            porta_jarvis_davanti()
+            return True
+        time.sleep(0.4)
     porta_jarvis_davanti()
     return False
 
