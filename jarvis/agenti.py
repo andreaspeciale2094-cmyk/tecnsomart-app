@@ -19,6 +19,12 @@ DEFINIZIONI = {
                  "ruolo": "Sei l'agente WhatsApp: guardi i messaggi non letti. Apri una chat solo se serve capire di cosa si tratta."},
     "negozi": {"strumenti": ["riepilogo_negozi", "focus_addetto", "scheda_leggi"], "predefinita": "Come stanno andando i negozi oggi: chi e' sotto target, anomalie.",
                "ruolo": "Sei l'agente negozi: leggi l'andamento dei punti vendita e dei ragazzi. Dati dei clienti: solo quelli che servono."},
+    "ricerca": {"strumenti": ["fetch_url"], "web": True, "predefinita": "Cerca online quello che serve e riassumilo.",
+                "ruolo": "Sei l'agente ricerca: cerchi su internet (anche leggendo pagine) e riporti solo i fatti utili, con la fonte in due parole. Se le fonti sono deboli o in contrasto, dillo."},
+    "memoria": {"strumenti": ["recall", "core_show"], "predefinita": "Cosa sai di questo argomento?",
+                "ruolo": "Sei l'agente memoria: cerchi nei ricordi di Andrea (archivio e memoria viva) e riporti solo quelli pertinenti. Se non c'e' niente, dillo in una riga."},
+    "pc": {"strumenti": ["pc_cerca", "pc_elenco_app"], "predefinita": "Cerca nel PC.",
+           "ruolo": "Sei l'agente PC: cerchi app, giochi, file e cartelle per nome. Riporti dove si trovano; non apri niente."},
     "soldi": {"strumenti": ["banca_riepilogo"], "predefinita": "Saldo e movimenti recenti da segnalare, in breve.",
               "ruolo": "Sei l'agente soldi: leggi il conto corrente (solo lettura, mai pagamenti). Segnala saldo e cose fuori dal normale."},
 }
@@ -47,7 +53,7 @@ def stato_pubblico() -> dict[str, str]:
 
 def disponibili() -> list[str]:
     from . import tools
-    return [n for n, d in DEFINIZIONI.items() if any(s in tools.HANDLERS for s in d["strumenti"])]
+    return [n for n, d in DEFINIZIONI.items() if any(s in tools.HANDLERS for s in d["strumenti"]) or (d.get("web") and config.ENABLE_WEB_SEARCH)]
 
 
 def _chiama(**kw):
@@ -67,15 +73,20 @@ def _chiama(**kw):
 def _lavora(nome: str, richiesta: str) -> str:
     from . import tools
     d = DEFINIZIONI[nome]
-    schemi = [s for s in tools.SCHEMAS if s["name"] in d["strumenti"]]
-    if not schemi:
+    schemi = [x for x in tools.SCHEMAS if x["name"] in d["strumenti"]]
+    server = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 3}] if d.get("web") and config.ENABLE_WEB_SEARCH else []
+    if not schemi and not server:
         return "Agente non disponibile (funzione spenta o non collegata)."
     msgs = [{"role": "user", "content": richiesta or d["predefinita"]}]
-    for _ in range(4):
-        r = _chiama(max_tokens=700, system=SISTEMA.format(ruolo=d["ruolo"]), tools=schemi, messages=msgs, timeout=40)
+    for _ in range(5):
+        r = _chiama(max_tokens=700, system=SISTEMA.format(ruolo=d["ruolo"]), tools=schemi + server, messages=msgs, timeout=45)
+        senza_pensiero = [b for b in r.content if b.type not in ("thinking", "redacted_thinking")]
+        if r.stop_reason == "pause_turn":  # la ricerca su internet ha bisogno di continuare
+            msgs.append({"role": "assistant", "content": senza_pensiero})
+            continue
         if r.stop_reason != "tool_use":
             return "".join(b.text for b in r.content if b.type == "text").strip() or "Niente da segnalare."
-        msgs.append({"role": "assistant", "content": [b for b in r.content if b.type in ("text", "tool_use")]})
+        msgs.append({"role": "assistant", "content": senza_pensiero})
         usi = [b for b in r.content if b.type == "tool_use"]
         risultati = [{"type": "tool_result", "tool_use_id": b.id,
                       "content": tools.run_tool(b.name, b.input) if b.name in d["strumenti"] else "Errore: strumento non consentito a questo agente."} for b in usi]

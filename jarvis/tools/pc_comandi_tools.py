@@ -16,6 +16,11 @@ SCHEMAS = [
         "input_schema": {"type": "object", "properties": {"filtro": {"type": "string"}}},
     },
     {
+        "name": "pc_cerca",
+        "description": "Cerca per nome tra app, giochi, file e cartelle del PC (Desktop, Documenti, Download, Immagini, Video, Musica). Dice solo nome e cartella: non apre niente.",
+        "input_schema": {"type": "object", "properties": {"testo": {"type": "string"}}, "required": ["testo"]},
+    },
+    {
         "name": "pc_alias",
         "description": "Ricorda che una parola detta da Andrea vuol dire una certa app o gioco (per i nomi che il riconoscimento vocale sbaglia).",
         "input_schema": {"type": "object", "properties": {"parola": {"type": "string"}, "app": {"type": "string", "description": "Nome esatto dell'app o gioco."}}, "required": ["parola", "app"]},
@@ -66,10 +71,18 @@ def _prova(fn, *a):
         return f"Errore: {e}"
 
 
+def _cerca_pc(testo: str) -> str:
+    r = barra.cerca(testo)["voci"]
+    if not r:
+        return "Non trovo niente con quel nome."
+    return "Trovati (solo nomi): " + "; ".join(f"{v['tipo']} {v['nome']}" + (f" (in {v['dove']})" if v.get("dove") else "") for v in r)
+
+
 HANDLERS = {
     "desktop_aggiungi": lambda nome: _prova(barra.aggiungi, nome),
     "desktop_importa_barra": lambda: _prova(barra.importa_barra_windows),
     "desktop_togli": lambda nome: _prova(barra.togli, nome),
+    "pc_cerca": lambda testo: _cerca_pc(testo),
     "pc_apri": lambda nome: _prova(pc_comandi.apri, nome),
     "pc_elenco_app": lambda filtro="": _prova(pc_comandi.elenco, filtro),
     "pc_alias": lambda parola, app: _prova(pc_comandi.alias_salva, parola, app),

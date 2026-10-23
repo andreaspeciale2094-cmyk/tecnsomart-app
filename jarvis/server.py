@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agenti, ascolto, auth, interazioni, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import agenti, ascolto, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 def _avvio_scaglionato():
@@ -28,6 +28,7 @@ def _avvio_scaglionato():
         (11, tools.avvia_cache),  # agenda, posta e WhatsApp sempre pronti per i quadri veloci
         (13, telegram_bot.avvia),
         (14, pulizia.avvia),
+        (15, vigile.avvia),
     ]
     t0 = _t.time()
     for quando, f in passi:
@@ -130,6 +131,22 @@ def stato_ascolto(request: Request):
     if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
         return JSONResponse({"error": "non autorizzato"}, status_code=403)
     return {"fase": ascolto.stato["fase"] or fase.leggi(), "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"]}
+
+
+@app.get("/api/vigile")
+def vigile_avvisi():
+    """Gli avvisi dell'agente vigile non ancora letti (solo testo breve, in memoria)."""
+    return {"avvisi": vigile.avvisi()}
+
+
+class Letto(BaseModel):
+    id: str
+
+
+@app.post("/api/vigile/letto")
+def vigile_letto(body: Letto):
+    vigile.segna_letto(body.id)
+    return {"ok": True}
 
 
 @app.get("/api/agenti")
