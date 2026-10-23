@@ -4,6 +4,7 @@ Per costare poco controlla con regole semplici e chiama l'intelligenza (modello 
 Gli avvisi restano in RAM e si vedono sulla pagina; a voce parla solo per un impegno imminente, e mai di notte. Nei registri: solo 'avviso si/no', mai nomi o testi."""
 import json
 import re
+from pathlib import Path
 import threading
 import time
 import uuid
@@ -230,11 +231,21 @@ def _controlla_treno(adesso: datetime) -> int:
     return 1
 
 
+def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
+    """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
+    try:
+        f = json.loads((Path(__file__).parent.parent / "memoria" / "orari_agenti.json").read_text(encoding="utf-8")).get(nome)
+        da, a = (tuple(int(x) for x in v.split(":")) for v in f)
+    except (OSError, ValueError, TypeError):
+        da, a = predefinita
+    return da <= (adesso.hour, adesso.minute) < a
+
+
 def _controlla_negozi(adesso: datetime) -> int:
     """Agente negozi (senza modello, costo zero): dalle 8 alle 23, una lettura di sola lettura ogni 10 minuti che tiene PRONTO in RAM il resoconto dei numeri di oggi.
     Non avvisa mai da solo: quando Andrea lo chiede (anche a fine giornata) Jarvis lo dice subito, senza ragionare."""
     from . import negozi
-    if not config.ENABLE_NEGOZI or not (8 <= adesso.hour < 23) or time.time() - _neg["ultimo"] < 600:
+    if not config.ENABLE_NEGOZI or not _in_fascia("negozi", adesso, ((8, 0), (23, 0))) or time.time() - _neg["ultimo"] < 600:
         return 0
     _neg["ultimo"] = time.time()
     try:
