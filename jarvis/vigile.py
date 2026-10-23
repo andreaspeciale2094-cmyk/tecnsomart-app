@@ -70,10 +70,11 @@ def diario_testo() -> str:
     return "Gli agenti di sottofondo oggi: " + "; ".join(righe) + "."
 
 
-def _aggiungi(tipo: str, testo: str, urgente: bool, anteprima: str = ""):
+def _aggiungi(tipo: str, testo: str, urgente: bool, anteprima: str = "", diario: bool = True):
     with _lock:
-        _diario.append((datetime.now(ZoneInfo(config.FUSO)).strftime("%H:%M"), tipo, testo[:140]))
-        del _diario[:-60]
+        if diario:
+            _diario.append((datetime.now(ZoneInfo(config.FUSO)).strftime("%H:%M"), tipo, testo[:140]))
+            del _diario[:-60]
         _avvisi.append({"id": uuid.uuid4().hex[:8], "tipo": tipo, "testo": testo[:140], "anteprima": anteprima[:160], "urgente": bool(urgente), "ora": datetime.now(ZoneInfo(config.FUSO)).strftime("%H:%M"), "t": time.time()})
         del _avvisi[:-20]
 
@@ -253,7 +254,7 @@ def _controlla_treno(adesso: datetime) -> int:
         return 0
     prima = not _treno["primo"]
     _treno["primo"], _treno["stato"] = True, firma
-    _aggiungi("treno", r["frase"], r["stato"] != "orario")
+    _aggiungi("treno", r["frase"], r["stato"] != "orario", diario=r["stato"] != "orario")  # un treno in orario e' gia' stato preso: non va nel resoconto della sera
     logs.log_route(f"VIGILE: treno {r['ora']} {r['stato']}" + (" (primo avviso)" if prima else " (cambiato)"))
     if not _notte(adesso):
         threading.Thread(target=_parla, args=(r["frase"],), daemon=True).start()
