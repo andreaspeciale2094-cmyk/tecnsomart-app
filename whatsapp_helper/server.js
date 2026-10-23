@@ -9,6 +9,8 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
+import { lookup } from 'node:dns/promises';
+import { connect } from 'node:net';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { registra, registraStorico, impostaNomi, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
@@ -39,6 +41,15 @@ async function apriQrNelBrowser(testo) {
 }
 const stato = { connesso: false, bisogna_qr: false, bloccato: false, errore: '', storia: { ricevuta: 0, ultimo: 0 } };
 let sock = null;
+// Se la connessione si chiude di continuo, controlla se il PC raggiunge WhatsApp e lo dice in parole semplici
+async function controlloRete() {
+  try {
+    const a = await lookup('web.whatsapp.com');
+    console.log(`  Rete: l'indirizzo di WhatsApp si trova (${a.address}).`);
+    await new Promise((ok, no) => { const c = connect({ host: a.address, port: 443, timeout: 6000 }, () => { c.destroy(); ok(); }); c.on('error', no); c.on('timeout', () => { c.destroy(); no(new Error('nessuna risposta in 6 secondi')); }); });
+    console.log('  Rete: la porta di WhatsApp risponde. Il blocco e\' dopo (antivirus, VPN o WhatsApp stesso).');
+  } catch (e) { console.log("  Rete: NON raggiungo WhatsApp (" + String(e.message || e).slice(0, 80) + "). Controlla internet, VPN/Tailscale, antivirus o firewall."); }
+}
 let chiusure = 0;  // chiusure di fila senza arrivare al collegamento: dopo 3 si riprova in modo semplice (senza storia)
 
 async function avvia() {
@@ -56,7 +67,7 @@ async function avvia() {
     } catch (e) {}
   });
   sock.ev.on('contacts.upsert', (c) => { try { impostaNomi(c); } catch (e) {} });
-  sock.ev.on('connection.update', (u) => {
+  sock.ev.on('connection.update', async (u) => {
     if (u.qr) {
       stato.bisogna_qr = true;
       if (MOSTRA_QR) {
@@ -86,6 +97,7 @@ async function avvia() {
     if (u.connection === 'close') {
       stato.connesso = false;
       chiusure++;
+      if (MOSTRA_QR && chiusure === 2) await controlloRete();
       if (MOSTRA_QR && chiusure === 3) console.log('(Riprovo in modo semplice, senza scaricare la storia vecchia.)');
       const codice = u.lastDisconnect?.error?.output?.statusCode;
       if (MOSTRA_QR) console.log(`(connessione chiusa, codice ${codice ?? '?'}: ${String(u.lastDisconnect?.error?.message || '').slice(0, 80)} - riprovo)`);
