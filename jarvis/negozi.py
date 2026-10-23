@@ -219,6 +219,49 @@ def parlato() -> str:
     return " ".join(blocchi) or "Non ho target dei negozi da guardare."
 
 
+def _chiave(t: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9 ]", "", t.lower().replace("'", " ")).strip()
+
+
+def trova_negozio(testo: str) -> str | None:
+    """Il nome del negozio detto nella frase (confronto per parole intere, ignora 'il/la/lo'), oppure None."""
+    try:
+        cfg = load_config()
+    except Exception:
+        return None
+    parole = set(_chiave(testo).split())
+    migliori = []
+    for kind in ("mono", "multi"):
+        for n in ((cfg.get("run") or {}).get(kind) or {}).get("negozi", []):
+            nome = n.get("nome", "")
+            chiave = [w for w in _chiave(nome).split() if w not in ("il", "la", "lo", "i", "le", "di", "del", "della")]
+            if chiave and all(w in parole for w in chiave):
+                migliori.append((len(chiave), nome))
+    return max(migliori)[1] if migliori else None
+
+
+def parlato_negozio(nome: str) -> str:
+    """Solo quel negozio: per ogni categoria quanto ha inserito oggi rispetto all'obiettivo del giorno (mono e multi brand)."""
+    cfg = load_config()
+    oggi = date.today()
+    raw = fetch(cfg["url"], oggi.isoformat())
+    parti = []
+    for kind, etichetta in (("mono", "Mono brand"), ("multi", "Multi brand")):
+        if kind not in cfg.get("run", {}):
+            continue
+        a = analyze(cfg["run"][kind], raw.get(kind) or {}, oggi)
+        n = next((x for x in a["negozi"] if x["negozio"] == nome), None)
+        if n is None:
+            continue
+        if not n["dati_oggi"]:
+            if kind == "mono" or n["giorni_con_dati"] > 0:
+                parti.append(f"{etichetta}: oggi non risultano dati.")
+            continue
+        parti.append(f"{etichetta}: " + ", ".join(f"{c['categoria']} {c['oggi']:g} su {c['target_giorno']:g} ({c['stato']})" for c in n["categorie"]) + ".")
+    return f"{nome}. " + " ".join(parti) if parti else f"Per {nome} non ho dati di oggi."
+
+
 def sintesi() -> dict:
     """Per il vigile (solo RAM, nessun testo salvato): {nome_negozio: {'dati': bool, 'rosse': n, 'gialle': n}} di oggi, mono e multi brand insieme."""
     cfg = load_config()
