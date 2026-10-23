@@ -60,7 +60,7 @@ def diario_testo() -> str:
     if not voci:
         return "Oggi gli agenti di sottofondo non hanno avuto niente da segnalare."
     righe = []
-    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "impegno": "ricordi di impegni"}
+    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "chiamate": "chiamate perse", "impegno": "ricordi di impegni"}
     conta: dict[str, int] = {}
     for ora, tipo, testo in voci:
         if tipo in _TESTO_NEL_DIARIO:
@@ -372,6 +372,13 @@ def _controlla_promesse(adesso: datetime) -> int:
     return 1
 
 
+def chiamata_persa(frase: str):
+    """Una chiamata persa appena arrivata dal telefono: scheda e, se Jarvis e' libero e non e' notte, anche a voce."""
+    _aggiungi("chiamate", frase, False)
+    if not _notte(_adesso()):
+        threading.Thread(target=_parla, args=(frase,), daemon=True).start()
+
+
 def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
     """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
     try:
@@ -408,8 +415,9 @@ def svuota_dati():
     _neg.update(pronto=None, ultimo=0.0)
     with _lock:
         _diario.clear()
-    from . import promesse
+    from . import chiamate_perse, promesse
     promesse.svuota()
+    chiamate_perse.svuota()
 
 
 def negozi_pronto() -> str:

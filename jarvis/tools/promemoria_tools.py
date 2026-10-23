@@ -13,6 +13,8 @@ SCHEMAS = [
      "input_schema": {"type": "object", "properties": {}}},
     {"name": "promesse_aperte", "description": "Le cose che Andrea ha promesso OGGI su WhatsApp ('ti faccio sapere', 'domani ti chiamo', 'ti mando il file') e non ha ancora mantenuto. Da leggere nel resoconto serale. Usa un modello leggero solo se ci sono candidati.",
      "input_schema": {"type": "object", "properties": {}}},
+    {"name": "chiamate_perse", "description": "Le chiamate perse di oggi sul telefono di Andrea (le manda il telefono a Jarvis). Per 'chi mi ha chiamato?'. Se Andrea vuole richiamare, usa chiama_prepara con il nome.",
+     "input_schema": {"type": "object", "properties": {}}},
     {"name": "promemoria_elenco", "description": "Elenca i promemoria in attesa.", "input_schema": {"type": "object", "properties": {}}},
     {"name": "promemoria_togli", "description": "Toglie un promemoria (per id o per parole del testo) oppure 'tutti'.",
      "input_schema": {"type": "object", "properties": {"id_o_testo": {"type": "string"}}, "required": ["id_o_testo"]}},
@@ -38,4 +40,9 @@ def _promesse() -> str:
     return promesse.testo()
 
 
-HANDLERS = {"promesse_aperte": _promesse, "diario_agenti": _diario, "promemoria_crea": _crea, "promemoria_elenco": promemoria.elenco, "promemoria_togli": promemoria.togli}
+def _perse() -> str:
+    from .. import chiamate_perse
+    return chiamate_perse.elenco()
+
+
+HANDLERS = {"chiamate_perse": _perse, "promesse_aperte": _promesse, "diario_agenti": _diario, "promemoria_crea": _crea, "promemoria_elenco": promemoria.elenco, "promemoria_togli": promemoria.togli}

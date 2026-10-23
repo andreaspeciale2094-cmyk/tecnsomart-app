@@ -91,6 +91,8 @@ Due liste separate: IDEE (non ancora in lavorazione) e IN CORSO. Le idee non si 
 - Confronto di più notizie (scarta le deboli, unisce le buone); apprendimento automatico con registro di ciò che impara; più IA che collaborano in base alla richiesta; modello per immagini; ricerca notizie (Perplexity/Tavily/Brave).
 - Creare siti e web app ("creami un sito così e così"), per piacere e con calma; ordinare cibo (fragile, pagamento e conferma sempre miei); telefonate "chiama X e digli..." (servizio a pagamento, chi risponde deve sapere che è un assistente); mini PC o cloud per cervello sempre acceso; braccio robotico (solo ipotesi).
 
+- Compleanni dai contatti Google: il giorno prima 'domani e' il compleanno di X' (serve ampliare lo script della rubrica e un consenso su Google). Promemoria che insistono finche' non dico 'fatto' (23/10: da decidere).
+
 ## Costi (stime)
 Uso normale circa 25-45 € al mese oltre al Claude Pro: cervello forte 10-25, veloce 1-3, riconoscimento vocale 2-5, voce 5-22. Tetto 25 dollari sulla Console.
 

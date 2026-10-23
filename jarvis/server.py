@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agenti, ascolto, backup, salute, ritmo, rubrica_sync, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import agenti, ascolto, backup, chiamate_perse, salute, ritmo, rubrica_sync, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 def _avvio_scaglionato():
@@ -59,10 +59,11 @@ async def lifespan(app):
 
 
 CHIUDI_TOKEN = Path(__file__).parent.parent / "memoria" / "chiudi.token"
+CHIAMATE_PERSE_TOKEN = Path(__file__).parent.parent / "memoria" / "chiamate_perse.token"
 app = FastAPI(title="Jarvis", lifespan=lifespan)
 _sessions = sessions.histories
 STATIC = Path(__file__).parent.parent / "static"
-PUBLIC = {"/api/login", "/api/auth", "/api/chiudi", "/api/davanti", "/api/stato_ascolto", "/api/ritmo"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
+PUBLIC = {"/api/chiamata_persa", "/api/login", "/api/auth", "/api/chiudi", "/api/davanti", "/api/stato_ascolto", "/api/ritmo"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
 
 
 @app.middleware("http")
@@ -300,6 +301,20 @@ def api_ascolto_stop(request: Request):
     if not _dal_pc(request):
         return JSONResponse({"error": "Questa funzione e' disponibile solo dal PC."}, status_code=403)
     ascolto.interrompi()
+    return {"ok": True}
+
+
+@app.get("/api/chiamata_persa")
+def api_chiamata_persa(request: Request, numero: str = "", nome: str = "", k: str = ""):
+    """Dal telefono (MacroDroid, via Tailscale): 'chiamata persa'. Passa solo dalla rete privata (intestazione di Tailscale) o con la chiave in memoria/chiamate_perse.token.
+    Non fa partire nessuna azione: crea soltanto una scheda e, se Jarvis e' libero, una frase."""
+    chiave = CHIAMATE_PERSE_TOKEN.read_text(encoding="utf-8").strip() if CHIAMATE_PERSE_TOKEN.exists() else ""
+    da_tailscale = "tailscale-user-login" in request.headers
+    if not (da_tailscale or (chiave and k and secrets.compare_digest(k, chiave))):
+        return JSONResponse({"error": "non autorizzato"}, status_code=403)
+    frase = chiamate_perse.registra(numero[:30], nome[:80])
+    if frase:
+        vigile.chiamata_persa(frase)
     return {"ok": True}
 
 
