@@ -205,6 +205,17 @@ def _scarica_movimenti() -> list[dict]:
     return sorted(out, key=lambda m: m["data"])
 
 
+def controllo_sottofondo(giorni: int = 5) -> list[dict]:
+    """Per il controllo automatico (agente vigile): UNA sola richiesta per conto, per i movimenti registrati degli ultimi giorni.
+    Senza le intestazioni "utente presente": e' un accesso automatico e la banca lo limita a circa 4 volte al giorno per conto (regola europea)."""
+    dal = (date.today() - timedelta(days=max(1, min(giorni, 30)))).isoformat()
+    out = []
+    for uid in _sessione()["conti"]:
+        r = _chiama("GET", f"/accounts/{uid}/transactions", presente=False, params={"date_from": dal})
+        out += [_converti(t, False) for t in r.get("transactions", []) if t.get("status") in (None, "BOOK")]
+    return sorted(out, key=lambda m: m["data"])
+
+
 def movimenti(giorni: int = 30) -> list[dict]:
     """Movimenti degli ultimi `giorni` (massimo 89): {data, importo (negativo = uscita), controparte, descrizione}.
     Si legge dalla banca una volta sola per 89 giorni e poi si filtra: cosi' si usano poche richieste."""

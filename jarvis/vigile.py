@@ -19,6 +19,7 @@ MINUTI_PREAVVISO = 15          # un impegno si segnala quando mancano al massimo
 _avvisi: list[dict] = []
 _visti = {"mail": None, "wa": None, "eventi": set()}   # None = prima lettura: si memorizza senza avvisare per quello che c'e' gia'
 _chiamate = {"giorno": "", "n": 0, "ultima": 0.0}
+_banca = {"visti": None, "fatti": set(), "giorno": "", "errore_giorno": ""}   # solo RAM: nessun movimento viene salvato
 _lock = threading.Lock()
 SISTEMA = ("Sei l'agente vigile di Andrea, che gestisce negozi TecnoSmart. Ti arrivano le NOVITA' appena comparse (mail non lette: mittente e oggetto; chat WhatsApp: solo il nome). "
            "Decidi se vale la pena interromperlo adesso. SI' per: persone vere (clienti, colleghi, ragazzi dei negozi, familiari), richieste, problemi, scadenze, soldi. "
@@ -127,10 +128,75 @@ def _parla(testo: str):
         pass
 
 
+def _firma(m: dict) -> str:
+    return f"{m.get('registrata')}|{m.get('data')}|{m.get('importo')}|{m.get('controparte')}|{m.get('descrizione')}"
+
+
+def _frase_movimenti(nuovi: list[dict]) -> str:
+    from .banca import _eur
+    if len(nuovi) <= 3:
+        parti = []
+        for m in nuovi:
+            chi = (m.get("controparte") or m.get("descrizione") or "").strip()
+            if m["importo"] >= 0:
+                parti.append(f"Entrata di {_eur(m['importo'])}" + (f" da {chi}" if chi else ""))
+            else:
+                parti.append(f"Uscita di {_eur(-m['importo'])}" + (f": {chi}" if chi else ""))
+        return ". ".join(parti) + "."
+    entrate = [m["importo"] for m in nuovi if m["importo"] >= 0]
+    uscite = [-m["importo"] for m in nuovi if m["importo"] < 0]
+    def conta(n, uno, tanti):
+        return f"{n} {uno if n == 1 else tanti}"
+    return f"{len(nuovi)} movimenti nuovi: " + ", ".join(x for x in (f"{conta(len(entrate), 'entrata', 'entrate')} per {_eur(sum(entrate))}" if entrate else "", f"{conta(len(uscite), 'uscita', 'uscite')} per {_eur(sum(uscite))}" if uscite else "") if x) + "."
+
+
+def _controlla_banca(adesso: datetime) -> int:
+    """Quattro controlli al giorno a orari fissi (una lettura ciascuno: e' il limite della banca per gli accessi automatici).
+    La prima lettura dopo l'accensione memorizza solo cio' che c'e' gia'; dopo, ogni movimento nuovo diventa un avviso (mai a voce: sono dati privati)."""
+    if not (config.ENABLE_BANCA and config.VIGILE_BANCA):
+        return 0
+    oggi = adesso.strftime("%Y-%m-%d")
+    if _banca["giorno"] != oggi:
+        _banca.update(giorno=oggi, fatti=set())
+    for hhmm in config.VIGILE_BANCA_ORARI[:4]:
+        try:
+            quando = datetime.strptime(f"{oggi} {hhmm}", "%Y-%m-%d %H:%M").replace(tzinfo=adesso.tzinfo)
+        except ValueError:
+            continue
+        if hhmm in _banca["fatti"] or not (0 <= (adesso - quando).total_seconds() <= 45 * 60):
+            continue
+        _banca["fatti"].add(hhmm)  # si segna subito: un solo tentativo per fascia, anche se la banca risponde male
+        from . import banca
+        try:
+            mov = banca.controllo_sottofondo()
+        except Exception as e:
+            if _banca["errore_giorno"] != oggi:  # un solo rigo al giorno, senza dettagli
+                _banca["errore_giorno"] = oggi
+                logs.log_route(f"VIGILE: controllo banca non riuscito ({type(e).__name__})")
+            return 0
+        firme = {_firma(m) for m in mov}
+        prima = _banca["visti"]
+        _banca["visti"] = firme if prima is None else (prima | firme)
+        logs.log_route("VIGILE: controllo banca fatto")
+        if prima is None:
+            return 0
+        nuovi = [m for m in mov if _firma(m) not in prima]
+        if nuovi:
+            _aggiungi("banca", _frase_movimenti(nuovi), False)
+            logs.log_route(f"VIGILE: {len(nuovi)} movimenti nuovi in banca")
+            return 1
+        return 0
+    return 0
+
+
 def controlla(adesso: datetime | None = None) -> int:
     """Un giro di controllo: ritorna quanti avvisi nuovi ha creato."""
     adesso = adesso or _adesso()
     creati = 0
+    try:
+        creati += _controlla_banca(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile banca")
     # 1) impegno imminente: regola semplice, senza intelligenza
     iv = _impegno_vicino(adesso)
     if iv:
