@@ -168,6 +168,20 @@ def parla(testo: str):
 _FRASE = re.compile(r"(.+?[.!?])(?:\s+|$)", re.S)
 
 
+_taglio = {"detto": "", "intero": "", "quando": 0.0}  # cosa si e' sentito prima di un'interruzione (solo RAM, mai nei registri)
+
+
+def nota_interruzione() -> str:
+    """Se Andrea ha appena interrotto Jarvis, una nota per il cervello: cosa era stato detto e cosa mancava. Si usa una volta sola."""
+    t = dict(_taglio)
+    _taglio.update(detto="", intero="", quando=0.0)
+    if not t["intero"] or time.time() - t["quando"] > 120:
+        return ""
+    return ("[Andrea ti ha interrotto mentre parlavi. Ha sentito solo: «" + (t["detto"].strip() or "niente") + "». Aveva ancora da sentire: «"
+            + t["intero"][len(t["detto"]):].strip()[:600] + "». Rispondi prima a quello che dice ora; se serve riprendi da dove sei stato interrotto "
+            "senza ripetere cio' che ha gia' sentito, altrimenti lascia perdere il resto.]\n")
+
+
 def parla_stream(frammenti, filler: str = ""):
     """Parla MENTRE Claude scrive: ogni frase completa va subito alla voce, e mentre una si sente le successive si preparano.
     Se la prima frase tarda piu' di ASCOLTO_ATTESA secondi (predefinito 2,5) parte una frase fissa gia' registrata, scelta a caso: mai silenzio, ma senza ripetere sempre la stessa."""
@@ -176,6 +190,7 @@ def parla_stream(frammenti, filler: str = ""):
     _parlando_fino = time.time() + 600
     q_testi, q_audio = queue.Queue(), queue.Queue()
     primo = threading.Event()
+    frasi, dette = [], []  # tutte le frasi previste e quelle arrivate in fondo alla voce
 
     def sintetizza():
         while True:
@@ -186,19 +201,24 @@ def parla_stream(frammenti, filler: str = ""):
             if _interrompi.is_set():
                 continue  # interrotto: le frasi che mancano non si dicono
             try:
-                q_audio.put(voice.synthesize(t))
+                q_audio.put((t, voice.synthesize(t)))
             except Exception as e:
                 logs.log_voice("ascolto", e)
 
     def suona():
         while True:
-            a = q_audio.get()
-            if a is None:
+            x = q_audio.get()
+            if x is None:
                 return
             if _interrompi.is_set():
                 continue
             try:
-                _suona(a)
+                if isinstance(x, tuple):
+                    _suona(x[1])
+                    if not _interrompi.is_set():
+                        dette.append(x[0])  # la frase tagliata a meta' non conta come sentita
+                else:
+                    _suona(x)  # frase fissa d'attesa
             except Exception as e:
                 logs.log_voice("ascolto", e)
 
@@ -227,9 +247,11 @@ def parla_stream(frammenti, filler: str = ""):
                 if parlato < 700:
                     parlato += len(frase)
                     primo.set()
+                    frasi.append(frase)
                     q_testi.put(frase)
         if buf.strip() and parlato < 700:
             primo.set()
+            frasi.append(buf.strip())
             q_testi.put(buf.strip())
         if parlato >= 700:
             primo.set()
@@ -240,6 +262,8 @@ def parla_stream(frammenti, filler: str = ""):
         q_testi.put(None)
         th[1].join()
         _parlando_fino = time.time() + 0.8
+        if _interrompi.is_set() and frasi:
+            _taglio.update(detto=" ".join(dette), intero=" ".join(frasi), quando=time.time())
 
 
 # ---------------- ascolto ----------------
@@ -531,7 +555,7 @@ def gestisci_chiamata(leggi, vad, pre=None):
             primo = False
             continue
         _fase("rispondo")
-        risposta = dialogo.rispondi_stream(SESSIONE, resto or testo)
+        risposta = dialogo.rispondi_stream(SESSIONE, nota_interruzione() + (resto or testo))
         parla_stream(risposta)
         _scarta_audio_della_voce(leggi)
         primo = False
