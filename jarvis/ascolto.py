@@ -33,6 +33,14 @@ _soglia = {"v": None}
 def _fase(f: str):
     stato["fase"] = f
 _parlando_fino = 0.0
+_interrompi = threading.Event()  # alzata = la voce di Jarvis deve fermarsi subito (e le frasi gia' pronte vengono buttate)
+
+
+def interrompi():
+    """Ferma subito la voce di Jarvis, comprese le frasi gia' pronte che aspettano il loro turno."""
+    global _parlando_fino
+    _interrompi.set()
+    _parlando_fino = min(_parlando_fino, time.time() + 0.3)
 
 
 def imposta(attivo: bool):
@@ -65,9 +73,12 @@ def _scorciatoia():
         logs.log_route("ASCOLTO: scorciatoia da tastiera non disponibile (gia' usata da un altro programma)")
         return
     u.RegisterHotKey(None, 2, 0x0001 | 0x0002, ord("V"))  # Alt + Ctrl + V: apre Jarvis a tutto schermo, da qualunque programma
+    u.RegisterHotKey(None, 3, 0x0001 | 0x0002, ord("S"))  # Alt + Ctrl + S: ferma subito la voce di Jarvis
     msg = wintypes.MSG()
     while u.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-        if msg.message == 0x0312 and msg.wParam == 2:  # Ctrl+Alt+V: apre la finestra di Jarvis
+        if msg.message == 0x0312 and msg.wParam == 3:  # Ctrl+Alt+S: stop alla voce
+            interrompi()
+        elif msg.message == 0x0312 and msg.wParam == 2:  # Ctrl+Alt+V: apre la finestra di Jarvis
             try:
                 import subprocess
                 from pathlib import Path
@@ -88,7 +99,7 @@ def _scorciatoia():
 # ---------------- uscita audio: la voce di Jarvis, senza finestre ----------------
 def _suona(mp3: bytes):
     """Riproduce un mp3 con Windows (MCI), senza programmi esterni. Altrove non fa niente."""
-    if sys.platform != "win32":
+    if sys.platform != "win32" or _interrompi.is_set():
         return
     import ctypes
 
@@ -107,6 +118,8 @@ def _suona(mp3: bytes):
             buf = ctypes.create_unicode_buffer(32)
             time.sleep(0.15)
             while time.time() < fine:
+                if _interrompi.is_set():
+                    break
                 mci(f"status {alias} mode", buf, 31, None)
                 if buf.value != "playing":
                     break
@@ -134,6 +147,7 @@ _cache_frasi: dict[str, bytes] = {}
 
 def parla(testo: str):
     global _parlando_fino
+    _interrompi.clear()
     testo = testo.strip()
     if len(testo) > 700:  # le risposte lunghe si leggono sulla pagina: a voce solo l'inizio
         testo = testo[:700].rsplit(".", 1)[0] + ". Il resto lo trovi sulla pagina."
@@ -158,6 +172,7 @@ def parla_stream(frammenti, filler: str = ""):
     """Parla MENTRE Claude scrive: ogni frase completa va subito alla voce, e mentre una si sente le successive si preparano.
     Se la prima frase tarda piu' di ASCOLTO_ATTESA secondi (predefinito 2,5) parte una frase fissa gia' registrata, scelta a caso: mai silenzio, ma senza ripetere sempre la stessa."""
     global _parlando_fino
+    _interrompi.clear()
     _parlando_fino = time.time() + 600
     q_testi, q_audio = queue.Queue(), queue.Queue()
     primo = threading.Event()
@@ -168,6 +183,8 @@ def parla_stream(frammenti, filler: str = ""):
             if t is None:
                 q_audio.put(None)
                 return
+            if _interrompi.is_set():
+                continue  # interrotto: le frasi che mancano non si dicono
             try:
                 q_audio.put(voice.synthesize(t))
             except Exception as e:
@@ -178,6 +195,8 @@ def parla_stream(frammenti, filler: str = ""):
             a = q_audio.get()
             if a is None:
                 return
+            if _interrompi.is_set():
+                continue
             try:
                 _suona(a)
             except Exception as e:
@@ -261,6 +280,7 @@ def registra_frase(leggi, vad, attesa: float = 5.0, breve: bool = False) -> list
 
 
 _CHIUSURA = re.compile(r"^\W*(?:ok\W+|va bene\W+)?(?:grazie(?: mille)?|basta(?: cos[iì])?|a dopo|ci sentiamo|per ora (?:basta|nient'altro)|nient'altro|puoi smettere|ciao)\W*$", re.IGNORECASE)
+_STOP_VOCE = re.compile(r"^\W*(?:stop|basta|zitto|zitta|fermati|ferma|silenzio|aspetta|un attimo|un momento)\W*$", re.IGNORECASE)
 _INVENTATE = re.compile(r"sottotitoli|amara\.org|iscriviti|grazie a tutti|alla prossima|ci vediamo al prossimo|buona visione", re.IGNORECASE)  # frasi che Whisper inventa sul silenzio
 
 _CHIAMATA = re.compile(r"^\W*(?:(?:hey|hei|ehi|ei|ehi|ciao|ok|okay)\W+)?(?:jarvis|j\.a\.r\.v\.i\.s\.?|giarvis|garvis|giarvi[sz])\b\W*", re.IGNORECASE)
@@ -486,6 +506,12 @@ def gestisci_chiamata(leggi, vad, pre=None):
         if not primo and _INVENTATE.search(testo) and len(testo) < 60:
             continue  # frase inventata dal riconoscimento sul silenzio o sul rumore: la scarta e continua ad ascoltare
         resto = togli_chiamata(testo)
+        if _STOP_VOCE.match(resto or testo):  # "stop", "basta", "zitto"...: ferma la voce e resta in ascolto, senza rispondere
+            interrompi()
+            _fase("")
+            _scarta_audio_della_voce(leggi)
+            primo = False
+            continue
         if not primo and _CHIUSURA.match(resto or testo):  # "grazie", "basta cosi'", "a dopo": chiude la conversazione
             parla("Va bene.")
             _scarta_audio_della_voce(leggi)
@@ -670,6 +696,7 @@ def _ciclo_vero():
                     stato["dispositivo"] = sd.query_devices(dispositivo if dispositivo is not None else sd.default.device[0])["name"]
                 except Exception:
                     stato["dispositivo"] = ""
+                interruzione = {"true": True, "false": False}.get(str(config.ASCOLTO_INTERRUZIONE).strip().lower(), any(p in str(stato["dispositivo"]).lower() for p in _PAROLE_CUFFIE))  # automatico: solo con le cuffie (le casse farebbero sentire a Jarvis la sua voce)
                 guadagno = 3.0 if any(p in str(stato["dispositivo"]).lower() for p in _PAROLE_CUFFIE) else 1.0  # microfono delle cuffie bluetooth: piano, lo si alza
                 leggi = lambda: _leggi_blocco(s, rate, np, guadagno)
                 ring = collections.deque(maxlen=26)  # gli ultimi ~2 secondi: dentro c'e' "Hey Jarvis", servono per riconoscere chi lo ha detto
@@ -679,12 +706,16 @@ def _ciclo_vero():
                         stato["registra"].append(blocco)
                         continue
                     stato["livello"] = 0.5 * stato["livello"] + 0.5 * min(1.0, float(np.abs(blocco.astype(np.int32)).max()) / 12000)  # per l'indicatore nella pagina
-                    if time.time() < _parlando_fino:  # Jarvis sta parlando: non si ascolta
+                    parlando = time.time() < _parlando_fino
+                    if parlando and not interruzione:  # Jarvis sta parlando: senza cuffie non si ascolta (sentirebbe se stesso)
                         continue
                     ring.append(blocco)
                     punteggio = float(model.predict(blocco).get(PAROLA, 0))
                     stato["punteggio"] = max(punteggio, stato["punteggio"] * 0.97)
-                    if punteggio >= soglia() and time.time() - ultimo > 2:
+                    if punteggio >= (max(soglia() + 0.25, 0.6) if parlando else soglia()) and time.time() - ultimo > 2:
+                        if parlando:  # "Hey Jarvis" detto mentre parla: si ferma e ascolta
+                            interrompi()
+                            logs.log_route("ASCOLTO: interrotto a voce")
                         try:
                             gestisci_chiamata(leggi, vad, list(ring))
                         except sd.PortAudioError:

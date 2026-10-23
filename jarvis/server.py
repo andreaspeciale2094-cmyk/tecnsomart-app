@@ -292,6 +292,15 @@ def _chiama(f, *a):
         return JSONResponse({"error": str(e) or "Dati non validi."}, status_code=400)
 
 
+@app.post("/api/ascolto/stop")
+def api_ascolto_stop(request: Request):
+    """Ferma subito la voce di Jarvis in stanza (pulsante stop e tasto Esc della pagina sul PC)."""
+    if not _dal_pc(request):
+        return JSONResponse({"error": "Questa funzione e' disponibile solo dal PC."}, status_code=403)
+    ascolto.interrompi()
+    return {"ok": True}
+
+
 @app.get("/api/chiamata")
 def api_chiamata(request: Request):
     """La chiamata che aspetta il si' (solo dal PC): la pagina mostra 'Chiamo X?' con i pulsanti Si'/No."""

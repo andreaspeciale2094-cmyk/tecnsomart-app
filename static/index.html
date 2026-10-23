@@ -474,7 +474,7 @@ async function send(text, label) {
   if (pendingText) { const p = pendingText; pendingText = null; send(p.full, p.label); }  // richiesta fatta mentre rispondeva
 }
 $('#f').onsubmit = e => { e.preventDefault(); const v = $('#q').value.trim(); $('#q').value = ''; if (!v) return; interrupted = false; lastUserText = v; submit(v, v); };
-$('#stopbtn').onclick = () => { stopSpeaking(); interrupted = false; pendingText = null; };
+$('#stopbtn').onclick = () => { stopSpeaking(); interrupted = false; pendingText = null; if (SU_PC && cfg.ascolto_stanza) fetch('/api/ascolto/stop', { method: 'POST', credentials: 'same-origin' }).catch(() => {}); };
 addEventListener('keydown', e => { if (e.key === 'Escape') $('#stopbtn').onclick(); });
 $('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn); if (!ttsOn) stopSpeaking(); };
 
@@ -820,6 +820,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261030"></script>
+<script src="/static/rete.js?v=20261031"></script>
 </body>
 </html>
