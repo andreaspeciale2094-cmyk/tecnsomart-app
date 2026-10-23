@@ -321,7 +321,18 @@ _VOLUME = re.compile(r"^\W*(?:(?:alza|aumenta|metti piu' alto)\s+(?:il\s+)?volum
 
 
 _CHIAMA = re.compile(r"^\W*(?:chiama(?:mi)?|telefona(?:\s+a)?|fai(?:mi)? una telefonata a|fai partire una chiamata a)\W+(?:a\s+|il\s+|la\s+|l'\s*)?(.+?)\W*$", re.IGNORECASE)
-_SI = re.compile(r"^\W*(?:s[iì]|certo|ok|okay|vai|esatto|conferma|confermo|procedi|va bene|chiama pure|dai)\W*$", re.IGNORECASE)
+_AFFERMA = {"si", "sì", "certo", "ok", "okay", "vai", "esatto", "conferma", "confermo", "procedi", "chiama", "chiamalo", "chiamala", "pure", "dai", "assolutamente", "yes", "perfetto", "va", "bene", "subito", "ora", "grazie", "per", "favore", "piacere", "avanti", "fallo", "fai", "partire"}
+_NEGA = {"no", "non", "aspetta", "ferma", "fermati", "annulla", "stop", "basta", "lascia", "stare", "mai", "niente", "nessuno"}
+
+
+def _e_un_si(testo: str) -> bool:
+    """'si'', 'si' certo', 'ok vai', 'si' chiama pure': un si' detto in modo naturale, di poche parole e senza negazioni."""
+    parole = re.findall(r"[\wàèéìòù']+", testo.lower())
+    if not parole or len(parole) > 5 or any(p in _NEGA for p in parole):
+        return False
+    return parole[0] in _AFFERMA and all(p in _AFFERMA for p in parole)
+
+
 _chiamata_pronta = {"id": "", "nome": "", "t": 0.0}
 
 
@@ -336,7 +347,8 @@ def chiamata_veloce(testo: str) -> str | None:
     if _chiamata_pronta["id"]:
         cid, nome, attesa = _chiamata_pronta["id"], _chiamata_pronta["nome"], time.time() - _chiamata_pronta["t"]
         _chiamata_pronta.update(id="", nome="", t=0.0)  # una conferma vale una volta sola: qualunque cosa si dica dopo la azzera
-        if attesa < 60 and _SI.match(t):
+        logs.log_route(f"CHIAMATA: risposta alla conferma {'capita come si' if (attesa < 60 and _e_un_si(t)) else 'NON capita come si'}")
+        if attesa < 60 and _e_un_si(t):
             try:
                 chiamate.avvia(cid, da_voce=True)
                 return f"Faccio partire la chiamata a {nome}."
