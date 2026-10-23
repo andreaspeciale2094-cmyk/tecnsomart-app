@@ -290,6 +290,67 @@ def parlato_negozio(nome: str) -> str:
     return f"{nome}. " + " ".join(parti) if parti else f"Per {nome} non ho dati di oggi."
 
 
+def _radici(t: str) -> list[str]:
+    """Parole senza finale (fissi/fisso, telefoni/telefono) per trovare una categoria nominata a voce."""
+    return [w[:4] if len(w) > 4 else w for w in _chiave(t).split() if w not in ("di", "e", "il", "la", "lo", "i", "le", "del", "della", "per", "cb", "punti", "euro")]
+
+
+def _cat_nominata(testo: str, nomi: list[str]) -> str | None:
+    rt = set(_radici(testo))
+    best = [(len(set(_radici(n)) & rt), n) for n in nomi]
+    best = [b for b in best if b[0] and set(_radici(b[1])) <= rt]  # tutte le parole del nome devono stare nella frase
+    return max(best)[1] if best else None
+
+
+def domanda_gruppo(testo: str) -> str | None:
+    """Domande sul TOTALE DI GRUPPO, dai dati gia' pronti e senza cervello: 'quanto e' il totale gruppo', 'la proiezione del totale gruppo',
+    'quanti fissi fastweb mancano al totale multi'. None se la frase non e' di questo tipo. La proiezione e' lineare: quanto fatto nel mese
+    diviso i giorni passati del ciclo, per i giorni totali del ciclo."""
+    import re
+    t = testo.lower()
+    proiez = bool(re.search(r"proiezion|a questo ritmo|a fine mese|chiudiam", t))
+    manca = bool(re.search(r"\bmanc", t))
+    totale = bool(re.search(r"\btotal[ei]\b|\bgruppo\b", t))
+    if not (proiez or manca or totale):
+        return None
+    try:
+        cfg = load_config()
+        oggi = date.today()
+        raw = _leggi(cfg, oggi, 900)
+    except Exception:
+        return None
+    voluti = [k for k in ("mono", "multi") if re.search(r"\b" + k + r"\b|multi ?brand|mono ?brand", t) and (k in t or k + " brand" in t or k + "brand" in t)] or ["mono", "multi"]
+    pezzi, trovata = [], False
+    for kind in voluti:
+        if kind not in (cfg.get("run") or {}):
+            continue
+        a = analyze(cfg["run"][kind], raw.get(kind) or {}, oggi)
+        gr = a["gruppo"]
+        if not gr:
+            continue
+        etichetta = "Mono brand" if kind == "mono" else "Multi brand"
+        cat = _cat_nominata(testo, [g["categoria"] for g in gr]) if (manca or proiez or totale) else None
+        if cat:
+            gr, trovata = [g for g in gr if g["categoria"] == cat], True
+        elif manca and not totale:
+            continue  # 'mancano ...' senza una categoria riconosciuta: lo gestisce il cervello
+        righe = []
+        for g in gr:
+            mese, tm = g["mese"], g["target_mese"]
+            proj = mese / max(1, a["giorno"]) * a["ciclo"]
+            if manca:
+                righe.append(f"{g['categoria']}: mancano {max(0, math.ceil(tm - mese - 1e-9)):g} al target del mese ({mese:g} su {tm:g}); oggi servono {g['passo_da_fare']:g} per restare in linea")
+            elif proiez:
+                righe.append(f"{g['categoria']}: proiezione {proj:.0f} su {tm:g} ({round(100 * proj / tm) if tm else 0}%)")
+            else:
+                righe.append(f"{g['categoria']}: mese {mese:g} su {tm:g} ({round(100 * mese / tm) if tm else 0}%), oggi {g['oggi']:g}")
+        if righe:
+            pezzi.append(f"{etichetta}, giorno {a['giorno']} di {a['ciclo']}. " + "; ".join(righe) + ".")
+    if manca and not trovata and not totale:
+        return None
+    return " ".join(pezzi) or None
+
+
 def sintesi() -> dict:
     """Per il vigile (solo RAM, nessun testo salvato): {nome_negozio: {'dati': bool, 'rosse': n, 'gialle': n}} di oggi, mono e multi brand insieme."""
     cfg = load_config()

@@ -470,10 +470,14 @@ _NEGOZI_CHIEDE = re.compile(r"(?:\bcome (?:sono|stanno|vanno)|\bandat[aoie]\b|\b
 
 def negozi_veloce(testo: str) -> str | None:
     """'Come sono andati i negozi?', 'i numeri dei negozi': i numeri sono gia' pronti (li prepara l'agente negozi), si dicono subito senza passare dal cervello."""
-    if not config.ENABLE_NEGOZI or len(testo) > 90:
+    if not config.ENABLE_NEGOZI or len(testo) > 110:
         return None
     try:
         from . import negozi, vigile
+        if re.search(r"\bgruppo\b|\bproiezion|\bmanc|\btotal[ei]\b", testo, re.IGNORECASE) and not re.search(r"\b(?:mail|messaggi|whatsapp|treno|treni|soldi|conto)\b", testo, re.IGNORECASE):
+            risp = negozi.domanda_gruppo(testo)
+            if risp:
+                return risp
         if not _NEGOZI.search(testo):  # 'cosa ha inserito il Ducale?': un solo negozio, nominato
             if re.search(r"\b(?:inserit|dati|numeri|com'?\s*(?:e'|è)|come (?:sta|e'|è|va)|andat|risultat|fatto|vendut)", testo, re.IGNORECASE):
                 nome = negozi.trova_negozio(testo)
