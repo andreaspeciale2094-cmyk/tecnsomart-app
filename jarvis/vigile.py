@@ -20,6 +20,7 @@ _avvisi: list[dict] = []
 _visti = {"mail": None, "wa": None, "eventi": set()}   # None = prima lettura: si memorizza senza avvisare per quello che c'e' gia'
 _chiamate = {"giorno": "", "n": 0, "ultima": 0.0}
 _banca = {"visti": None, "fatti": set(), "giorno": "", "errore_giorno": ""}   # solo RAM: nessun movimento viene salvato
+_treno = {"giorno": "", "primo": False, "ultimo": 0.0, "stato": None}   # agente treno: solo RAM
 _lock = threading.Lock()
 SISTEMA = ("Sei l'agente vigile di Andrea, che gestisce negozi TecnoSmart. Ti arrivano le NOVITA' appena comparse (mail non lette: mittente e oggetto; chat WhatsApp: solo il nome). "
            "Decidi se vale la pena interromperlo adesso. SI' per: persone vere (clienti, colleghi, ragazzi dei negozi, familiari), richieste, problemi, scadenze, soldi. "
@@ -189,6 +190,45 @@ def _controlla_banca(adesso: datetime) -> int:
     return 0
 
 
+def _controlla_treno(adesso: datetime) -> int:
+    """Agente treno (senza modello, costo zero): nel turno di oggi (se Andrea l'ha detto) avvisa UNA volta come sta il suo treno, anche se e' puntuale,
+    poi ogni 5 minuti fino alla partenza e riavvisa solo se cambia (ritardo diverso o cancellato)."""
+    from . import treni
+    if not config.ENABLE_TRENI:
+        return 0
+    giorno = adesso.strftime("%Y-%m-%d")
+    if _treno["giorno"] != giorno:
+        _treno.update(giorno=giorno, primo=False, ultimo=0.0, stato=None)
+    turno = treni.turno_del_giorno(adesso.date())
+    ora = treni._impostazioni()["treni"].get(turno) if turno else None
+    if not ora:
+        return 0
+    h, m = (int(x) for x in ora.split(":"))
+    minuti = (adesso.replace(hour=h, minute=m, second=0, microsecond=0) - adesso).total_seconds() / 60
+    if minuti < 0 or minuti > 60 or (_treno["primo"] and time.time() - _treno["ultimo"] < 300):
+        return 0
+    if not _treno["primo"] and minuti > 28:  # il primo avviso poco dopo la sveglia (~28 minuti prima)
+        return 0
+    _treno["ultimo"] = time.time()
+    try:
+        r = treni.controllo_turno(turno)
+    except Exception as e:
+        logs.log_error(e, "vigile treno")
+        return 0
+    if not r:
+        return 0
+    firma = (r["stato"], r["ritardo"])
+    if _treno["primo"] and firma == _treno["stato"]:
+        return 0
+    prima = not _treno["primo"]
+    _treno["primo"], _treno["stato"] = True, firma
+    _aggiungi("treno", r["frase"], r["stato"] != "orario")
+    logs.log_route(f"VIGILE: treno {r['ora']} {r['stato']}" + (" (primo avviso)" if prima else " (cambiato)"))
+    if not _notte(adesso):
+        threading.Thread(target=_parla, args=(r["frase"],), daemon=True).start()
+    return 1
+
+
 def controlla(adesso: datetime | None = None) -> int:
     """Un giro di controllo: ritorna quanti avvisi nuovi ha creato."""
     adesso = adesso or _adesso()
@@ -197,6 +237,10 @@ def controlla(adesso: datetime | None = None) -> int:
         creati += _controlla_banca(adesso)
     except Exception as e:
         logs.log_error(e, "vigile banca")
+    try:
+        creati += _controlla_treno(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile treno")
     # 1) impegno imminente: regola semplice, senza intelligenza
     iv = _impegno_vicino(adesso)
     if iv:

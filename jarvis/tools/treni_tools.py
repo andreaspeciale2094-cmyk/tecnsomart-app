@@ -2,6 +2,14 @@ from .. import treni
 
 SCHEMAS = [
     {
+        "name": "turno_imposta",
+        "description": ("Segna il turno di lavoro di Andrea: apertura, chiusura o riposo, per oggi o per domani. Serve all'agente dei treni: guarda da solo il treno di quel turno "
+                        "(apertura 7:48, chiusura 13:18) e lo avvisa se e' puntuale, in ritardo o cancellato. Usalo quando dice 'domani faccio apertura', 'oggi chiusura', 'domani sono a casa'."),
+        "input_schema": {"type": "object", "properties": {
+            "turno": {"type": "string", "enum": ["apertura", "chiusura", "riposo"]},
+            "giorno": {"type": "string", "description": "oggi (predefinito) o domani"}}, "required": ["turno"]},
+    },
+    {
         "name": "treno_stato",
         "description": (
             "Controlla ADESSO lo stato di QUALUNQUE treno o stazione (non solo quelli di Andrea): in orario, in ritardo o soppresso. Esempi: 'com'e' il mio treno' "
@@ -32,4 +40,11 @@ def _stato(turno: str = "", ora: str = "", stazione: str = "", direzione: str = 
         return f"Errore: {e}"
 
 
-HANDLERS = {"treno_stato": _stato}
+def _turno(turno: str, giorno: str = "") -> str:
+    try:
+        return treni.imposta_turno(turno, giorno)
+    except treni.TreniError as e:
+        return f"Errore: {e}"
+
+
+HANDLERS = {"treno_stato": _stato, "turno_imposta": _turno}

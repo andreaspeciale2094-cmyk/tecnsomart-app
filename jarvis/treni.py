@@ -183,3 +183,57 @@ def fascia(da: str, a: str, giorno: str = "", stazione: str = "", direzione: str
     canc = sum(1 for t in giusti if _provv(t))
     testa = f"{canc} cancellat{'o' if canc == 1 else 'i'}. " if canc else "Nessun treno cancellato. "
     return f"Da {nome}, {quando}, tra le {h1:02d}:{m1:02d} e le {h2:02d}:{m2:02d}: " + testa + "; ".join(_etichetta(t) for t in giusti[:12]) + "."
+
+
+FILE_TURNO = Path(__file__).parent.parent / "memoria" / "turno.json"
+
+
+def imposta_turno(turno: str, giorno: str = "") -> str:
+    """Segna che turno fa Andrea (apertura/chiusura/riposo) per oggi o domani. Il vigile controlla solo il treno di quel turno."""
+    turno = turno.strip().lower()
+    if turno not in ("apertura", "chiusura", "riposo"):
+        raise TreniError("Il turno puo' essere apertura, chiusura o riposo.")
+    oggi = datetime.now(ZoneInfo(config.FUSO)).date()
+    d = oggi + timedelta(days=1) if giorno.strip().lower() in ("domani", "tomorrow") else oggi
+    try:
+        dati = json.loads(FILE_TURNO.read_text(encoding="utf-8")) if FILE_TURNO.exists() else {}
+    except (OSError, ValueError):
+        dati = {}
+    dati = {k: v for k, v in dati.items() if k >= oggi.isoformat()}  # via i giorni passati
+    dati[d.isoformat()] = turno
+    FILE_TURNO.parent.mkdir(parents=True, exist_ok=True)
+    FILE_TURNO.write_text(json.dumps(dati), encoding="utf-8")
+    return f"Segnato: {'domani' if d != oggi else 'oggi'} {turno}."
+
+
+def turno_del_giorno(giorno=None) -> str:
+    """'apertura' / 'chiusura' / 'riposo' se Andrea l'ha detto per quel giorno, altrimenti ''."""
+    giorno = giorno or datetime.now(ZoneInfo(config.FUSO)).date()
+    try:
+        return str(json.loads(FILE_TURNO.read_text(encoding="utf-8")).get(giorno.isoformat(), "")) if FILE_TURNO.exists() else ""
+    except (OSError, ValueError):
+        return ""
+
+
+def controllo_turno(turno: str) -> dict | None:
+    """Per il vigile: stato del treno abituale del turno. {'ora', 'stato': orario|ritardo|cancellato|non_visto, 'ritardo', 'frase'} o None se non ci sono treni per quel turno."""
+    imp = _impostazioni()
+    ora = imp["treni"].get(turno)
+    if not ora:
+        return None
+    adesso = datetime.now(ZoneInfo(config.FUSO))
+    h, m = (int(x) for x in ora.split(":"))
+    nome, codice = codice_stazione(imp["partenza"])
+    elenco = partenze(codice, adesso.replace(hour=h, minute=m, second=0, microsecond=0) - timedelta(minutes=10))
+    cand = [t for t in elenco if _ora_partenza(t) == ora]
+    parole = [p.upper() for p in imp["direzione"]]
+    t = next((t for t in cand if not parole or any(p in str(t.get("destinazione", "")).upper() for p in parole)), cand[0] if cand else None)
+    if t is None:
+        return {"ora": ora, "stato": "non_visto", "ritardo": 0, "frase": f"Il treno delle {ora} non lo vedo nei dati: controlla l'app Trenord."}
+    ritardo = int(t.get("ritardo") or 0)
+    provv = _provv(t)
+    if provv:
+        return {"ora": ora, "stato": "cancellato" if provv.startswith("CANCELLATO") and "PARTE" not in provv else "ritardo", "ritardo": ritardo, "frase": f"Attenzione: il treno delle {ora} risulta {provv}."}
+    if ritardo >= 3:
+        return {"ora": ora, "stato": "ritardo", "ritardo": ritardo, "frase": f"Il treno delle {ora} ha {ritardo} minuti di ritardo."}
+    return {"ora": ora, "stato": "orario", "ritardo": 0, "frase": f"Il tuo treno delle {ora} e' in orario."}
