@@ -235,7 +235,7 @@ def _controlla_treno(adesso: datetime) -> int:
 def _controlla_domani(adesso: datetime) -> int:
     """Agente 'domani' (senza modello): una volta, dopo le 21:00, ti dice che impegni hai domani e, se non hai ancora detto il turno,
     te lo chiede (serve all'agente dei treni). Solo schede sulla pagina e una frase a voce se Jarvis e' libero."""
-    if adesso.hour < 21 or adesso.hour >= 23 or _domani["giorno"] == adesso.strftime("%Y-%m-%d"):
+    if adesso.hour < 21 or _domani["giorno"] == adesso.strftime("%Y-%m-%d"):
         return 0
     _domani["giorno"] = adesso.strftime("%Y-%m-%d")
     from datetime import timedelta
@@ -271,7 +271,8 @@ def _controlla_domani(adesso: datetime) -> int:
             logs.log_error(e, "vigile domani")
     if frasi:
         logs.log_route(f"VIGILE: domani, {creati} schede")
-        threading.Thread(target=_parla, args=(" ".join(frasi),), daemon=True).start()
+        if not _notte(adesso):
+            threading.Thread(target=_parla, args=(" ".join(frasi),), daemon=True).start()  # dopo le 23 solo le schede, niente voce
     return creati
 
 
