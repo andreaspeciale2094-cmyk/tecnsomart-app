@@ -308,6 +308,11 @@ def domanda_gruppo(testo: str) -> str | None:
     diviso i giorni passati del ciclo, per i giorni totali del ciclo."""
     import re
     t = testo.lower()
+    if re.search(r"\bobiettiv|come stiamo andando|come siamo messi", t) and not re.search(r"\bmanc", t):
+        try:
+            return obiettivi()
+        except Exception:
+            return None
     proiez = bool(re.search(r"proiezion|a questo ritmo|a fine mese|chiudiam", t))
     manca = bool(re.search(r"\bmanc", t))
     totale = bool(re.search(r"\btotal[ei]\b|\bgruppo\b", t))
@@ -349,6 +354,30 @@ def domanda_gruppo(testo: str) -> str | None:
     if manca and not trovata and not totale:
         return None
     return " ".join(pezzi) or None
+
+
+def obiettivi() -> str:
+    """Obiettivi del mese in breve (solo calcolo, dati pronti): per mono e multi dove arriva il gruppo a fine mese a questo ritmo e le 3 categorie piu' indietro."""
+    cfg = load_config()
+    oggi = date.today()
+    raw = _leggi(cfg, oggi, 900)
+    pezzi = []
+    for kind, etichetta in (("mono", "Mono brand"), ("multi", "Multi brand")):
+        if kind not in (cfg.get("run") or {}):
+            continue
+        a = analyze(cfg["run"][kind], raw.get(kind) or {}, oggi)
+        righe = []
+        for g in a["gruppo"]:
+            if g["target_mese"] > 0:
+                righe.append((g["mese"] / max(1, a["giorno"]) * a["ciclo"] / g["target_mese"], g))
+        if not righe:
+            continue
+        righe.sort(key=lambda x: x[0])
+        indietro = [f"{g['categoria']} {round(100 * r)}%" for r, g in righe[:3] if r < 1]
+        tot = sum(g["mese"] for _, g in righe) / max(1, a["giorno"]) * a["ciclo"] / sum(g["target_mese"] for _, g in righe)
+        pezzi.append(f"{etichetta}, giorno {a['giorno']} di {a['ciclo']}: a questo ritmo il gruppo chiude intorno al {round(100 * tot)}% dei target." +
+                     (" Piu' indietro: " + ", ".join(indietro) + "." if indietro else " Tutte le categorie sono in linea o sopra."))
+    return " ".join(pezzi) or "Non ho target del mese da guardare."
 
 
 def sintesi() -> dict:

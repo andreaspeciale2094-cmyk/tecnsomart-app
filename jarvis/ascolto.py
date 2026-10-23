@@ -474,7 +474,7 @@ def negozi_veloce(testo: str) -> str | None:
         return None
     try:
         from . import negozi, vigile
-        if re.search(r"\bgruppo\b|\bproiezion|\bmanc|\btotal[ei]\b", testo, re.IGNORECASE) and not re.search(r"\b(?:mail|messaggi|whatsapp|treno|treni|soldi|conto)\b", testo, re.IGNORECASE):
+        if re.search(r"\bgruppo\b|\bproiezion|\bmanc|\btotal[ei]\b|\bobiettiv|come stiamo andando|come siamo messi", testo, re.IGNORECASE) and not re.search(r"\b(?:mail|messaggi|whatsapp|treno|treni|soldi|conto)\b", testo, re.IGNORECASE):
             risp = negozi.domanda_gruppo(testo)
             if risp:
                 return risp

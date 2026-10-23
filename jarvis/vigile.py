@@ -24,6 +24,8 @@ _banca = {"visti": None, "fatti": set(), "giorno": "", "errore_giorno": ""}   # 
 _treno = {"giorno": "", "primo": False, "ultimo": 0.0, "stato": None}   # agente treno: solo RAM
 _neg = {"ultimo": 0.0, "pronto": None}   # agente negozi: solo RAM
 _domani = {"giorno": ""}   # agente "domani": una volta la sera
+_prom = {"tentativi": {}}   # promemoria: quante volte si e' provato a dirlo a voce
+_obi = {"settimana": ""}   # obiettivi del mese: una volta il lunedi
 _lock = threading.Lock()
 SISTEMA = ("Sei l'agente vigile di Andrea, che gestisce negozi TecnoSmart. Ti arrivano le NOVITA' appena comparse (mail non lette: mittente e oggetto; chat WhatsApp: solo il nome). "
            "Decidi se vale la pena interromperlo adesso. SI' per: persone vere (clienti, colleghi, ragazzi dei negozi, familiari), richieste, problemi, scadenze, soldi. "
@@ -276,6 +278,48 @@ def _controlla_domani(adesso: datetime) -> int:
     return creati
 
 
+def _controlla_promemoria(adesso: datetime) -> int:
+    """Promemoria scaduti: a voce se Jarvis e' libero (anche di notte: li ha chiesti Andrea), poi si cancellano. Se per 10 minuti non e' libero
+    resta la scheda sulla pagina e si cancella lo stesso."""
+    from . import promemoria
+    if not config.ENABLE_PROMEMORIA:
+        return 0
+    creati = 0
+    for p in promemoria.scaduti():
+        n = _prom["tentativi"].get(p["id"], 0)
+        libero = False
+        try:
+            from . import ascolto
+            libero = bool(ascolto.stato.get("attivo") and ascolto.stato.get("in_ascolto") and not ascolto.stato.get("fase"))
+        except Exception:
+            pass
+        if libero:
+            threading.Thread(target=ascolto.parla, args=("Promemoria: " + p["testo"],), daemon=True).start()
+        if libero or n >= 10:
+            _aggiungi("promemoria", p["testo"], True)
+            promemoria.fatto(p["id"])
+            _prom["tentativi"].pop(p["id"], None)
+            logs.log_route("PROMEMORIA: detto" if libero else "PROMEMORIA: solo scheda (Jarvis occupato)")
+            creati += 1
+        else:
+            _prom["tentativi"][p["id"]] = n + 1
+    return creati
+
+
+def _controlla_obiettivi(adesso: datetime) -> int:
+    """Il lunedi' mattina (dopo le 9:15, quando i dati sono pronti): una scheda e, se Jarvis e' libero, una frase con gli obiettivi del mese. Senza modello."""
+    from . import negozi
+    sett = adesso.strftime("%G-%V")
+    if not config.ENABLE_NEGOZI or adesso.weekday() != 0 or (adesso.hour, adesso.minute) < (9, 15) or adesso.hour >= 13 or _obi["settimana"] == sett:
+        return 0
+    _obi["settimana"] = sett
+    testo = negozi.obiettivi()
+    _aggiungi("obiettivi", testo, False)
+    logs.log_route("VIGILE: obiettivi del mese (lunedi')")
+    threading.Thread(target=_parla, args=(testo,), daemon=True).start()
+    return 1
+
+
 def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
     """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
     try:
@@ -335,6 +379,14 @@ def controlla(adesso: datetime | None = None) -> int:
         creati += _controlla_banca(adesso)
     except Exception as e:
         logs.log_error(e, "vigile banca")
+    try:
+        creati += _controlla_obiettivi(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile obiettivi")
+    try:
+        creati += _controlla_promemoria(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile promemoria")
     try:
         creati += _controlla_domani(adesso)
     except Exception as e:
