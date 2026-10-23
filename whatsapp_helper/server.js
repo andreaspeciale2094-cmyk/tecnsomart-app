@@ -1,5 +1,5 @@
-// Programma di appoggio di Jarvis per WhatsApp: SOLO INVIO, senza finestre.
-// Riceve anche i messaggi (solo chat singole) e li tiene in RAM per qualche giorno: mai su disco ne' nei registri.
+// Programma di appoggio di Jarvis per WhatsApp, senza finestre: invia, riceve e ARCHIVIA i messaggi delle chat singole (niente gruppi).
+// L'archivio sta solo sul PC, cifrato (memoria/whatsapp/archivio.bin): mai su GitHub, mai nei registri.
 // Ascolta solo su 127.0.0.1 e vuole una chiave (memoria/whatsapp/token.txt). Non scrive mai i messaggi su disco ne' nei registri.
 // I dati del collegamento (come una password) stanno in memoria/whatsapp/auth, solo sul PC di Andrea.
 // Lo avvia Jarvis quando serve e si chiude insieme a Jarvis: non resta acceso da solo.
@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { registra, elenco, leggi } from './messaggi.js';
+import { registra, registraStorico, impostaNomi, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys';
 
 const QUI = dirname(fileURLToPath(import.meta.url));
@@ -24,15 +24,24 @@ const TOKEN_FILE = join(DATI, 'token.txt');
 if (!existsSync(TOKEN_FILE)) writeFileSync(TOKEN_FILE, randomBytes(32).toString('hex'));
 const TOKEN = readFileSync(TOKEN_FILE, 'utf8').trim();
 
-const stato = { connesso: false, bisogna_qr: false, bloccato: false, errore: '' };
+abilitaArchivio(join(DATI, 'archivio.bin'), join(DATI, 'archivio.key'));  // i messaggi si salvano cifrati sul PC e si ritrovano all'accensione
+const stato = { connesso: false, bisogna_qr: false, bloccato: false, errore: '', storia: { ricevuta: 0, ultimo: 0 } };
 let sock = null;
 
 async function avvia() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH);
   const { version } = await fetchLatestBaileysVersion();
-  sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), syncFullHistory: false, markOnlineOnConnect: false });
+  sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), syncFullHistory: true, shouldSyncHistoryMessage: () => true, markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('messages.upsert', ({ messages }) => { for (const m of messages || []) { try { registra(m); } catch (e) {} } });
+  sock.ev.on('messaging-history.set', (h) => {
+    try {
+      const n = registraStorico(h);
+      stato.storia.ricevuta += n; stato.storia.ultimo = Date.now();
+      if (MOSTRA_QR) process.stdout.write(`\rStorico scaricato: ${stato.storia.ricevuta} messaggi (${totali().chat} chat)...   `);
+    } catch (e) {}
+  });
+  sock.ev.on('contacts.upsert', (c) => { try { impostaNomi(c); } catch (e) {} });
   sock.ev.on('connection.update', (u) => {
     if (u.qr) {
       stato.bisogna_qr = true;
@@ -43,7 +52,20 @@ async function avvia() {
     }
     if (u.connection === 'open') {
       stato.connesso = true; stato.bisogna_qr = false; stato.errore = '';
-      if (MOSTRA_QR) console.log('\nCOLLEGATO. Ora puoi chiudere questa finestra: Jarvis usa il collegamento da solo, senza finestre.');
+      if (MOSTRA_QR) {
+        console.log("\nCOLLEGATO. Adesso WhatsApp manda la storia dei messaggi: NON chiudere questa finestra finche' non vedi FATTO (puo' volerci qualche minuto).");
+        const inizio = Date.now();
+        const guardia = setInterval(() => {
+          const quieto = Date.now() - Math.max(stato.storia.ultimo, inizio);
+          if ((stato.storia.ricevuta > 0 && quieto > 60000) || quieto > 240000) {
+            clearInterval(guardia);
+            try { salvaSubito(); } catch (e) {}
+            const t = totali();
+            console.log(`\nFATTO. Ho salvato ${t.messaggi} messaggi di ${t.chat} chat sul tuo PC (cifrati). Ora puoi chiudere questa finestra: Jarvis usa il collegamento da solo.`);
+            if (!stato.storia.ricevuta) console.log("(WhatsApp non ha mandato la storia vecchia: da adesso in poi i messaggi nuovi si salvano da soli.)");
+          }
+        }, 5000);
+      }
     }
     if (u.connection === 'close') {
       stato.connesso = false;
@@ -103,8 +125,13 @@ createServer(async (req, res) => {
   const host = req.headers.host || '';
   if (host !== `127.0.0.1:${PORTA}` && host !== `localhost:${PORTA}`) return rispondi(res, 403, { ok: false, errore: 'host non ammesso' });
   if (req.headers['x-token'] !== TOKEN) return rispondi(res, 401, { ok: false, errore: 'non autorizzato' });
-  if (req.method === 'GET' && req.url === '/stato') return rispondi(res, 200, { ok: true, ...stato });
-  if (req.method === 'GET' && req.url === '/chat') return rispondi(res, 200, { ok: true, chat: elenco() });
+  if (req.method === 'GET' && req.url === '/stato') return rispondi(res, 200, { ok: true, ...stato, archivio: totali() });
+  if (req.method === 'GET' && (req.url === '/chat' || req.url === '/chat?tutte=1')) return rispondi(res, 200, { ok: true, chat: elenco(req.url.endsWith('tutte=1')) });
+  if (req.method === 'GET' && req.url.startsWith('/cerca?')) {
+    const q = new URL(req.url, 'http://x').searchParams;
+    return rispondi(res, 200, { ok: true, trovati: cerca({ q: q.get('q') || '', chat: q.get('chat') || '', giorni: Number(q.get('giorni') || 0), n: Number(q.get('n') || 15) }) });
+  }
+  if (req.method === 'POST' && req.url === '/salva') { try { salvaSubito(); } catch (e) {} return rispondi(res, 200, { ok: true }); }
   if (req.method === 'GET' && req.url.startsWith('/messaggi?')) {
     const q = new URL(req.url, 'http://x').searchParams;
     const r = leggi(q.get('id') || '', Number(q.get('n') || 10));
@@ -127,5 +154,6 @@ createServer(async (req, res) => {
 
 // Se Jarvis si chiude, si chiude anche questo programma (Jarvis lo avvia con un canale aperto).
 if (process.send || process.env.JARVIS_FIGLIO) process.stdin.on('end', () => process.exit(0)).resume();
+process.on('exit', () => { try { salvaSubito(); } catch (e) {} });  // alla chiusura normale si salva tutto
 
 avvia().catch((e) => { stato.errore = 'Avvio non riuscito: ' + String(e.message || e).slice(0, 120); });

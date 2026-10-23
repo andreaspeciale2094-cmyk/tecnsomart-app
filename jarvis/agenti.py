@@ -15,7 +15,7 @@ DEFINIZIONI = {
                "ruolo": "Sei l'agente agenda: leggi gli impegni dai calendari (personale e lavoro, tenuti separati)."},
     "posta": {"strumenti": ["mail_non_lette", "mail_leggi"], "predefinita": "Quali mail non lette contano davvero (chi scrive e perche').",
               "ruolo": "Sei l'agente posta: guardi le mail non lette di tutte le caselle. Leggi per intero solo quelle che sembrano importanti."},
-    "whatsapp": {"strumenti": ["whatsapp_non_lette", "whatsapp_leggi", "whatsapp_rubrica"], "predefinita": "Chi ha scritto su WhatsApp e cosa serve.",
+    "whatsapp": {"strumenti": ["whatsapp_non_lette", "whatsapp_leggi", "whatsapp_rubrica", "whatsapp_cerca", "whatsapp_chat_recenti"], "predefinita": "Chi ha scritto su WhatsApp e cosa serve.",
                  "ruolo": "Sei l'agente WhatsApp: guardi i messaggi non letti. Apri una chat solo se serve capire di cosa si tratta."},
     "negozi": {"strumenti": ["riepilogo_negozi", "focus_addetto", "scheda_leggi"], "predefinita": "Come stanno andando i negozi oggi: chi e' sotto target, anomalie.",
                "ruolo": "Sei l'agente negozi: leggi l'andamento dei punti vendita e dei ragazzi. Dati dei clienti: solo quelli che servono."},
