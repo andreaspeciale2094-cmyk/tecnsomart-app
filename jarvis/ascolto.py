@@ -235,22 +235,24 @@ def _wav(frames: list) -> bytes:
     return buf.getvalue()
 
 
-def registra_frase(leggi, vad, attesa: float = 5.0) -> list | None:
+def registra_frase(leggi, vad, attesa: float = 5.0, breve: bool = False) -> list | None:
     """Registra finche' non smetti di parlare. leggi() ritorna un blocco di 1280 campioni.
-    None se nessuno parla entro `attesa` secondi, o se c'e' solo un rumore brevissimo."""
+    None se nessuno parla entro `attesa` secondi, o se c'e' solo un rumore brevissimo.
+    breve=True: accetta anche una parola sola (un "si'" dura meno di mezzo secondo): serve quando Jarvis aspetta una conferma."""
+    minimo = 2 if breve else 3
     frames, voce, silenzio, parlato, t0 = [], 0, 0, False, time.time()
     while True:
         blocco = leggi()
         frames.append(blocco)
         if float(vad.predict(blocco, 640)) > 0.5:
             voce += 1
-            parlato, silenzio = voce >= 2, 0
+            parlato, silenzio = voce >= (1 if breve else 2), 0
         else:
             silenzio += 1
         if parlato and silenzio >= config.ASCOLTO_PAUSA_FINE:  # silenzio di fine frase (0,7 s circa): ha finito
-            return frames if voce >= 3 else None
+            return frames if voce >= minimo else None
         if time.time() - t0 > 15:
-            return frames if parlato and voce >= 3 else None
+            return frames if parlato and voce >= minimo else None
         if not parlato and time.time() - t0 > attesa:
             return None
 
@@ -286,7 +288,7 @@ def _controlla_voce(blocchi: list):
 
 def _ascolta(leggi, vad, attesa: float, pre=None) -> str | None:
     _fase("ti ascolto")
-    frames = registra_frase(leggi, vad, attesa)
+    frames = registra_frase(leggi, vad, attesa, breve=bool(_chiamata_pronta["id"]))  # se aspetta un 'si'' per una chiamata, basta anche una parola brevissima
     blocchi = list(pre or []) + list(frames or [])
     if blocchi:
         _controlla_voce(blocchi)  # la prima volta si controlla anche "Hey Jarvis" detto un attimo prima
