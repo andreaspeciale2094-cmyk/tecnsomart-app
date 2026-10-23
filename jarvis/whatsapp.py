@@ -144,7 +144,8 @@ def _avvia_helper_senza_blocco() -> dict:
     st = _stato()
     if st is not None:
         return st
-    node = shutil.which("node")
+    portatile = HELPER_DIR.parent / "memoria" / "node22" / "node-v22.12.0-win-x64" / "node.exe"  # se c'e', si usa questo (vedi prova_whatsapp_node22.bat)
+    node = str(portatile) if portatile.exists() else shutil.which("node")
     if not node or not (HELPER_DIR / "node_modules").exists():
         raise WhatsAppError("Manca il programma di appoggio per WhatsApp: serve Node.js e l'installazione fatta una volta con 3_collega_whatsapp.bat.")
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
