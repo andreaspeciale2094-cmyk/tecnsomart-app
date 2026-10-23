@@ -29,6 +29,7 @@ def prepara_veloce(chi: str) -> tuple[str, str]:
         _pronte.pop(k, None)  # le chiamate preparate scadono dopo 10 minuti
     cid = uuid.uuid4().hex[:6]
     _pronte[cid] = {"nome": nome, "numero": numero, "turno": posta.turno(), "t": time.time()}
+    logs.log_route("CHIAMATA: preparata (in attesa del si')")
     return cid, nome
 
 
@@ -56,8 +57,10 @@ def avvia(cid: str, da_voce: bool = False) -> str:
             if config.TELEFONO_CHIAVE:
                 parametri["chiave"] = config.TELEFONO_CHIAVE
             r = httpx.get(config.TELEFONO_URL, params=parametri, timeout=8)
-        except httpx.HTTPError:
+        except httpx.HTTPError as e:
+            logs.log_route(f"CHIAMATA: telefono non raggiungibile ({type(e).__name__})")
             raise ChiamataError("Non raggiungo il telefono: controlla che sia acceso, con Tailscale e MacroDroid attivi.")
+        logs.log_route(f"CHIAMATA: il telefono ha risposto {r.status_code}")
         if r.status_code >= 400:
             raise ChiamataError("Il telefono ha risposto con un errore: controlla la regola in MacroDroid.")
         del _pronte[cid]

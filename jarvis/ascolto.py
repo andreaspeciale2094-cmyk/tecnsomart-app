@@ -345,6 +345,7 @@ def chiamata_veloce(testo: str) -> str | None:
     m = _CHIAMA.match(t)
     if not m:
         return None
+    logs.log_route("CHIAMATA: richiesta a voce riconosciuta")
     nome = re.sub(r"\s+(?:per favore|per piacere|grazie|subito|adesso|ora)$", "", m.group(1).strip(), flags=re.IGNORECASE)
     try:
         cid, nome_vero = chiamate.prepara_veloce(nome)
