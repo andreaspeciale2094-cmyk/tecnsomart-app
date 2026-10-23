@@ -409,7 +409,7 @@ async function runQueue(token) {
     if (item.p) {
       try {
         const blob = await item.p; if (token !== speakToken) return;
-        await new Promise(res => { audioEl = new Audio(URL.createObjectURL(blob)); hookAudio(audioEl);
+        await new Promise(res => { audioEl = new Audio(URL.createObjectURL(blob)); if (uscitaScelta() && audioEl.setSinkId) audioEl.setSinkId(uscitaScelta()).catch(() => {}); hookAudio(audioEl);
           audioEl.onended = audioEl.onerror = () => { audioActive = false; lastActivity = performance.now(); res(); };
           audioEl.onplaying = () => { audioActive = true; firstAudioCb?.(); firstAudioCb = null; };
           audioEl.play().catch(e => { blocked = true; res(); }); });
@@ -480,6 +480,9 @@ $('#tts').onclick = e => { ttsOn = !ttsOn; e.target.classList.toggle('on', ttsOn
 
 // ---- Voce in ingresso ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const SU_PC = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname);  // la pagina aperta dal PC; dal telefono (Tailscale) l'audio e' quello del telefono
+const micScelto = () => { try { return localStorage.getItem('jarvis_mic_id') || ''; } catch (e) { return ''; } };
+const uscitaScelta = () => { try { return localStorage.getItem('jarvis_sink_id') || ''; } catch (e) { return ''; } };
 let rec = null, recActive = false;
 const STOP_RE = /^(?:(?:ehi |hey |ok )?jarvis[,.!]?\s*)?(stop|basta|fermo|fermati|zitto)[.!]?$/i;   // ferma e annulla
 const WAIT_RE = /^(?:(?:ehi |hey |ok )?jarvis[,.!]?\s*)?(aspetta|un attimo|un momento|aspetta un attimo)[.!]?$/i;  // ferma e aspetta l'aggiunta
@@ -520,7 +523,7 @@ function startRec() {
 let mr = null, chunks = [];
 async function whisperToggle() {
   if (mr?.state === 'recording') { mr.stop(); return; }
-  const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: micScelto() ? { deviceId: { exact: micScelto() } } : true }); } catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   mr = new MediaRecorder(stream); chunks = [];
   mr.ondataavailable = e => chunks.push(e.data);
   mr.onstart = () => { $('#mic').classList.add('on'); setState('listening', 'ti ascolto… (premi ancora per inviare)'); };
@@ -539,7 +542,7 @@ $('#mic').onclick = () => {
   if (!SR) return alert('Riconoscimento vocale non supportato: usa Chrome o Edge.');
   recActive ? rec.stop() : startRec();
 };
-$('#wake').onclick = e => { if (cfg.ascolto_stanza) return alert("L'ascolto in stanza e' gia' attivo in sottofondo (anche a pagina chiusa): dici 'Hey Jarvis' e risponde. Questo pulsante non serve, e usarlo insieme farebbe rispondere Jarvis due volte."); if (!SR) return alert('Usa Chrome o Edge.'); wakeOn = !wakeOn; e.target.classList.toggle('on', wakeOn); wakeOn ? startRec() : rec?.stop(); };
+$('#wake').onclick = e => { if (cfg.ascolto_stanza && SU_PC) return alert("L'ascolto in stanza e' gia' attivo in sottofondo (anche a pagina chiusa): dici 'Hey Jarvis' e risponde. Questo pulsante non serve, e usarlo insieme farebbe rispondere Jarvis due volte."); if (!SR) return alert('Usa Chrome o Edge.'); wakeOn = !wakeOn; e.target.classList.toggle('on', wakeOn); wakeOn ? startRec() : rec?.stop(); };
 
 // ---- Notifiche proattive (briefing, agenti in background, promemoria) ----
 async function pollInbox() {
@@ -565,7 +568,34 @@ async function init() {
   if (cfg.stt) $('#mic').title = 'Premi per parlare, premi ancora per inviare (Whisper)';
   add('Sistemi online.', 'jarvis');
   loadFillers(); pollInbox(); setInterval(pollInbox, 15000);
-  if (cfg.ascolto_stanza) { $('#wake').textContent = '👂 ascolto in stanza'; const asc = $('#asc'); const esc2 = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  if (!SU_PC) {  // dal telefono: audio del telefono (microfono e uscita), non quello del PC
+    const asc = $('#asc'); asc.textContent = '\u{1F3A7} audio del telefono'; asc.title = "Prova o scegli il microfono e l'uscita di questo telefono";
+    asc.onclick = async () => {
+      const pk = $('#picker'); pk.querySelectorAll('.sens').forEach(x => x.remove());
+      pk.querySelector('.pkt').textContent = 'Audio di questo telefono'; $('#pk-q').style.display = 'none';
+      pk.querySelector('.pkn').textContent = "Qui scegli il microfono e l'uscita del TELEFONO (non quelli del PC). Con le cuffie Bluetooth: collegale, poi in Impostazioni > Bluetooth > le tue cuffie attiva \u00abAudio chiamate\u00bb.";
+      const L = $('#pk-l'); L.replaceChildren(); let flusso = null, timer = null;
+      const chiudi = () => { pk.classList.remove('on'); $('#pk-q').style.display = ''; clearInterval(timer); flusso?.getTracks().forEach(t => t.stop()); };
+      const riga = (testo, f, evid) => { const b = document.createElement('button'); b.textContent = testo + (evid ? '  \u2190 in uso' : ''); b.onclick = f; L.append(b); return b; };
+      const info = document.createElement('div'); info.style.cssText = 'font-size:12px;color:var(--dim);padding:6px 2px';
+      const liv = document.createElement('div'); liv.style.cssText = 'height:8px;background:#1a0a0e;border:1px solid var(--red-dim);position:relative;margin:6px 0';
+      const barra = document.createElement('i'); barra.style.cssText = 'position:absolute;left:0;top:0;bottom:0;width:0;background:var(--red)'; liv.append(barra); L.append(info, liv);
+      const avvia = async id => { clearInterval(timer); flusso?.getTracks().forEach(t => t.stop());
+        try { flusso = await navigator.mediaDevices.getUserMedia({ audio: id ? { deviceId: { exact: id } } : true }); }
+        catch (e) { info.textContent = "Non riesco ad aprire il microfono: controlla il permesso del microfono per questo sito (icona in alto, vicino all'indirizzo)."; return ''; }
+        const tr = flusso.getAudioTracks()[0]; info.textContent = 'Microfono in uso: ' + (tr?.label || 'predefinito di Android') + ' \u2014 parla: la barra deve muoversi.';
+        const ctx = new (window.AudioContext || window.webkitAudioContext)(); const an = ctx.createAnalyser(); an.fftSize = 512; ctx.createMediaStreamSource(flusso).connect(an); const dati = new Uint8Array(an.fftSize);
+        timer = setInterval(() => { an.getByteTimeDomainData(dati); let m = 0; for (const v of dati) m = Math.max(m, Math.abs(v - 128)); barra.style.width = Math.min(100, m / 80 * 100) + '%';
+          if (!pk.classList.contains('on')) { clearInterval(timer); flusso?.getTracks().forEach(t => t.stop()); ctx.close(); } }, 100);
+        return (tr?.getSettings?.() || {}).deviceId || ''; };
+      const usato = await avvia(micScelto());
+      try { const dv = await navigator.mediaDevices.enumerateDevices();
+        dv.filter(d => d.kind === 'audioinput').forEach(d => riga('\u{1F3A4} ' + (d.label || 'microfono'), async () => { try { localStorage.setItem('jarvis_mic_id', d.deviceId); } catch (e) {} await avvia(d.deviceId); }, d.deviceId === usato));
+        if (typeof Audio.prototype.setSinkId === 'function') dv.filter(d => d.kind === 'audiooutput').forEach(d => riga('\u{1F50A} ' + (d.label || 'uscita'), () => { try { localStorage.setItem('jarvis_sink_id', d.deviceId); } catch (e) {} audioEl?.setSinkId?.(d.deviceId).catch(() => {}); }, d.deviceId === uscitaScelta()));
+      } catch (e) {}
+      riga('Chiudi', chiudi); pk.classList.add('on'); };
+  }
+  if (cfg.ascolto_stanza && SU_PC) { $('#wake').textContent = '👂 ascolto in stanza'; const asc = $('#asc'); const esc2 = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     asc.onclick = async () => { let d; try { d = await (await api('/api/ascolto/microfoni')).json(); } catch (e) { return; }
       const pk = $('#picker'); pk.querySelector('.pkt').textContent = 'Quale microfono deve usare Jarvis?'; $('#pk-q').style.display = 'none'; pk.querySelector('.pkn').textContent = 'Scegli quello delle cuffie. Dopo il clic guarda la barra: deve muoversi quando parli.';
       const L = $('#pk-l'); L.replaceChildren(...['', ...d.nomi].map(n => { const b = document.createElement('button'); b.textContent = n || '(quello predefinito di Windows)'; if (n && d.scelto && d.scelto.startsWith(n.slice(0, 30))) b.textContent += '  ← in uso';
@@ -790,6 +820,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261029"></script>
+<script src="/static/rete.js?v=20261030"></script>
 </body>
 </html>

@@ -3,6 +3,7 @@ Tre filtri: 1) rilevatore della parola, tutto sul PC e senza costi; 2) solo dopo
 di parlare (rilevatore di voce locale); 3) solo allora trascrizione a pagamento e cervello. L'audio non viene mai scritto su disco ne' nei
 registri: resta in memoria (RAM) il tempo della frase. Mentre Jarvis parla non ascolta (evita di svegliarsi con la propria voce)."""
 import collections
+import contextlib
 import io
 import os
 import queue
@@ -550,15 +551,23 @@ def registra_secondi(secondi: float) -> list:
 
 
 def microfoni() -> list[str]:
-    """Nomi dei microfoni del PC (senza doppioni tra i vari sistemi audio di Windows)."""
+    """Nomi dei microfoni del PC, senza doppioni tra i vari sistemi audio di Windows (si preferisce MME: Windows adatta da solo la frequenza,
+    e' quello che funziona meglio con le cuffie bluetooth)."""
     import sounddevice as sd
+    try:
+        mme = next((i for i, h in enumerate(sd.query_hostapis()) if "MME" in h["name"]), None)
+    except Exception:
+        mme = None
     visti, out = set(), []
-    for d in sd.query_devices():
-        if d["max_input_channels"] > 0:
-            chiave = d["name"][:30].lower()
-            if chiave not in visti:
-                visti.add(chiave)
-                out.append(d["name"])
+    for pref in ([mme] if mme is not None else []) + [None]:
+        for d in sd.query_devices():
+            if d["max_input_channels"] > 0 and (pref is None or d["hostapi"] == pref):
+                chiave = d["name"][:30].lower()
+                if chiave not in visti:
+                    visti.add(chiave)
+                    out.append(d["name"])
+        if out:
+            break
     return out
 
 
@@ -589,6 +598,48 @@ def _dispositivo(sd):
     return None
 
 
+@contextlib.contextmanager
+def _apri_microfono(sd, dispositivo):
+    """Apre il microfono a 16000 Hz; se non si puo' (cuffie bluetooth) lo apre alla sua frequenza: poi _leggi_blocco converte."""
+    rate = RATE
+    try:
+        s = sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=BLOCCO, device=dispositivo)
+        s.start()
+    except sd.PortAudioError as primo:
+        try:
+            info = sd.query_devices(dispositivo if dispositivo is not None else sd.default.device[0])
+            rate = int(info["default_samplerate"])
+        except Exception:
+            raise primo
+        if rate == RATE:
+            raise primo
+        logs.log_route(f"ASCOLTO: il microfono non accetta {RATE} Hz, lo apro a {rate} Hz e converto")
+        s = sd.InputStream(samplerate=rate, channels=1, dtype="int16", blocksize=int(BLOCCO * rate / RATE), device=dispositivo)
+        s.start()
+    try:
+        yield s, rate
+    finally:
+        try:
+            s.stop()
+        finally:
+            s.close()
+
+
+_PAROLE_CUFFIE = ("headset", "hands-free", "handsfree", "bluetooth", "cuffie", "auricolari", "buds", "airpods")
+
+
+def _leggi_blocco(s, rate, np, guadagno=1.0):
+    """Un blocco di BLOCCO campioni a 16000 Hz, comunque sia aperto il microfono. Le cuffie bluetooth hanno il microfono piano: guadagno."""
+    if rate == RATE:
+        x = s.read(BLOCCO)[0][:, 0].astype(np.float32)
+    else:
+        grezzo = s.read(int(round(BLOCCO * rate / RATE)))[0][:, 0].astype(np.float32)
+        x = np.interp(np.linspace(0, len(grezzo) - 1, BLOCCO), np.arange(len(grezzo)), grezzo)
+    if guadagno != 1.0:
+        x = x * guadagno
+    return np.clip(x, -32768, 32767).astype(np.int16)
+
+
 def _ciclo_vero():
     global _parlando_fino
     import numpy as np
@@ -609,7 +660,7 @@ def _ciclo_vero():
             continue
         try:
             dispositivo = _dispositivo(sd)
-            with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=BLOCCO, device=dispositivo) as s:
+            with _apri_microfono(sd, dispositivo) as (s, rate):
                 stato["errore"] = ""
                 stato["in_ascolto"] = True
                 stato["riapri"] = False
@@ -617,7 +668,8 @@ def _ciclo_vero():
                     stato["dispositivo"] = sd.query_devices(dispositivo if dispositivo is not None else sd.default.device[0])["name"]
                 except Exception:
                     stato["dispositivo"] = ""
-                leggi = lambda: s.read(BLOCCO)[0][:, 0].copy()
+                guadagno = 3.0 if any(p in str(stato["dispositivo"]).lower() for p in _PAROLE_CUFFIE) else 1.0  # microfono delle cuffie bluetooth: piano, lo si alza
+                leggi = lambda: _leggi_blocco(s, rate, np, guadagno)
                 ring = collections.deque(maxlen=26)  # gli ultimi ~2 secondi: dentro c'e' "Hey Jarvis", servono per riconoscere chi lo ha detto
                 while stato["attivo"] and not stato["riapri"]:
                     blocco = leggi()
