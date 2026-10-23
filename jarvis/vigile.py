@@ -242,10 +242,10 @@ def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
 
 
 def _controlla_negozi(adesso: datetime) -> int:
-    """Agente negozi (senza modello, costo zero): dalle 8 alle 23, una lettura di sola lettura ogni 10 minuti che tiene PRONTO in RAM il resoconto dei numeri di oggi.
+    """Agente negozi (senza modello, costo zero): dalle 9 alle 20:30, una lettura di sola lettura ogni 10 minuti che tiene PRONTO in RAM il resoconto dei numeri di oggi.
     Non avvisa mai da solo: quando Andrea lo chiede (anche a fine giornata) Jarvis lo dice subito, senza ragionare."""
     from . import negozi
-    if not config.ENABLE_NEGOZI or not _in_fascia("negozi", adesso, ((8, 0), (23, 0))) or time.time() - _neg["ultimo"] < 600:
+    if not config.ENABLE_NEGOZI or not _in_fascia("negozi", adesso, ((9, 0), (20, 30))) or time.time() - _neg["ultimo"] < 600:
         return 0
     _neg["ultimo"] = time.time()
     try:
