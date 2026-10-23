@@ -17,21 +17,37 @@ from pydantic import BaseModel
 from . import agenti, ascolto, auth, interazioni, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
+def _avvio_scaglionato():
+    """Quando il PC si accende e' tutto occupato: se Jarvis caricasse insieme voce, ascolto, WhatsApp, Telegram e posta, la schermata arriverebbe piu' tardi.
+    Prima si vede la pagina; gli altri pezzi partono a pochi secondi di distanza l'uno dall'altro."""
+    passi = [
+        (4, lambda: whatsapp.avvia_per_ricevere() if config.ENABLE_WHATSAPP_LEGGI else None),  # per ricevere i messaggi deve essere sempre acceso
+        (5, benvenuto.avvia),
+        (7, lambda: voice.prepare_fixed()),
+        (9, ascolto.avvia),
+        (11, tools.avvia_cache),  # agenda, posta e WhatsApp sempre pronti per i quadri veloci
+        (13, telegram_bot.avvia),
+        (14, pulizia.avvia),
+    ]
+    t0 = _t.time()
+    for quando, f in passi:
+        attesa = quando - (_t.time() - t0)
+        if attesa > 0:
+            _t.sleep(attesa)
+        try:
+            f()
+        except Exception as e:
+            logs.log_error(e, "avvio a scaglioni")
+
+
 @asynccontextmanager
 async def lifespan(app):
     if config.ENABLE_AGENTS:
         scheduler.start()
-    threading.Thread(target=voice.prepare_fixed, daemon=True).start()
     CHIUDI_TOKEN.parent.mkdir(parents=True, exist_ok=True)
     CHIUDI_TOKEN.write_text(secrets.token_hex(24), encoding="utf-8")
-    if config.ENABLE_WHATSAPP_LEGGI:
-        threading.Thread(target=whatsapp.avvia_per_ricevere, daemon=True).start()  # per ricevere i messaggi deve essere sempre acceso
-    pulizia.avvia()
-    tools.avvia_cache()  # agenda, posta e WhatsApp sempre pronti per i quadri veloci
-    telegram_bot.avvia()
-    ascolto.avvia()
-    benvenuto.avvia()
     pannello.scalda()  # i dati dei riquadri si preparano subito, in sottofondo
+    threading.Thread(target=_avvio_scaglionato, daemon=True).start()  # il resto parte a scaglioni: prima la schermata, poi il resto
     logs.log_route(f"AVVIO: server pronto in {_t.time() - _T0:.1f} s (dall'inizio del caricamento dei programmi)")
     yield
     pulizia.alla_chiusura()

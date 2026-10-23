@@ -29,7 +29,7 @@ If browser = "" Then browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\Curre
 On Error GoTo 0
 ' tutto schermo vero (senza bordi, copre la barra di Windows): F11 o il pulsante nella barra di Jarvis per uscire; la barra di Jarvis in basso sostituisce quella di Windows
 If browser <> "" Then
-  sh.Run """" & browser & """ --start-fullscreen --app=" & indirizzo & " --user-data-dir=""" & cartella & "\memoria\finestra_jarvis"" --no-first-run", 1, False
+  sh.Run """" & browser & """ --start-fullscreen --app=" & indirizzo & " --user-data-dir=""" & cartella & "\memoria\finestra_jarvis"" --no-first-run --no-default-browser-check --disable-extensions --disable-background-networking", 1, False
 Else
   sh.Run indirizzo, 1, False
 End If
