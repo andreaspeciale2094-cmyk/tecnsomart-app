@@ -329,6 +329,21 @@ def porta_davanti(hwnd: int) -> str:
     return "ok"
 
 
+def porta_davanti_per_nome(parola: str, attesa: float = 8.0) -> bool:
+    """Aspetta che compaia una finestra con quel nome (titolo o programma) e la porta davanti. Serve dopo aver aperto un'app: da dietro le quinte Windows non la mette da solo in primo piano."""
+    t0 = time.time()
+    while time.time() - t0 < attesa:
+        try:
+            for f in finestre():
+                if parola.lower() in (f["titolo"] + " " + f["exe"]).lower():
+                    porta_davanti(f["id"])
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    return False
+
+
 def _tasto(codice: int):
     import ctypes
     ctypes.windll.user32.keybd_event(codice, 0, 0, 0)

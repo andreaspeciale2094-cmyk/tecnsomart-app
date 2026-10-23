@@ -127,6 +127,7 @@
   .box .cl { pointer-events:auto; cursor:pointer; padding:6px 10px; margin:-6px -10px; transition:background .15s, box-shadow .15s, transform .15s; }
   .box .cl:hover { background:linear-gradient(90deg, rgba(255,42,61,.22), transparent); box-shadow:0 0 16px rgba(255,42,61,.3); transform:translateX(3px); }
   .box .cl .t::after { content:"  ›"; opacity:.7; font-size:13px; } .box .cl:hover .t::after { content:"  ↗ apri"; opacity:1; }
+  .box .sub { display:inline-block; margin-top:3px; color:var(--red); font-size:10px; letter-spacing:.12em; padding:1px 0; border-bottom:1px dashed transparent; } .box .sub:hover { color:#fff; border-bottom-color:var(--red); }
   .box .cl + .cl, .box div + .cl { margin-top:6px; }
   /* finestra dei dettagli (impegni, WhatsApp) */
   #int { display:none; position:fixed; inset:0; z-index:36; background:rgba(2,2,5,.82); align-items:center; justify-content:center; } #int.on { display:flex; }
@@ -293,7 +294,7 @@ setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.
   async function pannello() { try { const p = await (await api('/api/pannello')).json(); let sx = '', bs = ''; window.panDati = p; disegnaMeteo(p.meteo);
     if (p.agenda) sx = `<span class="t">${IC.cal}oggi</span><b>${p.agenda.n}</b> impegni` + (p.agenda.prossimo ? `<br>prossimo: <b>${esc(p.agenda.prossimo.ora)}</b> ${esc(p.agenda.prossimo.titolo)}` : '<br>nient\'altro per oggi');
     if (p.mail) bs += `<div><span class="t">${IC.mail}posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' · ') + '</div>';
-    if (p.whatsapp) bs += `<div class="cl" data-apri="whatsapp" title="Clicca per leggere e rispondere"><span class="t">${IC.wa}whatsapp</span><b>${p.whatsapp.messaggi}</b> messaggi da ${p.whatsapp.chat} chat</div>`;
+    if (p.whatsapp) bs += `<div class="cl" data-apri="whatsapp-app" title="Clicca per aprire WhatsApp"><span class="t">${IC.wa}whatsapp</span><b>${p.whatsapp.messaggi}</b> messaggi da ${p.whatsapp.chat} chat<br><span class="sub" data-apri="whatsapp" title="Leggi e rispondi da qui, con la tua conferma prima dell'invio">rispondi con Jarvis ›</span></div>`;
     if (sx) sx = '<div class="cl" data-apri="impegni" title="Clicca per vedere gli impegni">' + sx + '</div>'; $('#hud-sx').style.display = sx ? 'block' : 'none'; $('#hud-sx').innerHTML = sx; $('#hud-bs').style.display = bs ? 'block' : 'none'; $('#hud-bs').innerHTML = bs; } catch (e) {} }
   let provePannello = 0; const caricaPannello = async () => { await pannello(); const d = window.panDati || {}; if (!(d.agenda || d.mail || d.whatsapp || d.meteo) && provePannello++ < 24) setTimeout(caricaPannello, 3000); };  // all'accensione i dati arrivano a pezzi: riprova finche' ci sono
   setTimeout(caricaPannello, 1500); setInterval(pannello, 60000); }
@@ -660,7 +661,7 @@ speechSynthesis?.getVoices();
     const g = h('div', 'gruppo'); if (prep.in_rubrica) g.append(inv); g.append(btn('Modifica', modifica), btn('Annulla', chiudi, 'alt')); nodi.push(g); mostra(...nodi); }
 
   window.jarvisApri = { impegni: vistaImpegni, whatsapp: vistaWhatsApp };
-  $('#hud').addEventListener('click', e => { const a = e.target.closest('[data-apri]'); if (!a || !document.body.classList.contains('conbarra')) return; ({ impegni: vistaImpegni, whatsapp: vistaWhatsApp })[a.dataset.apri]?.(); });
+  $('#hud').addEventListener('click', e => { const a = e.target.closest('[data-apri]'); if (!a || !document.body.classList.contains('conbarra')) return; ({ impegni: vistaImpegni, whatsapp: vistaWhatsApp, 'whatsapp-app': () => chiama('/api/whatsapp/app', {}).catch(e => { apri('WhatsApp', ''); guasto(e); }) })[a.dataset.apri]?.(); });
   M.onclick = e => { if (e.target.id === 'int') chiudi(); }; addEventListener('keydown', e => { if (e.key === 'Escape') chiudi(); }); }
 
 // posizione per il meteo: la chiede il browser (con il tuo permesso) solo sul PC, ogni 3 ore; se la neghi si usa la citta' dall'indirizzo internet

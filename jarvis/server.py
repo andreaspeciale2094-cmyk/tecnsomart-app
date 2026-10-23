@@ -256,12 +256,14 @@ def api_wa_messaggi(request: Request, id: str):
 
 @app.post("/api/whatsapp/app")
 def api_wa_app(request: Request):
-    """Apre l'app WhatsApp del PC (solo la apre: non invia niente)."""
+    """Apre l'app WhatsApp del PC e la porta davanti (solo la apre: non invia niente). Se l'app non c'e', apre WhatsApp Web."""
     def apri():
         try:
             os.startfile("whatsapp://")  # type: ignore[attr-defined]
+            threading.Thread(target=barra.porta_davanti_per_nome, args=("whatsapp",), daemon=True).start()
         except (OSError, AttributeError):
-            raise whatsapp.WhatsAppError("Non trovo l'app WhatsApp su questo PC.")
+            import webbrowser
+            webbrowser.open("https://web.whatsapp.com/")
         return {"ok": True}
     return _pc_o_errore(request) or _chiama(apri)
 
