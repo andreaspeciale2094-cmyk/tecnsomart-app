@@ -191,29 +191,32 @@ def riepilogo(day: str = "", tipo: str = "tutti") -> str:
 
 
 def parlato() -> str:
-    """Il resoconto dei negozi di oggi gia' pronto da dire a voce (solo numeri, calcolato dal codice, senza modello)."""
+    """Il resoconto dei negozi di oggi gia' pronto da dire a voce (solo numeri, calcolato dal codice, senza modello). Frasi corte, una per negozio.
+    Nel Multi Brand un negozio che non ha MAI inserito dati questo mese non viene detto 'mancante': magari non fa multi brand."""
     cfg = load_config()
     oggi = date.today()
     raw = fetch(cfg["url"], oggi.isoformat())
-    righe = []
+    blocchi = []
     for kind, etichetta in (("mono", "Mono brand"), ("multi", "Multi brand")):
         if kind not in cfg.get("run", {}):
             continue
         a = analyze(cfg["run"][kind], raw.get(kind) or {}, oggi)
-        gr = "; ".join(f"{g['categoria']} {g['oggi']:g} su {g['target_giorno']:g}, {g['stato']}" for g in a["gruppo"])
-        negozi_txt = []
+        righe = [f"{etichetta}."]
+        if a["gruppo"]:
+            righe.append("Totale di gruppo oggi: " + ", ".join(f"{g['categoria']} {g['oggi']:g} su {g['target_giorno']:g}, {g['stato']}" for g in a["gruppo"]) + ".")
+        senza = []
         for n in a["negozi"]:
             if not n["dati_oggi"]:
-                negozi_txt.append(f"{n['negozio']} non ha ancora inserito i dati")
+                if kind == "mono" or n["giorni_con_dati"] > 0:
+                    senza.append(n["negozio"])
                 continue
             ros = sum(1 for c in n["categorie"] if c["stato"] in ("rosso", "zero"))
             gia = sum(1 for c in n["categorie"] if c["stato"] == "giallo")
-            if ros or gia:
-                negozi_txt.append(f"{n['negozio']}: " + " e ".join(([f"{ros} rosse"] if ros else []) + ([f"{gia} gialle"] if gia else [])))
-            else:
-                negozi_txt.append(f"{n['negozio']} tutto verde")
-        righe.append(f"{etichetta}. Gruppo: {gr}. " + ". ".join(negozi_txt) + ".")
-    return " ".join(righe) or "Non ho target dei negozi da guardare."
+            righe.append(f"{n['negozio']}: " + (" e ".join(([f"{ros} rosse"] if ros else []) + ([f"{gia} gialle"] if gia else [])) if ros or gia else "tutto verde") + ".")
+        if senza:
+            righe.append("Oggi non risultano dati per: " + ", ".join(senza) + ".")
+        blocchi.append(" ".join(righe))
+    return " ".join(blocchi) or "Non ho target dei negozi da guardare."
 
 
 def sintesi() -> dict:
