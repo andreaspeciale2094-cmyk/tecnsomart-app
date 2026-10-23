@@ -2,6 +2,7 @@
 Tre filtri: 1) rilevatore della parola, tutto sul PC e senza costi; 2) solo dopo il risveglio registra la frase e si ferma quando smetti
 di parlare (rilevatore di voce locale); 3) solo allora trascrizione a pagamento e cervello. L'audio non viene mai scritto su disco ne' nei
 registri: resta in memoria (RAM) il tempo della frase. Mentre Jarvis parla non ascolta (evita di svegliarsi con la propria voce)."""
+import collections
 import io
 import os
 import queue
@@ -14,14 +15,15 @@ import time
 import wave
 from pathlib import Path
 
-from . import config, dialogo, logs, voice
+from . import config, dialogo, logs, voce_id, voice
 
 SESSIONE = "ascolto"
 RATE = 16000
 BLOCCO = 1280  # 80 ms
 PAROLA = "hey_jarvis"
 stato = {"attivo": True, "risvegli": 0, "errore": "", "in_ascolto": False, "fase": "", "ultimo_errore_log": 0.0,
-         "livello": 0.0, "punteggio": 0.0, "dispositivo": "", "riapri": False}
+         "livello": 0.0, "punteggio": 0.0, "dispositivo": "", "riapri": False,
+         "registra": None, "voce_punteggio": None, "voce_esito": ""}
 FILE_MIC = Path(__file__).parent.parent / "memoria" / "ascolto_microfono.txt"  # microfono scelto dalla pagina (solo sul PC)
 FILE_SOGLIA = Path(__file__).parent.parent / "memoria" / "ascolto_soglia.txt"  # sensibilita' scelta dalla pagina (vince su ASCOLTO_SOGLIA del .env)
 _soglia = {"v": None}
@@ -261,9 +263,30 @@ def togli_chiamata(testo: str) -> str:
     return _CHIAMATA.sub("", testo.strip(), count=1).strip()
 
 
-def _ascolta(leggi, vad, attesa: float) -> str | None:
+class VoceNonRiconosciuta(Exception):
+    """Chi ha parlato non e' Andrea (solo se il riconoscimento della voce e' acceso)."""
+
+
+def _controlla_voce(blocchi: list):
+    """Confronta la voce con l'impronta di Andrea. Registra solo il punteggio (mai l'audio ne' le parole)."""
+    ok, p = voce_id.verifica(blocchi)
+    if p is not None:
+        stato["voce_punteggio"] = p
+        stato["voce_esito"] = "ok" if ok else "no"
+        if not ok:
+            logs.log_route(f"ASCOLTO: voce non riconosciuta (somiglianza {p}, serve {voce_id.soglia()})")
+    else:
+        stato["voce_esito"] = ""
+    if ok is False:
+        raise VoceNonRiconosciuta()
+
+
+def _ascolta(leggi, vad, attesa: float, pre=None) -> str | None:
     _fase("ti ascolto")
     frames = registra_frase(leggi, vad, attesa)
+    blocchi = list(pre or []) + list(frames or [])
+    if blocchi:
+        _controlla_voce(blocchi)  # la prima volta si controlla anche "Hey Jarvis" detto un attimo prima
     if not frames:
         logs.log_route("ASCOLTO: nessuna frase captata (silenzio o voce troppo bassa)")
         return None
@@ -328,22 +351,30 @@ def saluto(ora=None) -> str:
     return f"{parte}{nome}, dimmi cosa posso fare per te."
 
 
-def gestisci_chiamata(leggi, vad):
+def gestisci_chiamata(leggi, vad, pre=None):
     """Dopo il risveglio: ascolta, risponde a voce, e RESTA in conversazione: finche' continui a parlare entro qualche secondo
     non serve ripetere 'Hey Jarvis'. Se dici solo 'Hey Jarvis', saluta e chiede cosa serve."""
     stato["risvegli"] += 1
     _bip()
     primo = True
     while True:
+        try:
+            if primo:
+                testo = _ascolta(leggi, vad, 1.6, pre)  # subito dopo il nome: se non aggiungi niente, ti saluta
+            else:
+                testo = _ascolta(leggi, vad, float(config.ASCOLTO_FINESTRA))  # dopo una risposta resta in conversazione a lungo
+        except VoceNonRiconosciuta:
+            if primo:  # ha chiamato qualcun altro: niente risposta
+                _fase("")
+                return
+            continue  # dentro la conversazione parla un'altra voce: la ignora e resta in ascolto di Andrea
         if primo:
-            testo = _ascolta(leggi, vad, 1.6)  # subito dopo il nome: se non aggiungi niente, ti saluta
             if testo is None:
                 parla(saluto())
                 _scarta_audio_della_voce(leggi)
                 primo = False
                 continue
         else:
-            testo = _ascolta(leggi, vad, float(config.ASCOLTO_FINESTRA))  # dopo una risposta resta in conversazione a lungo
             if testo is None:
                 _fase("")
                 return
@@ -398,6 +429,20 @@ def imposta_soglia(valore: float):
     FILE_SOGLIA.parent.mkdir(parents=True, exist_ok=True)
     FILE_SOGLIA.write_text(str(round(valore, 2)), encoding="utf-8")
     _soglia["v"] = round(valore, 2)
+
+
+def registra_secondi(secondi: float) -> list:
+    """Registra dal microfono dell'ascolto per `secondi` (serve a imparare la voce con lo STESSO microfono che poi la riconoscera')."""
+    if not stato["in_ascolto"]:
+        raise ValueError("L'ascolto non e' attivo: accendilo e riprova.")
+    if stato["registra"] is not None:
+        raise ValueError("Sto gia' registrando.")
+    stato["registra"] = []
+    try:
+        time.sleep(max(1.0, min(float(secondi), 12.0)))
+    finally:
+        bloc, stato["registra"] = stato["registra"], None
+    return bloc
 
 
 def microfoni() -> list[str]:
@@ -469,16 +514,21 @@ def _ciclo_vero():
                 except Exception:
                     stato["dispositivo"] = ""
                 leggi = lambda: s.read(BLOCCO)[0][:, 0].copy()
+                ring = collections.deque(maxlen=26)  # gli ultimi ~2 secondi: dentro c'e' "Hey Jarvis", servono per riconoscere chi lo ha detto
                 while stato["attivo"] and not stato["riapri"]:
                     blocco = leggi()
+                    if stato["registra"] is not None:  # la pagina sta registrando la voce di Andrea (impara la mia voce)
+                        stato["registra"].append(blocco)
+                        continue
                     stato["livello"] = 0.5 * stato["livello"] + 0.5 * min(1.0, float(np.abs(blocco.astype(np.int32)).max()) / 12000)  # per l'indicatore nella pagina
                     if time.time() < _parlando_fino:  # Jarvis sta parlando: non si ascolta
                         continue
+                    ring.append(blocco)
                     punteggio = float(model.predict(blocco).get(PAROLA, 0))
                     stato["punteggio"] = max(punteggio, stato["punteggio"] * 0.97)
                     if punteggio >= soglia() and time.time() - ultimo > 2:
                         try:
-                            gestisci_chiamata(leggi, vad)
+                            gestisci_chiamata(leggi, vad, list(ring))
                         except sd.PortAudioError:
                             raise  # il microfono e' saltato: lo riapre il ciclo esterno
                         except Exception as e:  # un errore nella conversazione non deve spegnere l'ascolto

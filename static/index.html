@@ -563,12 +563,24 @@ async function init() {
         b.onmouseenter = () => b.style.borderColor = 'var(--red)'; b.onmouseleave = () => b.style.borderColor = 'var(--red-dim)';
         b.onclick = () => api('/api/ascolto/soglia', { method: 'POST', body: JSON.stringify({ valore: v }) }).then(() => { sens.querySelectorAll('button').forEach(x => x.style.background = 'transparent'); b.style.background = 'rgba(255,42,61,.25)'; }).catch(() => {}); sens.append(b); });
       pk.querySelectorAll('.sens').forEach(x => x.remove()); sens.className = 'sens'; L.after(sens);
+      try { const vs = await (await api('/api/voce')).json(); const vb = document.createElement('div'); vb.className = 'sens'; vb.style.cssText = 'display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap';
+        vb.innerHTML = '<span style="font:10px ui-monospace,monospace;letter-spacing:.12em;color:var(--dim);text-transform:uppercase">La mia voce</span>';
+        const bt = (testo, f, evid) => { const b = document.createElement('button'); b.textContent = testo; b.style.cssText = 'padding:6px 10px;background:' + (evid ? 'rgba(255,42,61,.25)' : 'transparent') + ';border:1px solid var(--red-dim);color:var(--text);cursor:pointer;font-size:12px';
+          b.onmouseenter = () => b.style.borderColor = 'var(--red)'; b.onmouseleave = () => b.style.borderColor = 'var(--red-dim)'; b.onclick = f; vb.append(b); return b; };
+        const chiudiPk = () => { pk.classList.remove('on'); $('#pk-q').style.display = ''; };
+        bt(vs.campioni ? 'Aggiungi una registrazione (' + vs.campioni + ' salvate)' : 'Impara la mia voce', () => { chiudiPk(); window.jarvisApri?.voce(); });
+        if (vs.campioni) {
+          bt(vs.spento ? 'Riconoscimento: SPENTO (accendi)' : 'Riconoscimento: ACCESO (spegni)', () => api('/api/voce/interruttore', { method: 'POST', body: JSON.stringify({ attivo: vs.spento }) }).then(chiudiPk).catch(() => {}), !vs.spento);
+          [['Severa', 0.40], ['Normale', 0.30], ['Larga', 0.22]].forEach(([n, v]) => bt(n + ' (' + v + ')', () => api('/api/voce/soglia', { method: 'POST', body: JSON.stringify({ valore: v }) }).then(chiudiPk).catch(() => {}), Math.abs(vs.soglia - v) < 0.01));
+          bt('Ricomincia da capo', () => { if (confirm('Vuoi mettere da parte la tua impronta vocale e registrarla da capo? (Non si perde: va nella cartella _da_eliminare.)')) api('/api/voce/azzera', { method: 'POST', body: '{}' }).then(chiudiPk).catch(() => {}); });
+        }
+        pk.querySelectorAll('.sens.voce').forEach(x => x.remove()); vb.classList.add('voce'); sens.after(vb); } catch (e) {}
       pk.classList.add('on'); };
     const aggiorna = async () => { try { const a = await (await api('/api/ascolto')).json();
       if (a.errore) { asc.textContent = 'ascolto: problema (' + a.errore + ')'; asc.className = 'no'; }
       else if (!a.attivo) { asc.textContent = 'ascolto: spento'; asc.className = 'no'; }
       else if (a.in_ascolto) { asc.className = a.stt ? 'ok' : 'no'; asc.title = 'Clicca per scegliere il microfono. La barra si muove quando senti la tua voce; il numero e\' quanto somiglia a "Hey Jarvis" (serve ' + a.soglia + ').';
-        asc.innerHTML = (a.stt ? 'ascolto in stanza: ' + esc2(a.fase || 'acceso') : 'ascolto acceso, manca il riconoscimento vocale') + `<span class="liv"><i style="width:${Math.round(a.livello * 100)}%"></i></span><span class="mic">${esc2(a.dispositivo || 'microfono predefinito')} · ${a.punteggio.toFixed(2)}</span>`; }
+        asc.innerHTML = (a.stt ? 'ascolto in stanza: ' + esc2(a.fase || 'acceso') : 'ascolto acceso, manca il riconoscimento vocale') + `<span class="liv"><i style="width:${Math.round(a.livello * 100)}%"></i></span><span class="mic">${esc2(a.dispositivo || 'microfono predefinito')} · ${a.punteggio.toFixed(2)}${a.voce_attiva && a.voce_punteggio != null ? ' · voce ' + (a.voce_esito === 'no' ? 'NON riconosciuta ' : 'ok ') + a.voce_punteggio : ''}</span>`; }
       else { asc.textContent = 'ascolto: sto avviando…'; asc.className = ''; } } catch (e) {} };
     aggiorna(); setInterval(aggiorna, 1500); }
 }
@@ -661,7 +673,29 @@ speechSynthesis?.getVoices();
     if (!prep.in_rubrica) nodi.push(h('div', 'err', 'Questa persona non e\' in rubrica: per sicurezza non posso inviare. Salvala prima.'));
     const g = h('div', 'gruppo'); if (prep.in_rubrica) g.append(inv); g.append(btn('Modifica', modifica), btn('Annulla', chiudi, 'alt')); nodi.push(g); mostra(...nodi); }
 
-  window.jarvisApri = { impegni: vistaImpegni, whatsapp: vistaWhatsApp };
+
+  // ---- impara la mia voce ----
+  const FRASI_VOCE = ['Ciao Jarvis, come stai oggi? Che programmi ho per questo pomeriggio?', 'Apri il programma dei negozi e fammi vedere come stanno andando le vendite.',
+    'Scrivi a Marco che domani mattina passo in negozio alle dieci e mezza.', 'Controlla se ho nuove mail importanti e dimmi chi mi ha scritto su WhatsApp.',
+    'Alza il volume della musica e metti su qualcosa di tranquillo.', 'Ricordami di chiamare il fornitore prima di pranzo e di controllare gli ordini.',
+    'Quanto manca alla chiusura? Che tempo fara domani sera?', 'Hey Jarvis, dammi un quadro della giornata con agenda, posta e negozi.'];
+  async function vistaVoce() { apri('Impara la mia voce', 'Resta vicino al microfono e parla con la voce di sempre. La tua impronta vocale resta solo su questo PC.'); attendi('Preparo il riconoscimento (la prima volta scarica un file da 26 MB: puo\' volerci un minuto)…');
+    try { await chiama('/api/voce/prepara', {}); } catch (e) { return guasto(e); }
+    let buone = 0, i = 0, occupato = false;
+    const disegna = (msg, errore) => { const nodi = [];
+      if (i >= FRASI_VOCE.length) nodi.push(h('div', 'dett', 'Hai letto tutte le frasi. Salva la tua voce, oppure registra ancora qualche frase.'));
+      else { nodi.push(h('div', 'sezt', 'Frase ' + (i + 1) + ' di ' + FRASI_VOCE.length), h('div', 'citaz', FRASI_VOCE[i])); }
+      nodi.push(h('div', 'dim', 'Registrazioni buone: ' + buone + (buone < 3 ? ' (ne servono almeno 3)' : '')));
+      if (msg) nodi.push(h('div', errore ? 'err' : 'dett', msg));
+      const g = h('div', 'gruppo');
+      if (i < FRASI_VOCE.length) { const r = btn('● Registra (6 secondi)', async () => { if (occupato) return; occupato = true; let s = 6; r.disabled = true; r.textContent = 'Parla adesso… ' + s;
+          const t = setInterval(() => { s = Math.max(0, s - 1); r.textContent = s ? 'Parla adesso… ' + s : 'Elaboro…'; }, 1000);
+          try { const d = await chiama('/api/voce/registra', { secondi: 6 }); clearInterval(t); occupato = false; if (d.ok) { buone++; i++; disegna('Ottimo, registrata.'); } else disegna('Ho sentito poco (' + d.voce_s + ' secondi di voce): avvicinati al microfono, parla un po\' piu\' forte e riprova.', true); }
+          catch (e) { clearInterval(t); occupato = false; disegna(e.message, true); } }, 'ok'); g.append(r); }
+      if (buone >= 3) g.append(btn('Salva la mia voce', async () => { try { const d = await chiama('/api/voce/salva', {}); apri('Fatto', ''); mostra(h('div', 'dett', 'Ho imparato la tua voce (' + d.campioni + ' registrazioni). Da ora Jarvis risponde solo a te. Se un giorno non ti riconosce, nella finestra del microfono puoi abbassare la severita\' o aggiungere un\'altra registrazione.'), btn('Chiudi', chiudi)); } catch (e) { disegna(e.message, true); } }, buone >= 3 && i >= FRASI_VOCE.length ? 'ok' : ''));
+      g.append(btn('Annulla', async () => { await chiama('/api/voce/annulla', {}).catch(() => {}); chiudi(); }, 'alt')); nodi.push(g); mostra(...nodi); };
+    disegna(''); }
+  window.jarvisApri = { impegni: vistaImpegni, whatsapp: vistaWhatsApp, voce: vistaVoce };
   $('#hud').addEventListener('click', e => { const a = e.target.closest('[data-apri]'); if (!a || !document.body.classList.contains('conbarra')) return; ({ impegni: vistaImpegni, whatsapp: vistaWhatsApp, 'whatsapp-app': () => chiama('/api/whatsapp/app', {}).catch(e => { apri('WhatsApp', ''); guasto(e); }) })[a.dataset.apri]?.(); });
   M.onclick = e => { if (e.target.id === 'int') chiudi(); }; addEventListener('keydown', e => { if (e.key === 'Escape') chiudi(); }); }
 

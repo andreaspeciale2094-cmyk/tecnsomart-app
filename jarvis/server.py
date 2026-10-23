@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agenti, ascolto, auth, interazioni, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import agenti, ascolto, auth, interazioni, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 def _avvio_scaglionato():
@@ -259,10 +259,10 @@ def _chiama(f, *a):
     """Esegue una funzione dei riquadri cliccabili e traduce gli errori in messaggi semplici."""
     try:
         return f(*a)
-    except whatsapp.WhatsAppError as e:
+    except (whatsapp.WhatsAppError, voce_id.VoceError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    except ValueError:
-        return JSONResponse({"error": "Dati non validi."}, status_code=400)
+    except ValueError as e:
+        return JSONResponse({"error": str(e) or "Dati non validi."}, status_code=400)
 
 
 @app.get("/api/impegni")
@@ -345,7 +345,9 @@ def ascolto_stato():
     """Stato vero dell'ascolto in stanza (il programma che sente 'Hey Jarvis' anche a pagina chiusa)."""
     return {"abilitato": config.ENABLE_ASCOLTO, "in_ascolto": ascolto.stato["in_ascolto"], "attivo": ascolto.stato["attivo"],
             "risvegli": ascolto.stato["risvegli"], "errore": ascolto.stato["errore"], "stt": voice.stt_available(), "fase": ascolto.stato["fase"],
-            "livello": round(ascolto.stato["livello"], 2), "punteggio": round(ascolto.stato["punteggio"], 2), "dispositivo": ascolto.stato["dispositivo"], "soglia": ascolto.soglia()}
+            "livello": round(ascolto.stato["livello"], 2), "punteggio": round(ascolto.stato["punteggio"], 2), "dispositivo": ascolto.stato["dispositivo"], "soglia": ascolto.soglia(),
+            "voce_attiva": voce_id.attiva(), "voce_campioni": voce_id.stato()["campioni"], "voce_punteggio": ascolto.stato["voce_punteggio"], "voce_esito": ascolto.stato["voce_esito"],
+            "voce_soglia": voce_id.soglia()}
 
 
 @app.get("/api/ascolto/microfoni")
@@ -372,6 +374,75 @@ def ascolto_soglia(body: Sensibilita, request: Request):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return {"ok": True, "soglia": ascolto.soglia()}
+
+
+def _voce(f):
+    """Esegue un'operazione sulla voce: gli imprevisti diventano un messaggio semplice (e un rigo nel registro degli errori, senza audio)."""
+    try:
+        return f()
+    except (voce_id.VoceError, ValueError, whatsapp.WhatsAppError):
+        raise
+    except Exception as e:
+        logs.log_error(e, "riconoscimento voce")
+        raise voce_id.VoceError("Il riconoscimento della voce ha avuto un problema: riprova.")
+
+
+@app.get("/api/voce")
+def api_voce(request: Request):
+    return _pc_o_errore(request) or voce_id.stato()
+
+
+@app.post("/api/voce/prepara")
+def api_voce_prepara(request: Request):
+    """Controlla il programma e scarica il modello (una volta, ~26 MB)."""
+    def f():
+        voce_id.prepara()
+        voce_id._estrattore()  # lo carica ora: la prima registrazione non aspetta
+        return voce_id.stato()
+    return _pc_o_errore(request) or _chiama(_voce, f)
+
+
+class VoceRegistra(BaseModel):
+    secondi: float = 6
+
+
+@app.post("/api/voce/registra")
+def api_voce_registra(body: VoceRegistra, request: Request):
+    """Registra la voce di Andrea dal microfono dell'ascolto e ne ricava un'impronta (tenuta in attesa finche' non si salva)."""
+    return _pc_o_errore(request) or _chiama(_voce, lambda: voce_id.aggiungi_registrazione(ascolto.registra_secondi(body.secondi)))
+
+
+@app.post("/api/voce/salva")
+def api_voce_salva(request: Request):
+    return _pc_o_errore(request) or _chiama(_voce, lambda: {"campioni": voce_id.conferma()})
+
+
+@app.post("/api/voce/annulla")
+def api_voce_annulla(request: Request):
+    return _pc_o_errore(request) or _chiama(lambda: (voce_id.annulla(), {"ok": True})[1])
+
+
+@app.post("/api/voce/azzera")
+def api_voce_azzera(request: Request):
+    return _pc_o_errore(request) or _chiama(lambda: {"messaggio": voce_id.azzera()})
+
+
+class VoceInterruttore(BaseModel):
+    attivo: bool
+
+
+@app.post("/api/voce/interruttore")
+def api_voce_interruttore(body: VoceInterruttore, request: Request):
+    return _pc_o_errore(request) or _chiama(lambda: (voce_id.interruttore(body.attivo), {"attivo": voce_id.attiva()})[1])
+
+
+class VoceSoglia(BaseModel):
+    valore: float
+
+
+@app.post("/api/voce/soglia")
+def api_voce_soglia(body: VoceSoglia, request: Request):
+    return _pc_o_errore(request) or _chiama(lambda: (voce_id.imposta_soglia(body.valore), {"soglia": voce_id.soglia()})[1])
 
 
 class Microfono(BaseModel):
