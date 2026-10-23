@@ -561,7 +561,7 @@ async function init() {
   if (started) return; started = true;
   try { cfg = await (await api('/api/config')).json(); } catch (e) { started = false; return; }
   if (cfg.stt) $('#mic').title = 'Premi per parlare, premi ancora per inviare (Whisper)';
-  { const h = new Date().getHours(); add(`${h >= 5 && h < 18 ? 'Buongiorno' : 'Buonasera'}${cfg.user ? ' ' + cfg.user : ''}. Dimmi pure.`, 'jarvis'); }
+  add('Sistemi operativi.', 'jarvis');
   loadFillers(); pollInbox(); setInterval(pollInbox, 15000);
   if (cfg.ascolto_stanza) { $('#wake').textContent = '👂 ascolto in stanza'; const asc = $('#asc'); const esc2 = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     asc.onclick = async () => { let d; try { d = await (await api('/api/ascolto/microfoni')).json(); } catch (e) { return; }
@@ -774,6 +774,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261024"></script>
+<script src="/static/rete.js?v=20261025"></script>
 </body>
 </html>
