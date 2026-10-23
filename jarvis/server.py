@@ -22,9 +22,9 @@ def _avvio_scaglionato():
     Prima si vede la pagina; gli altri pezzi partono a pochi secondi di distanza l'uno dall'altro."""
     passi = [
         (1, lambda: whatsapp.avvia_per_ricevere() if config.ENABLE_WHATSAPP_LEGGI else None),  # per ricevere i messaggi deve essere sempre acceso
+        (2, ascolto.avvia),  # l'ascolto per primo: e' quello che Andrea aspetta
         (5, benvenuto.avvia),
         (7, lambda: voice.prepare_fixed()),
-        (9, ascolto.avvia),
         (11, tools.avvia_cache),  # agenda, posta e WhatsApp sempre pronti per i quadri veloci
         (13, telegram_bot.avvia),
         (14, pulizia.avvia),

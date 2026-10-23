@@ -696,7 +696,9 @@ def _ciclo_vero():
                     stato["dispositivo"] = sd.query_devices(dispositivo if dispositivo is not None else sd.default.device[0])["name"]
                 except Exception:
                     stato["dispositivo"] = ""
-                interruzione = {"true": True, "false": False}.get(str(config.ASCOLTO_INTERRUZIONE).strip().lower(), any(p in str(stato["dispositivo"]).lower() for p in _PAROLE_CUFFIE))  # automatico: solo con le cuffie (le casse farebbero sentire a Jarvis la sua voce)
+                con_cuffie = any(p in str(stato["dispositivo"]).lower() for p in _PAROLE_CUFFIE)
+                interruzione = {"true": True, "false": False}.get(str(config.ASCOLTO_INTERRUZIONE).strip().lower(), True)  # "Hey Jarvis" mentre parla lo ferma (soglia piu' alta); con le casse non si usa la sola voce, che farebbe sentire a Jarvis se stesso
+                voce_sopra = 0  # blocchi di voce di fila mentre Jarvis parla (solo cuffie: nessun rischio di sentire se stesso)
                 guadagno = 3.0 if any(p in str(stato["dispositivo"]).lower() for p in _PAROLE_CUFFIE) else 1.0  # microfono delle cuffie bluetooth: piano, lo si alza
                 leggi = lambda: _leggi_blocco(s, rate, np, guadagno)
                 ring = collections.deque(maxlen=26)  # gli ultimi ~2 secondi: dentro c'e' "Hey Jarvis", servono per riconoscere chi lo ha detto
@@ -710,6 +712,24 @@ def _ciclo_vero():
                     if parlando and not interruzione:  # Jarvis sta parlando: senza cuffie non si ascolta (sentirebbe se stesso)
                         continue
                     ring.append(blocco)
+                    if parlando and con_cuffie and str(config.ASCOLTO_INTERRUZIONE).strip().lower() != "false":  # con le cuffie: se parli sopra la voce di Jarvis si ferma e ti ascolta, senza dire "Hey Jarvis"
+                        voce_sopra = voce_sopra + 1 if float(vad.predict(blocco, 640)) > 0.6 else 0
+                        if voce_sopra >= 4:
+                            voce_sopra = 0
+                            interrompi()
+                            logs.log_route("ASCOLTO: interrotto parlando sopra (cuffie)")
+                            try:
+                                gestisci_chiamata(leggi, vad, list(ring))
+                            except sd.PortAudioError:
+                                raise
+                            except Exception as e:
+                                _fase("")
+                                logs.log_error(e, "ascolto: conversazione")
+                            model.reset()
+                            ultimo = time.time()
+                            continue
+                    else:
+                        voce_sopra = 0
                     punteggio = float(model.predict(blocco).get(PAROLA, 0))
                     stato["punteggio"] = max(punteggio, stato["punteggio"] * 0.97)
                     if punteggio >= (max(soglia() + 0.25, 0.6) if parlando else soglia()) and time.time() - ultimo > 2:
