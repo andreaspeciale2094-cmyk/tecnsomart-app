@@ -412,9 +412,35 @@ def trova_finestra(parola: str) -> int | None:
     return trovata[0] if trovata else None
 
 
+_fuori_schermo: dict[int, tuple[int, int, int, int]] = {}  # finestre messe fuori dallo schermo (x, y, larghezza, altezza) da rimettere al loro posto
+
+
+def _metti_fuori_schermo(hwnd: int):
+    """Sposta la finestra lontano dallo schermo senza ridurla (cosi' l'app non si addormenta) e ricorda dov'era."""
+    ctypes, wintypes, u, k = _api()
+    r = wintypes.RECT()
+    u.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(r))
+    if r.left <= -20000:
+        return
+    _fuori_schermo[hwnd] = (r.left, r.top, max(r.right - r.left, 700), max(r.bottom - r.top, 500))
+    u.SetWindowPos(wintypes.HWND(hwnd), None, -32000, -32000, 0, 0, 0x0001 | 0x0004 | 0x0010)  # SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+
+
+def _rimetti_al_posto(hwnd: int):
+    if hwnd not in _fuori_schermo:
+        return
+    ctypes, wintypes, u, k = _api()
+    x, y, w, h = _fuori_schermo.pop(hwnd)
+    larghezza_schermo, altezza_schermo = u.GetSystemMetrics(0), u.GetSystemMetrics(1)
+    x = min(max(x, 0), max(larghezza_schermo - 300, 0))
+    y = min(max(y, 0), max(altezza_schermo - 200, 0))
+    u.SetWindowPos(wintypes.HWND(hwnd), None, x, y, w, h, 0x0004 | 0x0010)  # SWP_NOZORDER | SWP_NOACTIVATE
+
+
 def porta_davanti_veloce(hwnd: int):
     """Porta davanti una finestra gia' trovata con trova_finestra (senza ricontrollare l'elenco, che e' lento)."""
     ctypes, wintypes, u, k = _api()
+    _rimetti_al_posto(hwnd)
     if u.IsIconic(hwnd):
         u.ShowWindow(hwnd, 9)  # SW_RESTORE
     _tasto(0x12)  # un tocco su Alt: Windows altrimenti non lascia passare in primo piano un'altra app
@@ -451,9 +477,14 @@ def precarica_app(uri: str, parola: str, attesa: float = 40.0) -> bool:
     os.startfile(uri)  # type: ignore[attr-defined]
     t0 = time.time()
     while time.time() - t0 < attesa:
-        if trova_finestra(parola):
+        h = trova_finestra(parola)
+        if h:
             logs.log_route(f"APP: {parola} precaricata, finestra comparsa dopo {time.time() - t0:.1f} s")
             time.sleep(2.5)  # il tempo di finire di caricare
+            try:
+                _metti_fuori_schermo(h)  # non si vede piu' neanche per un attimo, ma l'app resta sveglia
+            except Exception as e:
+                logs.log_error(e, "app fuori schermo")
             porta_jarvis_davanti()
             return True
         time.sleep(0.4)

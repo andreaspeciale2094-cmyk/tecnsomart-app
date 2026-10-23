@@ -76,7 +76,7 @@ def scalda():
 
 
 def dati() -> dict:
-    return {"agenda": _con_cache("agenda", 600, _agenda), "mail": _con_cache("mail", 300, _mail), "whatsapp": _con_cache("whatsapp", 20, _whatsapp), "meteo": _con_cache("meteo", 1800, meteo.oggi)}
+    return {"agenda": _con_cache("agenda", 600, _agenda), "mail": _con_cache("mail", 300, _mail), "whatsapp": _con_cache("whatsapp", 8, _whatsapp), "meteo": _con_cache("meteo", 1800, meteo.oggi)}
 
 
 def azzera(chiave: str):

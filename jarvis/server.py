@@ -21,7 +21,7 @@ def _avvio_scaglionato():
     """Quando il PC si accende e' tutto occupato: se Jarvis caricasse insieme voce, ascolto, WhatsApp, Telegram e posta, la schermata arriverebbe piu' tardi.
     Prima si vede la pagina; gli altri pezzi partono a pochi secondi di distanza l'uno dall'altro."""
     passi = [
-        (4, lambda: whatsapp.avvia_per_ricevere() if config.ENABLE_WHATSAPP_LEGGI else None),  # per ricevere i messaggi deve essere sempre acceso
+        (1, lambda: whatsapp.avvia_per_ricevere() if config.ENABLE_WHATSAPP_LEGGI else None),  # per ricevere i messaggi deve essere sempre acceso
         (5, benvenuto.avvia),
         (7, lambda: voice.prepare_fixed()),
         (9, ascolto.avvia),

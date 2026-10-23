@@ -309,8 +309,8 @@ setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.
     if (p.mail) bs += `<div><span class="t">${IC.mail}posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' · ') + '</div>';
     if (p.whatsapp) bs += `<div class="cl" data-apri="whatsapp-app" title="Clicca per aprire WhatsApp"><span class="t">${IC.wa}whatsapp</span><b>${p.whatsapp.messaggi}</b> messaggi da ${p.whatsapp.chat} chat<br><span class="sub" data-apri="whatsapp" title="Leggi e rispondi da qui, con la tua conferma prima dell'invio">rispondi con Jarvis ›</span></div>`;
     if (sx) sx = '<div class="cl" data-apri="impegni" title="Clicca per vedere gli impegni">' + sx + '</div>'; $('#hud-sx').style.display = sx ? 'block' : 'none'; $('#hud-sx').innerHTML = sx; $('#hud-bs').style.display = bs ? 'block' : 'none'; $('#hud-bs').innerHTML = bs; } catch (e) {} }
-  let provePannello = 0; const caricaPannello = async () => { await pannello(); const d = window.panDati || {}; if (!(d.agenda || d.mail || d.whatsapp || d.meteo) && provePannello++ < 24) setTimeout(caricaPannello, 3000); };  // all'accensione i dati arrivano a pezzi: riprova finche' ci sono
-  setTimeout(caricaPannello, 1500); setInterval(pannello, 60000); }
+  let provePannello = 0; const caricaPannello = async () => { await pannello(); const d = window.panDati || {}; if (!d.whatsapp && provePannello++ < 40) setTimeout(caricaPannello, 2000); };  // all'accensione i dati arrivano a pezzi (WhatsApp per ultimo): riprova ogni 2 s finche' c'e' anche WhatsApp
+  setTimeout(caricaPannello, 1000); setInterval(pannello, 15000); }
 { let sv = true; try { sv = localStorage.jarvisChat !== '1'; } catch (e) {} document.body.classList.toggle('solovoce', sv); $('#chatbtn').classList.toggle('on', !sv);
   const mostraChat = on => { document.body.classList.toggle('solovoce', !on); $('#chatbtn').classList.toggle('on', on); try { localStorage.jarvisChat = on ? '1' : '0'; } catch (er) {} if (on) { log.scrollTop = log.scrollHeight; $('#q').focus(); } };
   $('#chatbtn').onclick = () => mostraChat(document.body.classList.contains('solovoce'));
@@ -790,6 +790,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261028"></script>
+<script src="/static/rete.js?v=20261029"></script>
 </body>
 </html>
