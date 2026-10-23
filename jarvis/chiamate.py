@@ -44,7 +44,10 @@ def avvia(cid: str) -> str:
         raise ChiamataError("La chiamata e' scaduta: preparala di nuovo.")
     if config.TELEFONO_URL:  # la chiamata la fa il telefono, senza finestre sul PC
         try:
-            r = httpx.get(config.TELEFONO_URL, params={"numero": p["numero"], "chiave": config.TELEFONO_CHIAVE}, timeout=8)
+            parametri = {"numero": "+" + p["numero"]}  # il telefono compone il numero con il prefisso internazionale
+            if config.TELEFONO_CHIAVE:
+                parametri["chiave"] = config.TELEFONO_CHIAVE
+            r = httpx.get(config.TELEFONO_URL, params=parametri, timeout=8)
         except httpx.HTTPError:
             raise ChiamataError("Non raggiungo il telefono: controlla che sia acceso, con Tailscale e MacroDroid attivi.")
         if r.status_code >= 400:
