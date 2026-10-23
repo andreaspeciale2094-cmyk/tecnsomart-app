@@ -8,6 +8,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exec } from 'node:child_process';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { registra, registraStorico, impostaNomi, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
@@ -25,6 +26,17 @@ if (!existsSync(TOKEN_FILE)) writeFileSync(TOKEN_FILE, randomBytes(32).toString(
 const TOKEN = readFileSync(TOKEN_FILE, 'utf8').trim();
 
 abilitaArchivio(join(DATI, 'archivio.bin'), join(DATI, 'archivio.key'));  // i messaggi si salvano cifrati sul PC e si ritrovano all'accensione
+// Il codice si vede anche in una pagina del browser (il disegno nella finestra nera a volte e' troppo grande o storto)
+async function apriQrNelBrowser(testo) {
+  try {
+    const { default: QR } = await import('qrcode');
+    const img = await QR.toDataURL(testo, { width: 420, margin: 2 });
+    const file = join(DATI, 'qr.html');
+    writeFileSync(file, `<!doctype html><meta charset="utf-8"><title>Collega WhatsApp</title><body style="font-family:sans-serif;text-align:center;background:#fff;color:#000"><h2>Scansiona con WhatsApp</h2><p>Telefono: WhatsApp &gt; Impostazioni &gt; Dispositivi collegati &gt; Collega un dispositivo</p><img src="${img}"><p>Il codice cambia ogni ~20 secondi: se non funziona, guarda la finestra nera e riprova con il nuovo.</p></body>`);
+    if (process.platform === 'win32') exec(`start "" "${file}"`);
+    console.log('Ho aperto il codice anche nel browser (file memoria\\whatsapp\\qr.html).');
+  } catch (e) { console.log('(Non riesco ad aprire il codice nel browser: usa quello qui sopra.)'); }
+}
 const stato = { connesso: false, bisogna_qr: false, bloccato: false, errore: '', storia: { ricevuta: 0, ultimo: 0 } };
 let sock = null;
 
@@ -48,6 +60,7 @@ async function avvia() {
       if (MOSTRA_QR) {
         console.log('\nScansiona questo codice con WhatsApp sul telefono: Impostazioni > Dispositivi collegati > Collega un dispositivo.\n');
         qrcode.generate(u.qr, { small: true });
+        apriQrNelBrowser(u.qr);
       }
     }
     if (u.connection === 'open') {
