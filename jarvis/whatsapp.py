@@ -43,7 +43,11 @@ def _numero(testo: str) -> str:
     return n
 
 
-def _carica() -> dict:
+RUBRICA_GOOGLE = RUBRICA.parent / "rubrica_google.json"  # copia dei contatti di Google, rifatta ogni volta che si sincronizza (solo sul PC)
+
+
+def _carica_manuale() -> dict:
+    """Solo le voci salvate a mano o importate dal CSV (memoria/rubrica.json): e' l'unico file in cui si scrive."""
     if not RUBRICA.exists():
         return {}
     try:
@@ -52,11 +56,24 @@ def _carica() -> dict:
         raise WhatsAppError("Il file memoria\\rubrica.json non e' leggibile. Non l'ho toccato.")
 
 
+def _carica() -> dict:
+    """La rubrica che si usa: i contatti di Google (sempre aggiornati) + le voci a mano il cui numero non e' gia' in Google (cosi' un nome cambiato dal telefono non resta doppio)."""
+    manuale = _carica_manuale()
+    if not RUBRICA_GOOGLE.exists():
+        return manuale
+    try:
+        google = json.loads(RUBRICA_GOOGLE.read_text(encoding="utf-8"))
+    except ValueError:
+        return manuale
+    numeri = set(google.values())
+    return {**{k: v for k, v in manuale.items() if v not in numeri}, **google}
+
+
 def salva_contatto(nome: str, numero: str) -> str:
     nome = " ".join(nome.split())[:40]
     if not nome:
         raise WhatsAppError("Dimmi il nome della persona.")
-    rubrica = _carica()
+    rubrica = _carica_manuale()
     rubrica[nome] = _numero(numero)
     RUBRICA.parent.mkdir(parents=True, exist_ok=True)
     RUBRICA.write_text(json.dumps(rubrica, ensure_ascii=False, indent=1), encoding="utf-8")

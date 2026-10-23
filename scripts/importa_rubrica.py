@@ -24,7 +24,7 @@ def main():
     tel_cols = [i for i, h in enumerate(header) if re.search(r"(phone|telefono).*(value|valore)", h.lower())]
     if not nome_cols or not tel_cols:
         return print("Non riconosco le colonne del file: va bene l'esportazione CSV di Google Contatti.")
-    rubrica = whatsapp._carica()
+    rubrica = whatsapp._carica_manuale()
     nuovi = saltati = 0
     for r in dati:
         nome = " ".join(r[i].strip() for i in nome_cols if i < len(r) and r[i].strip())[:40]

@@ -1,4 +1,4 @@
-from .. import chiamate
+from .. import chiamate, rubrica_sync
 
 _NOTA = "Non puoi rispondere alle chiamate ne' parlare: avvii soltanto la chiamata dal PC. Nomi e numeri non vanno in memoria ne' nei riassunti."
 SCHEMAS = [
@@ -13,17 +13,23 @@ SCHEMAS = [
                         "Non funziona nello stesso turno della preparazione. Mai in background. " + _NOTA),
         "input_schema": {"type": "object", "properties": {"id_chiamata": {"type": "string"}}, "required": ["id_chiamata"]},
     },
+    {
+        "name": "rubrica_sincronizza",
+        "description": "Aggiorna adesso la rubrica con i contatti Google di Andrea (nomi e numeri cambiati dal telefono). Di solito si aggiorna da sola ogni 3 ore. Non mostrare nomi o numeri.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 
 def _prova(fn, *a):
     try:
         return fn(*a)
-    except chiamate.ChiamataError as e:
+    except (chiamate.ChiamataError, rubrica_sync.RubricaError) as e:
         return f"Errore: {e}"
 
 
 HANDLERS = {
     "chiama_prepara": lambda chi: _prova(chiamate.prepara, chi),
     "chiama_avvia": lambda id_chiamata: _prova(chiamate.avvia, id_chiamata),
+    "rubrica_sincronizza": lambda: _prova(rubrica_sync.sincronizza),
 }
