@@ -1,4 +1,5 @@
 """Il cervello: Claude + ciclo di tool use + memoria."""
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -71,6 +72,16 @@ def esegui_strumenti(blocchi: list, unattended: bool, log: list[str]) -> list[di
     return [{"type": "tool_result", "tool_use_id": b.id, "content": out} for b, out in zip(blocchi, outs)]
 
 
+_RAGIONA = re.compile(r"\b(perch[eé]|come mai|conviene|meglio|confront\w*|decid\w*|consigli\w*|pianific\w*|strategia|organizz\w*|priorit\w*|analizz\w*|valut\w*|cosa ne pensi|che ne pensi|dovrei|secondo te|riassum\w*|quadro|situazione|prepara\w*|scriv\w*|rispond\w*)\b", re.IGNORECASE)
+
+
+def _effort(query: str) -> str:
+    """Quanto ragionare: poco per le cose semplici (piu' veloce), di piu' quando c'e' da pensare, decidere o scrivere."""
+    if config.EFFORT != "auto":
+        return config.EFFORT
+    return "medium" if (len(query.split()) > 14 or _RAGIONA.search(query or "")) else "low"
+
+
 def think_stream(history: list[dict], unattended: bool = False, summary: str = ""):
     """Ciclo agentico a pezzi: produce eventi {"type": "text"|"tool"|"done", ...}.
     Il testo arriva man mano che Claude lo scrive, cosi' Jarvis puo' parlare subito."""
@@ -90,7 +101,7 @@ def think_stream(history: list[dict], unattended: bool = False, summary: str = "
         with client.messages.stream(
             model=config.MODEL,
             max_tokens=4096,  # il "pensiero" conta nel limite
-            output_config={"effort": config.EFFORT},
+            output_config={"effort": _effort(query)},
             system=system_blocks(query, unattended, summary),
             tools=schemas + SERVER_TOOLS,
             messages=history,
@@ -111,7 +122,7 @@ def think_stream(history: list[dict], unattended: bool = False, summary: str = "
             return
 
         history.append({"role": "user", "content": esegui_strumenti([b for b in resp.content if b.type == "tool_use"], unattended, log)})
-    msg = "Ho raggiunto il limite di passaggi su questa richiesta, signore."
+    msg = "Mi sono perso in troppi passaggi: prova a dividere la richiesta."
     yield {"type": "text", "delta": msg}
     yield {"type": "done", "reply": msg, "tools": log}
 

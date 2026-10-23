@@ -97,7 +97,7 @@ GROQ_STT_MODEL = os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo")  # ricono
 ENABLE_ROUTER = bool(GROQ_API_KEY) and _flag("JARVIS_ROUTER", True)
 
 # Quanto "pensa" Claude: low (veloce ed economico, consigliato), medium, high.
-EFFORT = os.getenv("JARVIS_EFFORT", "low")
+EFFORT = os.getenv("JARVIS_EFFORT", "auto")  # "auto" = basso per le cose semplici, medio quando c'e' da ragionare (o low/medium/high fisso)
 
 # Prezzi in dollari per milione di token, usati SOLO per il costo stimato nel registro consumi.
 # Claude Sonnet 5.5 (listino Anthropic). Groq: controlla il listino sul loro sito e correggi se serve.

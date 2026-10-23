@@ -6,8 +6,8 @@ SCHEMAS = [
         "description": (
             "Briefing e agenda: data e ora, e gli impegni del giorno dal calendario PERSONALE e dal calendario di LAVORO, tenuti separati. "
             "Usalo quando l'utente dice buongiorno o chiede gli impegni, l'agenda o gli appuntamenti di oggi, di domani o di un altro giorno. "
-            "Racconta a voce in modo naturale e breve (fino a 6 frasi): saluta secondo l'ora, di' la data, poi gli impegni personali, poi quelli di lavoro, "
-            "in ordine di orario, dicendo chiaramente quando non ce ne sono. Se un calendario risulta non collegato o in errore, dillo con parole semplici. "
+            "Racconta a voce in modo naturale e BREVE (al massimo quattro frasi): prima cio' che conta di oggi, in ordine di orario, distinguendo personale e lavoro solo se serve; se non ci sono impegni dillo in una frase. "
+            "La data dilla solo se e' utile, il saluto solo se ti hanno salutato. Se un calendario risulta non collegato o in errore, dillo con parole semplici. "
             "Il treno non e' ancora collegato: non parlarne. Se per oggi (e solo per il briefing di OGGI) hai anche lo strumento banca_riepilogo, "
             "chiamalo con giorni=7 e aggiungi UNA frase sul saldo e su eventuali pagamenti in attesa; se la banca da' errore, non insistere e non dirlo. "
             "Non salvare gli impegni ne' i soldi in memoria."

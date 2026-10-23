@@ -11,7 +11,7 @@ ESCAPE = "@@CLAUDE@@"
 
 # Se compare una di queste parole serve Claude (strumenti, memoria, ricerche, ragionamento, testi lunghi).
 _HARD = re.compile(
-    r"\b(ricord\w*|dimentic\w*|memoria|cerca\w*|ricerc\w*|notizi\w*|meteo|che tempo|prezz\w*|costa|costano|treno|treni|amazon|"
+    r"\b(quadro|situazione|giornata|aggiornami|aggiornamenti|novit\w*|cosa devo sapere|ricord\w*|dimentic\w*|memoria|cerca\w*|ricerc\w*|notizi\w*|meteo|che tempo|prezz\w*|costa|costano|treno|treni|amazon|"
     r"riassum\w*|riassunt\w*|scriv\w*|spieg\w*|perch[eé]|confront\w*|analizz\w*|consigli\w*|codice|programm\w*|"
     r"chiud\w*|apri\w*|avvia\w*|lancia\w*|volume|muto|blocca\w*|standby|spegni\w*|riavvia\w*|pulisci|pulizia|mail|e-mail|email|posta|bozza|rispond\w*|calendari\w*|whatsapp|telegram|file|cartella|crea\w*|genera\w*|calcol\w*|piano|strategia|"
     r"negozi\w*|addett\w*|banc\w*|conto|conti|saldo|movimenti|abbonament\w*|cassa|contant\w*|prelev\w*|spes[aeio]\b|ragazz\w*|focus|report|giornalier\w*|target|colloqui\w*|impegn\w*|agenda|appuntament\w*|riunion\w*|briefing|chi (?:è|e'|ha)|quando (?:è|e'|ha)|oggi su|ultim[ei])\b",
@@ -23,7 +23,7 @@ def is_simple(text: str, history: list[dict]) -> bool:
     t = text.strip()
     if config.ENABLE_AGENDA and re.search(r"\bbuon\s?g\w*|\bbuond\w*", t, re.IGNORECASE):
         return False  # con l'agenda attiva, il buongiorno e' il briefing: serve Claude con gli strumenti
-    if not t or len(t) > 140 or len(t.split()) > 22:
+    if not t or len(t) > 90 or len(t.split()) > 14:  # a Groq solo le cose davvero brevi e banali
         return False
     if _HARD.search(t):
         return False

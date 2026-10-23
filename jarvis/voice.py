@@ -1,3 +1,4 @@
+import hashlib
 """Voce naturale: TTS (ElevenLabs / OpenAI) e STT (Whisper)."""
 import asyncio
 import re
@@ -159,15 +160,15 @@ def transcribe(audio: bytes, content_type: str) -> str:
 # ---- Frasi fisse: create una volta, salvate su disco, riprodotte subito mentre Jarvis pensa ----
 FIXED_DIR = Path(__file__).parent.parent / "audio_fisse"
 FIXED_PHRASES = {
-    "attesa1": "Un attimo, signore.",
+    "attesa1": "Un attimo.",
     "attesa2": "Ci penso io.",
     "attesa3": "Subito.",
     "attesa4": "Vediamo.",
     # dette se un lavoro dura piu' di 3 secondi (mai silenzio)
-    "stato_cerca": "Sto cercando online, signore.",
+    "stato_cerca": "Sto cercando online.",
     "stato_pagina": "Sto leggendo la pagina.",
     "stato_memoria": "Controllo la memoria.",
-    "stato_ancora": "Ci sto ancora lavorando, signore.",
+    "stato_ancora": "Ci sto ancora lavorando.",
 }
 
 
@@ -180,12 +181,13 @@ def fixed_audio(key: str) -> bytes:
     """Audio della frase fissa. Se cambi voce, si rigenera da sola (nome file = voce)."""
     text = FIXED_PHRASES[key]
     FIXED_DIR.mkdir(exist_ok=True)
+    marca = hashlib.md5(text.encode("utf-8")).hexdigest()[:6]  # se cambio la frase, il file vecchio non si usa piu' e se ne crea uno nuovo
     for name, _ in _providers():  # la voce migliore disponibile che ha gia' il file
-        f = FIXED_DIR / f"{name}_{_voice_id(name)}_{key}.mp3"
+        f = FIXED_DIR / f"{name}_{_voice_id(name)}_{key}_{marca}.mp3"
         if _down.get(name, 0) <= time.time() and f.exists():
             return f.read_bytes()
     audio, name = synthesize_named(text)
-    (FIXED_DIR / f"{name}_{_voice_id(name)}_{key}.mp3").write_bytes(audio)
+    (FIXED_DIR / f"{name}_{_voice_id(name)}_{key}_{marca}.mp3").write_bytes(audio)
     return audio
 
 
