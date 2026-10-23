@@ -8,7 +8,9 @@ import sys
 import time
 import uuid
 
-from . import logs, posta, whatsapp
+import httpx
+
+from . import config, logs, posta, whatsapp
 
 _pronte: dict[str, dict] = {}
 
@@ -40,6 +42,16 @@ def avvia(cid: str) -> str:
     if time.time() - p["t"] > 600:
         _pronte.pop(cid, None)
         raise ChiamataError("La chiamata e' scaduta: preparala di nuovo.")
+    if config.TELEFONO_URL:  # la chiamata la fa il telefono, senza finestre sul PC
+        try:
+            r = httpx.get(config.TELEFONO_URL, params={"numero": p["numero"], "chiave": config.TELEFONO_CHIAVE}, timeout=8)
+        except httpx.HTTPError:
+            raise ChiamataError("Non raggiungo il telefono: controlla che sia acceso, con Tailscale e MacroDroid attivi.")
+        if r.status_code >= 400:
+            raise ChiamataError("Il telefono ha risposto con un errore: controlla la regola in MacroDroid.")
+        del _pronte[cid]
+        logs.log_azione("CHIAMATA avviata dal telefono (numero non salvato)")
+        return f"Ho mandato al telefono il comando di chiamare {p['nome']}. Non dire 'sta squillando': non lo sai."
     if sys.platform != "win32":
         raise ChiamataError("Le chiamate si avviano solo dal PC Windows di Andrea.")
     try:
