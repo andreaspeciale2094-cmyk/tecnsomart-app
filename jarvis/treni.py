@@ -142,3 +142,33 @@ def stato(ora: str = "", turno: str = "", stazione: str = "", direzione: str = "
     if not prossimi:
         return f"Non vedo partenze da {nome}" + (f" verso {direzione}" if direzione else "") + " nei dati: controlla l'app Trenord."
     return f"Prossime da {nome}" + (f" verso {direzione}" if direzione else "") + ": " + "; ".join(_etichetta(t) for t in prossimi) + "."
+
+
+def fascia(da: str, a: str, giorno: str = "", stazione: str = "", direzione: str = "") -> str:
+    """Treni in partenza da una stazione tra due orari (anche domani). Il servizio da' le partenze di circa un'ora e mezza, quindi si chiede a passi."""
+    imp = _impostazioni()
+    fuso = ZoneInfo(config.FUSO)
+    oggi = datetime.now(fuso)
+    base = oggi + timedelta(days=1) if giorno.strip().lower() in ("domani", "tomorrow") else oggi
+    nome, codice = codice_stazione(stazione.strip() or imp["partenza"])
+    sua = not stazione.strip() or stazione.strip().lower() == str(imp["partenza"]).lower()
+    parole = [p.strip().upper() for p in (direzione.replace(",", " ").split() if direzione.strip() else (imp["direzione"] if sua else []))]
+    h1, m1 = (int(x) for x in da.replace(".", ":").split(":")) if da else (oggi.hour, oggi.minute)
+    h2, m2 = (int(x) for x in a.replace(".", ":").split(":")) if a else (min(h1 + 3, 23), m1)
+    inizio = base.replace(hour=h1, minute=m1, second=0, microsecond=0)
+    fine = base.replace(hour=h2, minute=m2, second=0, microsecond=0)
+    trovati: dict[str, dict] = {}
+    q = inizio
+    while q <= fine + timedelta(minutes=45):
+        for t in partenze(codice, q):
+            o = _ora_partenza(t)
+            if o and f"{h1:02d}:{m1:02d}" <= o <= f"{h2:02d}:{m2:02d}":
+                trovati[f"{t.get('numeroTreno')}-{o}"] = t
+        q += timedelta(minutes=60)
+    giusti = sorted((t for t in trovati.values() if not parole or any(p in str(t.get("destinazione", "")).upper() for p in parole)), key=_ora_partenza)
+    logs.log_route(f"TRENI: fascia {h1:02d}:{m1:02d}-{h2:02d}:{m2:02d} da {nome}: {len(trovati)} partenze lette, {len(giusti)} mostrate")
+    quando = "domani" if base.date() != oggi.date() else "oggi"
+    if not giusti:
+        extra = " Gli orari di domani il servizio spesso non li ha ancora." if quando == "domani" else ""
+        return f"Non vedo partenze da {nome} tra le {da or 'adesso'} e le {a} ({quando}) nei dati.{extra} Non vuol dire che non ci siano treni: controlla l'orario sull'app Trenord."
+    return f"Da {nome}, {quando}, tra le {h1:02d}:{m1:02d} e le {h2:02d}:{m2:02d}: " + "; ".join(_etichetta(t) for t in giusti[:12]) + "."

@@ -45,21 +45,27 @@ with sync_playwright() as p:
     campo = None
     for sel in ("input[placeholder*='tazione' i]", "input[aria-label*='tazione' i]", "input[type='search']", "input[type='text']"):
         loc = pag.locator(sel)
-        if loc.count():
-            campo = loc.first
+        for i in range(loc.count()):
+            if loc.nth(i).is_visible():
+                campo = loc.nth(i)
+                break
+        if campo is not None:
             break
     if campo is None:
         print("Non trovo il campo della stazione nella pagina.")
     else:
-        campo.click()
-        campo.fill(stazione)
-        pag.wait_for_timeout(2500)
         try:
-            pag.get_by_text(re.compile(stazione, re.I)).nth(1).click(timeout=3000)
-        except Exception:
-            pag.keyboard.press("ArrowDown")
-            pag.keyboard.press("Enter")
-        pag.wait_for_timeout(6000)
+            campo.click(timeout=5000)
+            campo.fill(stazione)
+            pag.wait_for_timeout(2500)
+            try:
+                pag.get_by_text(re.compile(stazione, re.I)).nth(1).click(timeout=3000)
+            except Exception:
+                pag.keyboard.press("ArrowDown")
+                pag.keyboard.press("Enter")
+            pag.wait_for_timeout(6000)
+        except Exception as e:
+            print("Non sono riuscito a scrivere nel campo:", str(e)[:150])
     testo = pag.inner_text("body")
     (CARTELLA / "trenord_pagina.txt").write_text(testo, encoding="utf-8")
     pag.screenshot(path=str(CARTELLA / "trenord_pagina.png"), full_page=True)
