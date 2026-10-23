@@ -41,6 +41,7 @@ const stato = { connesso: false, bisogna_qr: false, bloccato: false, errore: '',
 let sock = null;
 
 async function avvia() {
+  if (MOSTRA_QR) console.log('Mi collego a WhatsApp, attendi qualche secondo...');
   const { state, saveCreds } = await useMultiFileAuthState(AUTH);
   const { version } = await fetchLatestBaileysVersion();
   sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), syncFullHistory: true, shouldSyncHistoryMessage: () => true, markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
@@ -83,6 +84,7 @@ async function avvia() {
     if (u.connection === 'close') {
       stato.connesso = false;
       const codice = u.lastDisconnect?.error?.output?.statusCode;
+      if (MOSTRA_QR) console.log(`(connessione chiusa, codice ${codice ?? '?'}: ${String(u.lastDisconnect?.error?.message || '').slice(0, 80)} - riprovo)`);
       if (codice === DisconnectReason.loggedOut) {
         stato.errore = 'Il telefono ha scollegato Jarvis: va rifatto il collegamento con il codice.';
         stato.bisogna_qr = true;
@@ -93,7 +95,7 @@ async function avvia() {
         stato.errore = "WhatsApp ha limitato il numero. Jarvis non invia piu' messaggi.";
         return;
       }
-      setTimeout(() => avvia().catch(() => {}), 3000);
+      setTimeout(() => avvia().catch((e) => { if (MOSTRA_QR) console.log('ERRORE: ' + String(e?.message || e).slice(0, 200)); }), 3000);
     }
   });
 }
