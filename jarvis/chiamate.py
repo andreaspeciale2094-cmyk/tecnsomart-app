@@ -19,7 +19,8 @@ class ChiamataError(Exception):
     """Errore con un messaggio gia' in italiano semplice."""
 
 
-def prepara(chi: str) -> str:
+def prepara_veloce(chi: str) -> tuple[str, str]:
+    """(id, nome) della chiamata preparata, senza avviarla."""
     try:
         nome, numero, in_rubrica = whatsapp._trova(chi)
     except whatsapp.WhatsAppError as e:
@@ -28,16 +29,23 @@ def prepara(chi: str) -> str:
         _pronte.pop(k, None)  # le chiamate preparate scadono dopo 10 minuti
     cid = uuid.uuid4().hex[:6]
     _pronte[cid] = {"nome": nome, "numero": numero, "turno": posta.turno(), "t": time.time()}
+    return cid, nome
+
+
+def prepara(chi: str) -> str:
+    cid, nome = prepara_veloce(chi)
+    numero = _pronte[cid]["numero"]
     cifre = numero[-10:] if len(numero) > 10 else numero
     return (f"CHIAMATA {cid} a {nome} (numero che finisce per {cifre[-4:]}), non ancora avviata. "
             "Chiedi ad Andrea: 'Chiamo {nome}?'. Solo dopo il suo si' in un messaggio successivo usa chiama_avvia.").replace("{nome}", nome)
 
 
-def avvia(cid: str) -> str:
+def avvia(cid: str, da_voce: bool = False) -> str:
+    """da_voce=True solo dal percorso veloce dell'ascolto in stanza, che ha chiesto 'Chiamo X?' e ha sentito il si' di Andrea in una frase SUCCESSIVA."""
     p = _pronte.get(cid)
     if not p:
         raise ChiamataError("Non trovo quella chiamata: preparala di nuovo.")
-    if p["turno"] == posta.turno():
+    if p["turno"] == posta.turno() and not da_voce:
         raise ChiamataError("Prima Andrea deve sentire a chi chiami e dirti di si': aspetta il suo si'.")
     if time.time() - p["t"] > 600:
         _pronte.pop(cid, None)

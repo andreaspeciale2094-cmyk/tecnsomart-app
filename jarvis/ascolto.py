@@ -318,6 +318,42 @@ _APRI = re.compile(r"^\W*(?:apri|avvia|lancia|fammi partire)(?:mi)?\W+(?:l[ao']\
 _VOLUME = re.compile(r"^\W*(?:(?:alza|aumenta|metti piu' alto)\s+(?:il\s+)?volume|volume\s+(?:su|piu'? alto)|(?:abbassa|diminuisci)\s+(?:il\s+)?volume|volume\s+(?:giu'?|piu'? basso)|muto|togli l'audio|metti il muto)\W*$", re.IGNORECASE)
 
 
+_CHIAMA = re.compile(r"^\W*(?:chiama(?:mi)?|telefona(?:\s+a)?|fai(?:mi)? una telefonata a|fai partire una chiamata a)\W+(?:a\s+|il\s+|la\s+|l'\s*)?(.+?)\W*$", re.IGNORECASE)
+_SI = re.compile(r"^\W*(?:s[iì]|certo|ok|okay|vai|esatto|conferma|confermo|procedi|va bene|chiama pure|dai)\W*$", re.IGNORECASE)
+_chiamata_pronta = {"id": "", "nome": "", "t": 0.0}
+
+
+def chiamata_veloce(testo: str) -> str | None:
+    """'Chiama Marco' senza passare dal cervello: prima chiede 'Chiamo Marco?', e solo con un 'si'' detto DOPO (frase successiva) fa partire la chiamata dal telefono.
+    Ritorna cosa dire, oppure None se non e' una chiamata (e allora si va avanti come sempre)."""
+    if not config.ENABLE_CHIAMATE:
+        return None
+    from . import chiamate
+
+    t = testo.strip()
+    if _chiamata_pronta["id"]:
+        cid, nome, attesa = _chiamata_pronta["id"], _chiamata_pronta["nome"], time.time() - _chiamata_pronta["t"]
+        _chiamata_pronta.update(id="", nome="", t=0.0)  # una conferma vale una volta sola: qualunque cosa si dica dopo la azzera
+        if attesa < 60 and _SI.match(t):
+            try:
+                chiamate.avvia(cid, da_voce=True)
+                return f"Faccio partire la chiamata a {nome}."
+            except chiamate.ChiamataError as e:
+                return str(e).replace("Errore: ", "")
+        if attesa < 60 and re.match(r"^\W*(?:no|annulla|lascia stare|fermati|stop|aspetta)\W*$", t, re.IGNORECASE):
+            return "Va bene, non chiamo."
+    m = _CHIAMA.match(t)
+    if not m:
+        return None
+    nome = re.sub(r"\s+(?:per favore|per piacere|grazie|subito|adesso|ora)$", "", m.group(1).strip(), flags=re.IGNORECASE)
+    try:
+        cid, nome_vero = chiamate.prepara_veloce(nome)
+    except chiamate.ChiamataError as e:
+        return str(e)
+    _chiamata_pronta.update(id=cid, nome=nome_vero, t=time.time())
+    return f"Chiamo {nome_vero}?"
+
+
 def comando_veloce(testo: str) -> str | None:
     """Comandi semplici e innocui (apri un'app, volume, blocca, desktop): partono subito, senza aspettare il cervello.
     Ritorna cosa dire, oppure None se non e' un comando semplice."""
@@ -394,7 +430,9 @@ def gestisci_chiamata(leggi, vad, pre=None):
             _scarta_audio_della_voce(leggi)
             primo = False
             continue
-        rapido = comando_veloce(resto or testo)
+        rapido = chiamata_veloce(resto or testo)
+        if rapido is None:
+            rapido = comando_veloce(resto or testo)
         if rapido is not None:
             parla(rapido)
             _scarta_audio_della_voce(leggi)
