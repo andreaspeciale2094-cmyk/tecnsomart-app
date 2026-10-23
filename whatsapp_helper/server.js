@@ -56,7 +56,9 @@ async function avvia() {
   if (MOSTRA_QR) console.log('Mi collego a WhatsApp, attendi qualche secondo...');
   const { state, saveCreds } = await useMultiFileAuthState(AUTH);
   const { version } = await fetchLatestBaileysVersion();
-  sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), ...(chiusure >= 3 ? {} : { syncFullHistory: true, shouldSyncHistoryMessage: () => true }), markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
+  const provaVersioneInterna = chiusure >= 3 && chiusure % 2 === 1;  // dopo 3 chiusure si alternano la versione scaricata e quella inclusa nel programma
+  if (MOSTRA_QR && chiusure >= 3) console.log(provaVersioneInterna ? '  (provo con la versione di WhatsApp inclusa nel programma)' : '  (provo con la versione di WhatsApp piu\' recente)');
+  sock = makeWASocket({ ...(provaVersioneInterna ? {} : { version }), auth: state, logger: pino({ level: MOSTRA_QR ? 'warn' : 'silent' }), browser: Browsers.macOS('Desktop'), ...(chiusure >= 3 ? {} : { syncFullHistory: true, shouldSyncHistoryMessage: () => true }), markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('messages.upsert', ({ messages }) => { for (const m of messages || []) { try { registra(m); } catch (e) {} } });
   sock.ev.on('messaging-history.set', (h) => {
