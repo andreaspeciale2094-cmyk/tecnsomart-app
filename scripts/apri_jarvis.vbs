@@ -13,13 +13,12 @@ Function acceso()
   On Error GoTo 0
 End Function
 
+' Se Jarvis e' gia' acceso si apre subito la pagina; altrimenti lo si accende (nascosto) e si apre SUBITO una schermata di avvio che passa da sola a Jarvis quando e' pronto
+indirizzo = "http://localhost:8000"
 If Not acceso() Then
   sh.CurrentDirectory = cartella
   sh.Run """" & cartella & "\.venv\Scripts\python.exe"" -m uvicorn jarvis.server:app --port 8000", 0, False
-  For i = 1 To 120
-    WScript.Sleep 500
-    If acceso() Then Exit For
-  Next
+  indirizzo = "file:///" & Replace(Replace(cartella, "\", "/"), " ", "%20") & "/scripts/avvio_jarvis.html"
 End If
 
 browser = ""
@@ -30,7 +29,7 @@ If browser = "" Then browser = sh.RegRead("HKLM\SOFTWARE\Microsoft\Windows\Curre
 On Error GoTo 0
 ' tutto schermo vero (senza bordi, copre la barra di Windows): F11 o il pulsante nella barra di Jarvis per uscire; la barra di Jarvis in basso sostituisce quella di Windows
 If browser <> "" Then
-  sh.Run """" & browser & """ --start-fullscreen --app=http://localhost:8000 --user-data-dir=""" & cartella & "\memoria\finestra_jarvis"" --no-first-run", 1, False
+  sh.Run """" & browser & """ --start-fullscreen --app=" & indirizzo & " --user-data-dir=""" & cartella & "\memoria\finestra_jarvis"" --no-first-run", 1, False
 Else
-  sh.Run "http://localhost:8000", 1, False
+  sh.Run indirizzo, 1, False
 End If

@@ -1,24 +1,35 @@
 """Dati per i riquadri della pagina di Jarvis (impegni di oggi, mail non lette, messaggi WhatsApp): solo numeri e il prossimo impegno,
 con una memoria breve per non interrogare ogni volta calendario, posta e WhatsApp. Niente di tutto questo viene salvato."""
+import threading
 import time
 from datetime import datetime
 
 import httpx
 
-from . import agenda, config, meteo, posta, whatsapp
+from . import agenda, config, logs, meteo, posta, whatsapp
 
 _cache: dict[str, tuple[float, object]] = {}
+_in_corso: set[str] = set()
 
 
-def _con_cache(chiave: str, durata: float, f):
-    t, v = _cache.get(chiave, (0.0, None))
-    if time.time() - t < durata:
-        return v
+def _aggiorna(chiave: str, f):
+    t0 = time.time()
     try:
         v = f()
     except Exception:
         v = None
     _cache[chiave] = (time.time(), v)
+    _in_corso.discard(chiave)
+    if time.time() - t0 > 4:
+        logs.log_route(f"PANNELLO: '{chiave}' ha impiegato {time.time() - t0:.1f} s")
+
+
+def _con_cache(chiave: str, durata: float, f):
+    """Mai ad aspettare: se il dato e' scaduto lo rinfresca in sottofondo e intanto da' quello vecchio (la prima volta, niente)."""
+    t, v = _cache.get(chiave, (0.0, None))
+    if time.time() - t >= durata and chiave not in _in_corso:
+        _in_corso.add(chiave)
+        threading.Thread(target=_aggiorna, args=(chiave, f), daemon=True).start()
     return v
 
 
@@ -57,6 +68,11 @@ def _whatsapp():
         return None
     chat = httpx.get(whatsapp.HELPER_URL + "/chat", headers=whatsapp._chiave(), timeout=5).json().get("chat", [])
     return {"chat": len(chat), "messaggi": sum(c["non_lette"] for c in chat)}
+
+
+def scalda():
+    """All'accensione: prepara subito i dati dei riquadri in sottofondo, cosi' la pagina li trova gia' pronti."""
+    dati()
 
 
 def dati() -> dict:

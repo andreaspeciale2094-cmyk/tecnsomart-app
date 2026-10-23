@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>J.A.R.V.I.S.</title>
+<style>
+  html, body { margin:0; height:100%; background:#04050a; color:#ecedf2; font-family:"Segoe UI", system-ui, sans-serif; overflow:hidden; }
+  body { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px;
+    background:radial-gradient(ellipse 60% 50% at 50% 45%, rgba(255,42,61,.16), transparent 70%), linear-gradient(rgba(255,42,61,.035) 1px, transparent 1px) 0 0/44px 44px, linear-gradient(90deg, rgba(255,42,61,.035) 1px, transparent 1px) 0 0/44px 44px, #04050a; }
+  .nucleo { position:relative; width:84px; height:84px; border-radius:50%; background:radial-gradient(circle at 50% 45%, #fff 0, #ff7a86 18%, #ff2a3d 40%, #b3121f 68%, #3a0a10 100%); box-shadow:0 0 36px rgba(255,42,61,.85), 0 0 90px rgba(255,42,61,.4); animation:respira 1.8s ease-in-out infinite; }
+  .nucleo::before, .nucleo::after { content:""; position:absolute; border-radius:50%; border:1px solid rgba(255,42,61,.55); }
+  .nucleo::before { inset:-16px; border-style:dashed; animation:gira 12s linear infinite; } .nucleo::after { inset:-32px; border-color:rgba(255,42,61,.22); animation:gira 22s linear infinite reverse; }
+  h1 { margin:0; letter-spacing:.55em; font-weight:500; font-size:22px; text-shadow:0 0 18px rgba(255,42,61,.8); padding-left:.55em; }
+  #s { font:12px ui-monospace, Consolas, monospace; letter-spacing:.2em; text-transform:uppercase; color:#ff2a3d; }
+  #n { font:11px ui-monospace, Consolas, monospace; letter-spacing:.12em; color:#8b8f9c; min-height:1.4em; text-align:center; max-width:80%; }
+  @keyframes respira { 50% { transform:scale(1.07); filter:brightness(1.15); } } @keyframes gira { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="nucleo"></div>
+<h1>J.A.R.V.I.S.</h1>
+<div id="s">mi sto accendendo…</div>
+<div id="n"></div>
+<script>
+  // Questa schermata si apre subito; Jarvis intanto si accende in sottofondo. Appena risponde si passa alla pagina vera.
+  const inizio = Date.now(), porta = new URLSearchParams(location.search).get('porta') || '8000';
+  async function prova() {
+    try { await fetch('http://127.0.0.1:' + porta + '/api/auth', { mode: 'no-cors', cache: 'no-store' }); document.getElementById('s').textContent = 'pronto'; location.replace('http://localhost:' + porta + '/'); return; } catch (e) {}
+    const sec = Math.round((Date.now() - inizio) / 1000);
+    document.getElementById('n').textContent = sec < 20 ? '' : sec < 90 ? 'Ci sta mettendo un po\'… ' + sec + ' secondi' : 'Ci sta mettendo piu\' del solito (' + sec + ' secondi). Se non parte, spegni Jarvis dal collegamento "Spegni Jarvis" e riaccendilo.';
+    setTimeout(prova, 700);
+  }
+  prova();
+</script>
+</body>
+</html>

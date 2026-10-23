@@ -1,3 +1,5 @@
+import time as _t
+_T0 = _t.time()  # per misurare quanto ci mette ad accendersi
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -29,6 +31,8 @@ async def lifespan(app):
     telegram_bot.avvia()
     ascolto.avvia()
     benvenuto.avvia()
+    pannello.scalda()  # i dati dei riquadri si preparano subito, in sottofondo
+    logs.log_route(f"AVVIO: server pronto in {_t.time() - _T0:.1f} s (dall'inizio del caricamento dei programmi)")
     yield
     pulizia.alla_chiusura()
 
@@ -45,7 +49,10 @@ async def guard(request: Request, call_next):
     if request.url.path.startswith("/api") and request.url.path not in PUBLIC:
         if not auth.valid(request.cookies.get(auth.COOKIE)):
             return JSONResponse({"error": "login richiesto"}, status_code=401)
-    return await call_next(request)
+    risposta = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        risposta.headers["Cache-Control"] = "no-cache"  # il browser controlla sempre se la pagina e' cambiata: dopo una copia dei file si vede subito la versione nuova
+    return risposta
 
 
 @app.post("/api/chiudi")
