@@ -119,13 +119,14 @@
   .ico.dx:hover { background:linear-gradient(270deg, rgba(255,42,61,.30), rgba(255,42,61,.04)); transform:translateX(-4px); }
   .ico:hover .logo { border-color:var(--red); }
   .ico:active { background:rgba(255,42,61,.38); }
+  .ico .bd { flex:none; min-width:clamp(18px,1.3vw,22px); height:clamp(18px,1.3vw,22px); padding:0 5px; border-radius:11px; background:var(--red); color:#fff; font:700 clamp(10px,.75vw,12px) ui-monospace, monospace; letter-spacing:0; display:flex; align-items:center; justify-content:center; box-shadow:0 0 10px rgba(255,42,61,.7); }
   .ico .x { display:none; position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%; background:#1a0a0e; border:1px solid var(--red); color:#fff; font:700 12px/1 sans-serif; align-items:center; justify-content:center; cursor:pointer; z-index:2; }
   .ico.dx .x { right:auto; left:-7px; }
   .ico:hover .x { display:flex; } .ico .x:hover { background:var(--red); }
   /* riquadri cliccabili: cambiano aspetto al passaggio del mouse */
   .box .cl { pointer-events:auto; cursor:pointer; padding:6px 10px; margin:-6px -10px; transition:background .15s, box-shadow .15s, transform .15s; }
   .box .cl:hover { background:linear-gradient(90deg, rgba(255,42,61,.22), transparent); box-shadow:0 0 16px rgba(255,42,61,.3); transform:translateX(3px); }
-  .box .cl:hover .t::after { content:" ↗"; }
+  .box .cl .t::after { content:"  ›"; opacity:.7; font-size:13px; } .box .cl:hover .t::after { content:"  ↗ apri"; opacity:1; }
   .box .cl + .cl, .box div + .cl { margin-top:6px; }
   /* finestra dei dettagli (impegni, WhatsApp) */
   #int { display:none; position:fixed; inset:0; z-index:36; background:rgba(2,2,5,.82); align-items:center; justify-content:center; } #int.on { display:flex; }
@@ -582,14 +583,14 @@ speechSynthesis?.getVoices();
     if (document.hidden) return;
     try { const d = await (await api('/api/desk')).json(); document.querySelectorAll('.desk').forEach(x => x.style.display = d.attiva ? '' : 'none'); if (!d.attiva) return;
       const f = JSON.stringify(d.app.map(a => [a.nome, !!a.icona])); if (f === firmaDesk) return; firmaDesk = f;
-      const sx = [], dx = [];
-      d.app.forEach((a, i) => { const lato = i % 2 === 1; const l = document.createElement('span'); l.className = 'logo';
+      const voci = d.app, sx = [], dx = [];
+      voci.forEach((a, i) => { const lato = i % 2 === 1; const l = document.createElement('span'); l.className = 'logo';
         if (a.icona) { const im = document.createElement('img'); im.src = a.icona; im.alt = ''; l.append(im); } else { const t = document.createElement('span'); t.className = 'let'; t.textContent = a.nome.slice(0, 2).toUpperCase(); l.append(t); }
         const t = tessera(lato, a.nome, l, () => postD('apri', a.nome).catch(() => {}));
         const x = document.createElement('span'); x.className = 'x'; x.textContent = '×'; x.title = 'Togli da questa schermata (l\'app resta sul PC)';
         x.onclick = e => { e.stopPropagation(); postD('togli', a.nome).then(() => { firmaDesk = ''; disegnaDesk(); }).catch(() => {}); }; t.append(x); (lato ? dx : sx).push(t); });
       const l = document.createElement('span'); l.className = 'logo'; l.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
-      const lato = d.app.length % 2 === 1; (lato ? dx : sx).push(tessera(lato, 'aggiungi', l, apriPicker, 'piu'));
+      const lato = voci.length % 2 === 1; (lato ? dx : sx).push(tessera(lato, 'aggiungi', l, apriPicker, 'piu'));
       $('#desk-sx').replaceChildren(...sx); $('#desk-dx').replaceChildren(...dx);
     } catch (e) {}
   }
@@ -632,7 +633,7 @@ speechSynthesis?.getVoices();
     try { const d = await chiama('/api/whatsapp/chat'); const nodi = [];
       if (!d.chat.length) nodi.push(h('div', 'dim', 'Nessun messaggio nuovo.'));
       for (const c of d.chat) { const r = h('button', 'riga'); r.append(h('span', 'n', c.nome), h('span', 'b', String(c.non_lette))); r.onclick = () => vistaChat(c); nodi.push(r); }
-      nodi.push(btn('✉ Scrivi a qualcuno…', () => vistaScrivi({ nome: '', indietro: vistaWhatsApp }), 'alt')); mostra(...nodi); } catch (e) { guasto(e); } }
+      nodi.push(btn('✉ Scrivi a qualcuno…', () => vistaScrivi({ nome: '', indietro: vistaWhatsApp }), 'alt'), btn('Apri l\'app WhatsApp', () => chiama('/api/whatsapp/app', {}).then(chiudi).catch(() => {}), 'alt')); mostra(...nodi); } catch (e) { guasto(e); } }
   async function vistaChat(c) { apri(c.nome, 'Letta solo qui: a chi ha scritto non arriva nessuna spunta blu.'); attendi('Apro la chat…');
     try { const d = await chiama('/api/whatsapp/messaggi?id=' + encodeURIComponent(c.id)); const nodi = [btn('← indietro', vistaWhatsApp, 'ind')];
       for (const m of d.messaggi) { const b = h('div', 'bolla' + (m.da_me ? ' mio' : ''), m.testo); b.append(h('small', '', (m.da_me ? 'tu' : d.nome) + ' · ' + m.ora)); nodi.push(b); }
@@ -658,6 +659,7 @@ speechSynthesis?.getVoices();
     if (!prep.in_rubrica) nodi.push(h('div', 'err', 'Questa persona non e\' in rubrica: per sicurezza non posso inviare. Salvala prima.'));
     const g = h('div', 'gruppo'); if (prep.in_rubrica) g.append(inv); g.append(btn('Modifica', modifica), btn('Annulla', chiudi, 'alt')); nodi.push(g); mostra(...nodi); }
 
+  window.jarvisApri = { impegni: vistaImpegni, whatsapp: vistaWhatsApp };
   $('#hud').addEventListener('click', e => { const a = e.target.closest('[data-apri]'); if (!a || !document.body.classList.contains('conbarra')) return; ({ impegni: vistaImpegni, whatsapp: vistaWhatsApp })[a.dataset.apri]?.(); });
   M.onclick = e => { if (e.target.id === 'int') chiudi(); }; addEventListener('keydown', e => { if (e.key === 'Escape') chiudi(); }); }
 
@@ -711,6 +713,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js"></script>
+<script src="/static/rete.js?v=20261023"></script>
 </body>
 </html>

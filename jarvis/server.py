@@ -254,6 +254,18 @@ def api_wa_messaggi(request: Request, id: str):
     return _pc_o_errore(request) or _chiama(interazioni.chat_messaggi, id)
 
 
+@app.post("/api/whatsapp/app")
+def api_wa_app(request: Request):
+    """Apre l'app WhatsApp del PC (solo la apre: non invia niente)."""
+    def apri():
+        try:
+            os.startfile("whatsapp://")  # type: ignore[attr-defined]
+        except (OSError, AttributeError):
+            raise whatsapp.WhatsAppError("Non trovo l'app WhatsApp su questo PC.")
+        return {"ok": True}
+    return _pc_o_errore(request) or _chiama(apri)
+
+
 class WaPrepara(BaseModel):
     a: str
     testo: str
