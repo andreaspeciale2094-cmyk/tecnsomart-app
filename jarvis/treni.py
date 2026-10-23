@@ -84,15 +84,24 @@ def _ora_partenza(t: dict) -> str:
     return ""
 
 
+def _provv(t: dict) -> str:
+    """'' se regolare, altrimenti CANCELLATO / CANCELLATO IN PARTE / DEVIATO."""
+    try:
+        p = int(t.get("provvedimento") or 0)
+    except (TypeError, ValueError):
+        p = 0
+    return {1: "CANCELLATO", 2: "CANCELLATO IN PARTE", 3: "DEVIATO"}.get(p, "")
+
+
 def _frase(t: dict, ora_attesa: str) -> str:
     n = t.get("numeroTreno") or "?"
     dest = str(t.get("destinazione") or "").title()
     ritardo = int(t.get("ritardo") or 0)
     binario = str(t.get("binarioEffettivoPartenzaDescrizione") or t.get("binarioProgrammatoPartenzaDescrizione") or "").strip()
-    soppresso = int(t.get("provvedimento") or 0) == 1
+    provv = _provv(t)
     base = f"Il treno delle {ora_attesa} per {dest} (n. {n})"
-    if soppresso:
-        return base + " risulta SOPPRESSO."
+    if provv:
+        return base + f" risulta {provv}."
     if ritardo >= 3:
         return base + f" ha {ritardo} minuti di ritardo" + (f", binario {binario}." if binario else ".")
     return base + " risulta in orario" + (f", binario {binario}." if binario else ".")
@@ -100,7 +109,7 @@ def _frase(t: dict, ora_attesa: str) -> str:
 
 def _etichetta(t: dict) -> str:
     ritardo = int(t.get("ritardo") or 0)
-    stato = "SOPPRESSO" if int(t.get("provvedimento") or 0) == 1 else (f"{ritardo} min di ritardo" if ritardo >= 3 else "in orario")
+    stato = _provv(t) or (f"{ritardo} min di ritardo" if ritardo >= 3 else "in orario")
     return f"{_ora_partenza(t)} per {str(t.get('destinazione','')).title()} (n. {t.get('numeroTreno') or '?'}): {stato}"
 
 
@@ -132,7 +141,7 @@ def stato(ora: str = "", turno: str = "", stazione: str = "", direzione: str = "
             return _frase(giusti[0], ora)
         vicini = sorted((t for t in elenco if verso(t)), key=_ora_partenza)[:3]
         extra = (" Nelle vicinanze vedo: " + "; ".join(_etichetta(t) for t in vicini) + ".") if vicini else ""
-        return f"Non vedo il treno delle {ora} tra le partenze di {nome}: potrebbe non essere ancora tracciato oppure soppresso.{extra} Controlla anche l'app Trenord."
+        return f"Non vedo il treno delle {ora} tra le partenze di {nome}: potrebbe non essere ancora tracciato oppure cancellato.{extra} Controlla anche l'app Trenord."
     elenco = partenze(codice, adesso)
     logs.log_route(f"TRENI: prossime partenze da {nome}: {len(elenco)} lette")
     if numero:
@@ -171,4 +180,6 @@ def fascia(da: str, a: str, giorno: str = "", stazione: str = "", direzione: str
     if not giusti:
         extra = " Gli orari di domani il servizio spesso non li ha ancora." if quando == "domani" else ""
         return f"Non vedo partenze da {nome} tra le {da or 'adesso'} e le {a} ({quando}) nei dati.{extra} Non vuol dire che non ci siano treni: controlla l'orario sull'app Trenord."
-    return f"Da {nome}, {quando}, tra le {h1:02d}:{m1:02d} e le {h2:02d}:{m2:02d}: " + "; ".join(_etichetta(t) for t in giusti[:12]) + "."
+    canc = sum(1 for t in giusti if _provv(t))
+    testa = f"{canc} cancellat{'o' if canc == 1 else 'i'}. " if canc else "Nessun treno cancellato. "
+    return f"Da {nome}, {quando}, tra le {h1:02d}:{m1:02d} e le {h2:02d}:{m2:02d}: " + testa + "; ".join(_etichetta(t) for t in giusti[:12]) + "."
