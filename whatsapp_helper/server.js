@@ -171,4 +171,4 @@ createServer(async (req, res) => {
 if (process.send || process.env.JARVIS_FIGLIO) process.stdin.on('end', () => process.exit(0)).resume();
 process.on('exit', () => { try { salvaSubito(); } catch (e) {} });  // alla chiusura normale si salva tutto
 
-avvia().catch((e) => { stato.errore = 'Avvio non riuscito: ' + String(e.message || e).slice(0, 120); });
+avvia().catch((e) => { stato.errore = 'Avvio non riuscito: ' + String(e.message || e).slice(0, 120); if (MOSTRA_QR) console.log('ERRORE: ' + stato.errore); });
