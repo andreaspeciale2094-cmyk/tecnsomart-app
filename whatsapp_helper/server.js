@@ -39,12 +39,13 @@ async function apriQrNelBrowser(testo) {
 }
 const stato = { connesso: false, bisogna_qr: false, bloccato: false, errore: '', storia: { ricevuta: 0, ultimo: 0 } };
 let sock = null;
+let chiusure = 0;  // chiusure di fila senza arrivare al collegamento: dopo 3 si riprova in modo semplice (senza storia)
 
 async function avvia() {
   if (MOSTRA_QR) console.log('Mi collego a WhatsApp, attendi qualche secondo...');
   const { state, saveCreds } = await useMultiFileAuthState(AUTH);
   const { version } = await fetchLatestBaileysVersion();
-  sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), syncFullHistory: true, shouldSyncHistoryMessage: () => true, markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
+  sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), ...(chiusure >= 3 ? {} : { syncFullHistory: true, shouldSyncHistoryMessage: () => true }), markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('messages.upsert', ({ messages }) => { for (const m of messages || []) { try { registra(m); } catch (e) {} } });
   sock.ev.on('messaging-history.set', (h) => {
@@ -65,6 +66,7 @@ async function avvia() {
       }
     }
     if (u.connection === 'open') {
+      chiusure = 0;
       stato.connesso = true; stato.bisogna_qr = false; stato.errore = '';
       if (MOSTRA_QR) {
         console.log("\nCOLLEGATO. Adesso WhatsApp manda la storia dei messaggi: NON chiudere questa finestra finche' non vedi FATTO (puo' volerci qualche minuto).");
@@ -83,6 +85,8 @@ async function avvia() {
     }
     if (u.connection === 'close') {
       stato.connesso = false;
+      chiusure++;
+      if (MOSTRA_QR && chiusure === 3) console.log('(Riprovo in modo semplice, senza scaricare la storia vecchia.)');
       const codice = u.lastDisconnect?.error?.output?.statusCode;
       if (MOSTRA_QR) console.log(`(connessione chiusa, codice ${codice ?? '?'}: ${String(u.lastDisconnect?.error?.message || '').slice(0, 80)} - riprovo)`);
       if (codice === DisconnectReason.loggedOut) {
