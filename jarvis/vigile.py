@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import config, logs
+from . import agenti as _ag, config, logs
 
 CONTROLLO_OGNI = 60            # secondi tra un controllo e l'altro
 MIN_TRA_CHIAMATE = 45          # secondi minimi tra due chiamate all'intelligenza
@@ -174,7 +174,8 @@ def _controlla_banca(adesso: datetime) -> int:
         _banca["fatti"].add(hhmm)  # si segna subito: un solo tentativo per fascia, anche se la banca risponde male
         from . import banca
         try:
-            mov = banca.controllo_sottofondo()
+            with _ag.lavora("soldi"):
+                mov = banca.controllo_sottofondo()
         except Exception as e:
             if _banca["errore_giorno"] != oggi:  # un solo rigo al giorno, senza dettagli
                 _banca["errore_giorno"] = oggi
@@ -216,7 +217,8 @@ def _controlla_treno(adesso: datetime) -> int:
         return 0
     _treno["ultimo"] = time.time()
     try:
-        r = treni.controllo_turno(turno)
+        with _ag.lavora("treno"):
+            r = treni.controllo_turno(turno)
     except Exception as e:
         logs.log_error(e, "vigile treno")
         return 0
@@ -240,6 +242,11 @@ def _controlla_domani(adesso: datetime) -> int:
     if adesso.hour < 21 or _domani["giorno"] == adesso.strftime("%Y-%m-%d"):
         return 0
     _domani["giorno"] = adesso.strftime("%Y-%m-%d")
+    with _ag.lavora("agenda"):
+        return _domani_fai(adesso)
+
+
+def _domani_fai(adesso: datetime) -> int:
     from datetime import timedelta
     domani = (adesso + timedelta(days=1)).date()
     creati = 0
@@ -296,7 +303,8 @@ def _controlla_promemoria(adesso: datetime) -> int:
         if libero:
             threading.Thread(target=ascolto.parla, args=("Promemoria: " + p["testo"],), daemon=True).start()
         if libero or n >= 10:
-            _aggiungi("promemoria", p["testo"], True)
+            with _ag.lavora("promemoria"):
+                _aggiungi("promemoria", p["testo"], True)
             promemoria.fatto(p["id"])
             _prom["tentativi"].pop(p["id"], None)
             logs.log_route("PROMEMORIA: detto" if libero else "PROMEMORIA: solo scheda (Jarvis occupato)")
@@ -313,7 +321,8 @@ def _controlla_obiettivi(adesso: datetime) -> int:
     if not config.ENABLE_NEGOZI or adesso.weekday() != 0 or (adesso.hour, adesso.minute) < (9, 15) or adesso.hour >= 13 or _obi["settimana"] == sett:
         return 0
     _obi["settimana"] = sett
-    testo = negozi.obiettivi()
+    with _ag.lavora("negozi"):
+        testo = negozi.obiettivi()
     _aggiungi("obiettivi", testo, False)
     logs.log_route("VIGILE: obiettivi del mese (lunedi')")
     threading.Thread(target=_parla, args=(testo,), daemon=True).start()
@@ -338,11 +347,12 @@ def _controlla_negozi(adesso: datetime) -> int:
         return 0
     _neg["ultimo"] = time.time()
     try:
-        _neg["pronto"] = (time.time(), negozi.parlato())  # legge l'app e lascia la copia in memoria (oggi, mese, categorie)
-        if config.ENABLE_ADDETTI:
-            from . import addetti
-            for tipo in addetti.RUN:
-                addetti.leggi(tipo=tipo, fresco=0)  # anche gli addetti restano pronti in memoria
+        with _ag.lavora("negozi"):
+            _neg["pronto"] = (time.time(), negozi.parlato())  # legge l'app e lascia la copia in memoria (oggi, mese, categorie)
+            if config.ENABLE_ADDETTI:
+                from . import addetti
+                for tipo in addetti.RUN:
+                    addetti.leggi(tipo=tipo, fresco=0)  # anche gli addetti restano pronti in memoria
     except Exception as e:
         logs.log_error(e, "vigile negozi")
     return 0
@@ -418,7 +428,8 @@ def controlla(adesso: datetime | None = None) -> int:
     wa = _novita("wa", _righe("whatsapp_non_lette", "- "))
     if mail or wa:
         try:
-            esito = _giudica(mail, wa)
+            with _ag.lavora("whatsapp" if wa and not mail else "posta"):
+                esito = _giudica(mail, wa)
         except Exception as e:
             logs.log_error(e, "vigile")
             esito = None

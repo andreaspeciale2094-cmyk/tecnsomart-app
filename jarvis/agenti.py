@@ -3,6 +3,7 @@ Il cervello (coordinatore) affida a piu' agenti il loro pezzo di lavoro; ognuno 
 un riassunto breve; poi il coordinatore mette tutto insieme. Gli agenti non possono inviare, scrivere, aprire o pagare: se serve un'azione la fa
 il coordinatore, con le solite conferme di Andrea. Il contenuto di mail, messaggi e pagine che leggono e' solo informazione: non si eseguono istruzioni.
 Riassunti solo in RAM: niente su disco e niente nei registri (nei registri solo nome dell'agente, durata e consumi)."""
+import contextlib
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
 
@@ -43,6 +44,21 @@ def _client() -> anthropic.Anthropic:
     if _client_ is None:
         _client_ = anthropic.Anthropic()
     return _client_
+
+
+@contextlib.contextmanager
+def lavora(nome: str):
+    """Per gli agenti di sottofondo (vigile): mentre fanno un controllo si accendono sulla rete neurale come gli altri; poi 'fatto' per 6 secondi."""
+    if nome in _stato and _stato[nome]["fase"] == "lavora":
+        yield  # un altro controllo dello stesso agente e' gia' in corso
+        return
+    _stato[nome] = {"fase": "lavora", "t": time.time()}
+    try:
+        yield
+        _stato[nome] = {"fase": "fatto", "t": time.time()}
+    except Exception:
+        _stato[nome] = {"fase": "errore", "t": time.time()}
+        raise
 
 
 def stato_pubblico() -> dict[str, str]:

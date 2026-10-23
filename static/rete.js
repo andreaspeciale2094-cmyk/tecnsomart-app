@@ -12,8 +12,8 @@
   let W = 0, H = 0, dpr = 1, ang = 0, tilt = 0.35, livello = 0, ultimo = performance.now();
   const dati = new Uint8Array(128);
   // agenti al lavoro (pezzo 3): ognuno ha una zona fissa intorno alla rete che si accende mentre lavora, con un raggio dal centro e il suo nome
-  const AGENTI_ORD = ['agenda', 'posta', 'whatsapp', 'negozi', 'soldi'];
-  const COLORI = { agenda: [66, 133, 244], posta: [234, 67, 53], whatsapp: [37, 211, 102], negozi: [255, 159, 28], soldi: [45, 212, 191] };  // il colore di ogni app
+  const AGENTI_ORD = ['agenda', 'posta', 'whatsapp', 'negozi', 'soldi', 'treno', 'promemoria'];
+  const COLORI = { agenda: [66, 133, 244], posta: [234, 67, 53], whatsapp: [37, 211, 102], negozi: [255, 159, 28], soldi: [45, 212, 191], treno: [168, 85, 247], promemoria: [250, 250, 150] };  // il colore di ogni app
   const scintille = [];
   const ag = {}; let agenti = {}, sondaggio = true;
   async function sondaAgenti() { if (!sondaggio || document.hidden) return;
@@ -132,7 +132,7 @@
     if (attivi) {
       for (const [nm, a] of Object.entries(ag)) {
         if (a.i <= 0.02) continue;
-        const k = AGENTI_ORD.indexOf(nm), idx = k < 0 ? AGENTI_ORD.length + Object.keys(ag).indexOf(nm) : k, th = -Math.PI / 2 + idx * 2 * Math.PI / Math.max(5, AGENTI_ORD.length);
+        const k = AGENTI_ORD.indexOf(nm), idx = k < 0 ? AGENTI_ORD.length + Object.keys(ag).indexOf(nm) : k, th = -Math.PI / 2 + idx * 2 * Math.PI / Math.max(7, AGENTI_ORD.length);
         const ax = cx + Math.cos(th) * R * 0.82, ay = cy + Math.sin(th) * R * 0.74, rz = R * 0.19;
         const col = COLORI[nm] || [255, 42, 61];
         for (const q of p) { const d = Math.hypot(q.x - ax, q.y - ay) / rz; if (d < 1 && q.z > -0.35) { const w = Math.pow(1 - d, 1.6) * a.i * 0.55; if (w > q.v) q.v = w; if (!q.t || w > q.t.w) q.t = { w, c: col }; } }
