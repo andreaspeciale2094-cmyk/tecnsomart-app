@@ -47,7 +47,16 @@ async function controlloRete() {
     const a = await lookup('web.whatsapp.com');
     console.log(`  Rete: l'indirizzo di WhatsApp si trova (${a.address}).`);
     await new Promise((ok, no) => { const c = connect({ host: a.address, port: 443, timeout: 6000 }, () => { c.destroy(); ok(); }); c.on('error', no); c.on('timeout', () => { c.destroy(); no(new Error('nessuna risposta in 6 secondi')); }); });
-    console.log('  Rete: la porta di WhatsApp risponde. Il blocco e\' dopo (antivirus, VPN o WhatsApp stesso).');
+    console.log('  Rete: la porta di WhatsApp risponde. Provo il collegamento sicuro...');
+    console.log('  Programma: Node ' + process.version);
+    const { default: WS } = await import('ws');
+    await new Promise((ok) => {
+      const w = new WS('wss://web.whatsapp.com/ws/chat', { headers: { Origin: 'https://web.whatsapp.com' }, handshakeTimeout: 8000 });
+      const fine = setTimeout(() => { console.log('  Collegamento sicuro: nessuna risposta in 10 secondi.'); try { w.terminate(); } catch (e) {} ok(); }, 10000);
+      w.on('open', () => { console.log('  Collegamento sicuro: APERTO (poi WhatsApp lo chiude da solo).'); clearTimeout(fine); w.close(); ok(); });
+      w.on('error', (e) => { console.log('  Collegamento sicuro: ERRORE -> ' + String(e.code || '') + ' ' + String(e.message || e).slice(0, 120)); clearTimeout(fine); ok(); });
+      w.on('close', (c) => { console.log('  Collegamento sicuro: chiuso, codice ' + c); });
+    });
   } catch (e) { console.log("  Rete: NON raggiungo WhatsApp (" + String(e.message || e).slice(0, 80) + "). Controlla internet, VPN/Tailscale, antivirus o firewall."); }
 }
 let chiusure = 0;  // chiusure di fila senza arrivare al collegamento: dopo 3 si riprova in modo semplice (senza storia)
