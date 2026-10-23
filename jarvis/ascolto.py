@@ -288,7 +288,7 @@ def _controlla_voce(blocchi: list):
 
 def _ascolta(leggi, vad, attesa: float, pre=None) -> str | None:
     _fase("ti ascolto")
-    frames = registra_frase(leggi, vad, attesa, breve=bool(_chiamata_pronta["id"]))  # se aspetta un 'si'' per una chiamata, basta anche una parola brevissima
+    frames = registra_frase(leggi, vad, attesa, breve=bool(_chiamata_pronta["id"] or _chiamata_scelta["nomi"]))  # se aspetta un 'si'' per una chiamata, basta anche una parola brevissima
     blocchi = list(pre or []) + list(frames or [])
     if blocchi:
         _controlla_voce(blocchi)  # la prima volta si controlla anche "Hey Jarvis" detto un attimo prima
@@ -334,6 +334,8 @@ def _e_un_si(testo: str) -> bool:
 
 
 _chiamata_pronta = {"id": "", "nome": "", "t": 0.0}
+_chiamata_scelta = {"nomi": [], "t": 0.0}   # piu' persone con lo stesso nome: aspetta che dica quale
+_ORDINALI = {"primo": 0, "prima": 0, "uno": 0, "secondo": 1, "seconda": 1, "due": 1, "terzo": 2, "terza": 2, "tre": 2, "quarto": 3, "quarta": 3, "quattro": 3}
 
 
 def chiamata_veloce(testo: str) -> str | None:
@@ -344,6 +346,20 @@ def chiamata_veloce(testo: str) -> str | None:
     from . import chiamate
 
     t = testo.strip()
+    if _chiamata_scelta["nomi"]:  # aveva chiesto 'Quale?': la risposta sceglie tra le persone elencate
+        nomi, attesa = list(_chiamata_scelta["nomi"]), time.time() - _chiamata_scelta["t"]
+        _chiamata_scelta.update(nomi=[], t=0.0)
+        if attesa < 45:
+            parole = chiamate._parole(t)
+            scelti = [nomi[_ORDINALI[p]] for p in parole if p in _ORDINALI and _ORDINALI[p] < len(nomi)][:1] or \
+                     [k for k in nomi if parole and set(parole) <= set(chiamate._parole(k))]
+            if len(scelti) == 1:
+                cid, nome_vero = chiamate.prepara_veloce("", chiave=scelti[0])
+                _chiamata_pronta.update(id=cid, nome=nome_vero, t=time.time())
+                return f"Chiamo {chiamate.parlabile(nome_vero)}?"
+            if len(scelti) > 1:
+                _chiamata_scelta.update(nomi=scelti, t=time.time())
+                return "Ancora piu' di uno: " + "; ".join(chiamate.parlabile(k) for k in scelti) + ". Quale?"
     if _chiamata_pronta["id"]:
         cid, nome, attesa = _chiamata_pronta["id"], _chiamata_pronta["nome"], time.time() - _chiamata_pronta["t"]
         _chiamata_pronta.update(id="", nome="", t=0.0)  # una conferma vale una volta sola: qualunque cosa si dica dopo la azzera
@@ -351,7 +367,7 @@ def chiamata_veloce(testo: str) -> str | None:
         if attesa < 60 and _e_un_si(t):
             try:
                 chiamate.avvia(cid, da_voce=True)
-                return f"Faccio partire la chiamata a {nome}."
+                return f"Faccio partire la chiamata a {chiamate.parlabile(nome)}."
             except chiamate.ChiamataError as e:
                 return str(e).replace("Errore: ", "")
         if attesa < 60 and re.match(r"^\W*(?:no|annulla|lascia stare|fermati|stop|aspetta)\W*$", t, re.IGNORECASE):
@@ -363,10 +379,14 @@ def chiamata_veloce(testo: str) -> str | None:
     nome = re.sub(r"\s+(?:per favore|per piacere|grazie|subito|adesso|ora)$", "", m.group(1).strip(), flags=re.IGNORECASE)
     try:
         cid, nome_vero = chiamate.prepara_veloce(nome)
+    except chiamate.ChiamataAmbigua as e:
+        _chiamata_scelta.update(nomi=e.nomi[:4], t=time.time())
+        return "Quale? " + "; ".join(chiamate.parlabile(k) for k in e.nomi[:4]) + "."
     except chiamate.ChiamataError as e:
+        logs.log_route("CHIAMATA: persona non trovata in rubrica")
         return str(e)
     _chiamata_pronta.update(id=cid, nome=nome_vero, t=time.time())
-    return f"Chiamo {nome_vero}?"
+    return f"Chiamo {chiamate.parlabile(nome_vero)}?"
 
 
 def comando_veloce(testo: str) -> str | None:
