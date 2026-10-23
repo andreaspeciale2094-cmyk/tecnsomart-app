@@ -356,6 +356,37 @@ def desktop_windows() -> str:
     return "ok"
 
 
+def porta_jarvis_davanti() -> bool:
+    """Porta davanti la finestra di Jarvis (a tutto schermo): serve quando parte il desktop di Windows dietro di lei."""
+    if not disponibile():
+        return False
+    ctypes, wintypes, u, k = _api()
+    trovata = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def passo(hwnd, _):
+        try:
+            if u.IsWindowVisible(hwnd):
+                n = u.GetWindowTextLengthW(hwnd)
+                if n:
+                    buf = ctypes.create_unicode_buffer(n + 1)
+                    u.GetWindowTextW(hwnd, buf, n + 1)
+                    if "J.A.R.V.I.S." in buf.value:
+                        trovata.append(int(hwnd or 0))
+        except Exception:
+            pass
+        return True
+
+    u.EnumWindows(passo, 0)
+    if not trovata:
+        return False
+    if u.IsIconic(trovata[0]):
+        u.ShowWindow(trovata[0], 9)
+    _tasto(0x12)
+    u.SetForegroundWindow(trovata[0])
+    return True
+
+
 def porta_davanti_per_nome(parola: str, attesa: float = 8.0) -> bool:
     """Aspetta che compaia una finestra con quel nome (titolo o programma) e la porta davanti. Serve dopo aver aperto un'app: da dietro le quinte Windows non la mette da solo in primo piano."""
     t0 = time.time()

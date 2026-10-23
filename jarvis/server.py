@@ -57,7 +57,7 @@ CHIUDI_TOKEN = Path(__file__).parent.parent / "memoria" / "chiudi.token"
 app = FastAPI(title="Jarvis", lifespan=lifespan)
 _sessions = sessions.histories
 STATIC = Path(__file__).parent.parent / "static"
-PUBLIC = {"/api/login", "/api/auth", "/api/chiudi", "/api/stato_ascolto"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
+PUBLIC = {"/api/login", "/api/auth", "/api/chiudi", "/api/davanti", "/api/stato_ascolto"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
 
 
 @app.middleware("http")
@@ -91,6 +91,15 @@ def chiudi(request: Request):
 
     threading.Timer(0.5, fine).start()
     return {"ok": True}
+
+
+@app.post("/api/davanti")
+def davanti(request: Request):
+    """Porta Jarvis davanti a tutto (lo chiede il sorvegliante quando parte il desktop di Windows dietro di lui): solo da questo PC e con la chiave in memoria/chiudi.token."""
+    chiave = CHIUDI_TOKEN.read_text(encoding="utf-8").strip() if CHIUDI_TOKEN.exists() else ""
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1") or not chiave or not secrets.compare_digest(request.headers.get("x-chiudi", ""), chiave):
+        return JSONResponse({"error": "non autorizzato"}, status_code=403)
+    return {"ok": barra.porta_jarvis_davanti()}
 
 
 class Login(BaseModel):

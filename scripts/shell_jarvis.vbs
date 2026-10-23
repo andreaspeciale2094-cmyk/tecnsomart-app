@@ -28,8 +28,29 @@ Function finestraAperta()
   On Error GoTo 0
 End Function
 
+Function explorerAttivo()
+  On Error Resume Next
+  Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+  explorerAttivo = (wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name='explorer.exe'").Count > 0)
+  If Err.Number <> 0 Then explorerAttivo = False
+  On Error GoTo 0
+End Function
+
+' Fa comparire il desktop normale di Windows (solo se non c'e' gia': altrimenti si aprirebbe una finestra "Questo PC")
 Sub desktopWindows()
-  sh.Run "explorer.exe", 1, False
+  If Not explorerAttivo() Then sh.Run "explorer.exe", 1, False
+End Sub
+
+' Chiede a Jarvis di tornare davanti a tutto schermo (solo da questo PC, con la chiave in memoria\chiudi.token)
+Sub jarvisDavanti()
+  On Error Resume Next
+  chiave = Trim(fso.OpenTextFile(cartella & "\memoria\chiudi.token").ReadLine)
+  Set h = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+  h.setTimeouts 1000, 1000, 2000, 2000
+  h.open "POST", "http://127.0.0.1:8000/api/davanti", False
+  h.setRequestHeader "x-chiudi", chiave
+  h.send
+  On Error GoTo 0
 End Sub
 
 ' 1) accende Jarvis e la sua schermata
@@ -49,6 +70,14 @@ If Not pronto Then
   desktopWindows
   WScript.Quit
 End If
+
+' 2b) Il desktop di Windows serve a far partire le app (collegamenti, app dello Store, Steam...): parte DIETRO Jarvis, che resta davanti a tutto schermo
+WScript.Sleep 6000
+If Not explorerAttivo() Then sh.Run "explorer.exe", 1, False
+For i = 1 To 3
+  WScript.Sleep 3500
+  jarvisDavanti
+Next
 
 ' 3) sorveglia Jarvis
 senzaFinestra = 0
