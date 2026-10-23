@@ -30,6 +30,7 @@ BANCA_RITORNO = os.getenv("ENABLE_BANKING_RITORNO", "https://localhost:8000/banc
 BANCA_PRESENTE = _flag("ENABLE_BANKING_PRESENTE", True)  # avvisa la banca che Andrea e' presente (meno limiti)
 TELEFONO_URL = os.getenv("TELEFONO_URL", "").strip()  # indirizzo dell'app sul telefono che fa partire la chiamata (rete privata Tailscale), es. http://100.x.x.x:8080/chiama
 TELEFONO_CHIAVE = os.getenv("TELEFONO_CHIAVE", "").strip()  # parola segreta che il telefono controlla
+ENABLE_TRENI = _flag("JARVIS_TRENI", True)  # "com'e' il mio treno?" (fonte non ufficiale, spegnere con false)
 ENABLE_CHIAMATE = _flag("JARVIS_CHIAMATE", True)  # telefonate dal PC con il si' di Andrea (spegnere con false)
 ENABLE_WHATSAPP = _flag("JARVIS_WHATSAPP")  # prepara messaggi WhatsApp e apre l'app con il testo pronto (invia Andrea)
 WHATSAPP_PRECARICA = _flag("JARVIS_WHATSAPP_PRECARICA", True)  # accende l'app WhatsApp del PC all'avvio (ridotta) cosi' al clic si apre subito; false per non farlo
