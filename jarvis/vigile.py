@@ -376,27 +376,27 @@ def agenti_elenco() -> str:
     """L'elenco vero degli agenti di sottofondo accesi, con cosa fanno e quando (per 'quali agenti sono attivi?')."""
     voci = []
     if config.ENABLE_TRENI:
-        voci.append("treno, il tuo treno di apertura o chiusura")
+        voci.append("treno (apertura o chiusura)")
     if config.ENABLE_NEGOZI:
-        voci.append("negozi, numeri sempre pronti dalle 9 alle 20:30")
-        voci.append("obiettivi, il lunedi' mattina")
+        voci.append("negozi (numeri pronti)")
+        voci.append("obiettivi (il lunedi')")
     if config.ENABLE_AGENDA or config.ENABLE_TRENI:
-        voci.append("domani, impegni e turno la sera")
+        voci.append("domani (impegni e turno)")
     if config.ENABLE_PROMEMORIA:
         voci.append("promemoria")
     if config.ENABLE_VIGILE:
-        voci.append("vigile, impegni, mail e WhatsApp nuovi")
+        voci.append("vigile (impegni, mail, WhatsApp)")
         if config.ENABLE_BANCA and config.VIGILE_BANCA:
-            voci.append("banca, 4 controlli al giorno")
+            voci.append("banca (4 controlli al giorno)")
     if config.ENABLE_WHATSAPP and config.ENABLE_WHATSAPP_LEGGI:
-        voci.append("promesse su WhatsApp, la sera")
+        voci.append("promesse (WhatsApp, la sera)")
     voci.append("chiamate perse")
     if config.ENABLE_SALUTE:
         voci.append("salute e consumi")
     if config.ENABLE_BACKUP:
         voci.append("backup settimanale")
     chiamati = "agenda, posta, WhatsApp, negozi, soldi, ricerca, memoria e PC" if config.ENABLE_AGENTI else "nessuno"
-    return "Di sottofondo ne ho " + str(len(voci)) + ": " + ", ".join(voci) + f". Poi quelli che chiamo io quando serve un quadro: {chiamati}. Dimmi se vuoi sapere cosa fa uno."
+    return "Di sottofondo ne ho " + str(len(voci)) + ": " + "; ".join(voci) + f". Poi quelli che chiamo io quando serve un quadro: {chiamati}. Dimmi se vuoi sapere cosa fa uno."
 
 
 def chiamata_persa(frase: str):
