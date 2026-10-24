@@ -52,7 +52,7 @@ def segna_letto(id_: str):
 
 
 _diario: list[tuple[str, str, str]] = []   # (ora, tipo, testo): cosa hanno fatto gli agenti oggi, solo RAM, svuotato a mezzanotte
-_TESTO_NEL_DIARIO = {"treno", "salute", "promemoria", "domani", "obiettivi", "promesse"}  # degli altri (banca, posta, WhatsApp, negozi, impegni) il diario tiene solo che e' successo
+_TESTO_NEL_DIARIO = {"treno", "salute", "promemoria", "domani", "obiettivi", "promesse", "addetti"}  # degli altri (banca, posta, WhatsApp, negozi, impegni) il diario tiene solo che e' successo
 
 
 def diario_testo() -> str:
@@ -62,7 +62,7 @@ def diario_testo() -> str:
     if not voci:
         return "Oggi gli agenti di sottofondo non hanno avuto niente da segnalare."
     righe = []
-    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "chiamate": "chiamate perse", "senza risposta": "chat senza risposta", "impegno": "ricordi di impegni"}
+    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "chiamate": "chiamate perse", "senza risposta": "chat senza risposta", "addetti": "addetti indietro", "impegno": "ricordi di impegni"}
     conta: dict[str, int] = {}
     for ora, tipo, testo in voci:
         if tipo in _TESTO_NEL_DIARIO:
@@ -215,10 +215,10 @@ def _controlla_banca(adesso: datetime) -> int:
         logs.log_route("VIGILE: controllo banca fatto")
         if prima is None:
             return 0
-        nuovi = [m for m in mov if _firma(m) not in prima]
+        nuovi = [m for m in mov if _firma(m) not in prima and abs(m["importo"]) >= config.BANCA_SOGLIA]  # sotto la soglia (50 euro) non si avvisa
         if nuovi:
             _aggiungi("banca", _frase_movimenti(nuovi), False)
-            logs.log_route(f"VIGILE: {len(nuovi)} movimenti nuovi in banca")
+            logs.log_route(f"VIGILE: {len(nuovi)} movimenti nuovi in banca sopra soglia")
             return 1
         return 0
     return 0
@@ -451,6 +451,26 @@ def _controlla_senza_risposta(adesso: datetime) -> int:
     return 1
 
 
+def _controlla_addetti_indietro(adesso: datetime) -> int:
+    """Il lunedi' dopo le 9:25 (dopo gli obiettivi), una volta: chi dei ragazzi e' molto sotto la media della squadra. Senza modello, dati gia' pronti,
+    solo dal giorno 8 del mese. Nomi solo nella scheda e a voce (mai nei registri)."""
+    if not config.ENABLE_ADDETTI or adesso.weekday() != 0 or (adesso.hour, adesso.minute) < (9, 25) or adesso.hour >= 13 or adesso.day < 8:
+        return 0
+    sett = adesso.strftime("%G-%V")
+    if _obi.get("addetti") == sett:
+        return 0
+    _obi["addetti"] = sett
+    from . import addetti
+    with _ag.lavora("negozi"):
+        testo = addetti.indietro()
+    if not testo:
+        return 0
+    _aggiungi("addetti", testo, False)
+    logs.log_route("VIGILE: addetti indietro (lunedi')")
+    threading.Thread(target=_parla, args=(testo,), daemon=True).start()
+    return 1
+
+
 def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
     """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
     try:
@@ -526,6 +546,7 @@ def controlla(adesso: datetime | None = None) -> int:
         logs.log_error(e, "vigile promesse")
     try:
         creati += _controlla_obiettivi(adesso)
+        creati += _controlla_addetti_indietro(adesso)
     except Exception as e:
         logs.log_error(e, "vigile obiettivi")
     try:

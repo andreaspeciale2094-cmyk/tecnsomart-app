@@ -15,7 +15,10 @@ except ImportError:
     sys.exit("Manca il programma: fai doppio clic su installa_trenord.bat e riprova.")
 
 chiamate = []
+RUMORE = ("analytics", "google", "pinterest", "linkedin", "bing", "twitter", "iubenda", "lpsnmedia", "doubleclick", "facebook", "clarity", "hotjar", "tiktok", "yext")
 CARTELLA.mkdir(exist_ok=True)
+RISPOSTE = CARTELLA / "trenord_risposte"
+RISPOSTE.mkdir(exist_ok=True)
 with sync_playwright() as p:
     b = None
     for canale in ("chrome", "msedge"):
@@ -27,7 +30,16 @@ with sync_playwright() as p:
     if b is None:
         sys.exit(f"Non riesco ad aprire Chrome o Edge in modo invisibile: {str(ultimo)[:150]}")
     pag = b.new_page(viewport={"width": 1280, "height": 1100}, locale="it-IT")
-    pag.on("response", lambda r: chiamate.append((r.status, r.url)) if r.request.resource_type in ("xhr", "fetch") else None)
+    def _risposta(r):
+        if r.request.resource_type not in ("xhr", "fetch") or any(x in r.url for x in RUMORE):
+            return
+        chiamate.append((r.status, r.url))
+        try:  # si salva il contenuto delle risposte vere del sito (solo orari e stati dei treni)
+            corpo = r.text()
+            (RISPOSTE / f"{len(chiamate):02d}.txt").write_text(r.url + "\n\n" + corpo[:20000], encoding="utf-8")
+        except Exception:
+            pass
+    pag.on("response", _risposta)
     pag.goto(URL, wait_until="domcontentloaded", timeout=60000)
     pag.wait_for_timeout(4000)
     for testo in ("Accetta tutti", "Accetta tutto", "Accetto", "Accetta"):
@@ -36,6 +48,7 @@ with sync_playwright() as p:
             break
         except Exception:
             pass
+    pag.screenshot(path=str(CARTELLA / "trenord_prima.png"), full_page=True)
     for etichetta in ("Cerca stazione", "Stazione"):
         try:
             pag.get_by_text(re.compile(etichetta, re.I)).first.click(timeout=3000)
@@ -63,7 +76,7 @@ with sync_playwright() as p:
             except Exception:
                 pag.keyboard.press("ArrowDown")
                 pag.keyboard.press("Enter")
-            pag.wait_for_timeout(6000)
+            pag.wait_for_timeout(12000)
         except Exception as e:
             print("Non sono riuscito a scrivere nel campo:", str(e)[:150])
     testo = pag.inner_text("body")
@@ -71,11 +84,14 @@ with sync_playwright() as p:
     pag.screenshot(path=str(CARTELLA / "trenord_pagina.png"), full_page=True)
     b.close()
 
-print("=== Indirizzi chiamati dalla pagina (xhr/fetch) ===")
+print("=== Indirizzi del sito chiamati dalla pagina (senza pubblicita') ===")
 for stato, u in chiamate[-25:]:
     print(stato, u[:200])
+print("\n=== Prime righe di testo della pagina ===")
+for r in [r.strip() for r in testo.splitlines() if r.strip()][:25]:
+    print(r[:120])
 print("\n=== Righe della pagina con un orario ===")
 righe = [r.strip() for r in testo.splitlines() if re.search(r"\b\d{1,2}[:.]\d{2}\b", r)]
 for r in righe[:40]:
     print(r[:160])
-print("\nSalvati: memoria\\trenord_pagina.txt e memoria\\trenord_pagina.png")
+print("\nSalvati: memoria\\trenord_pagina.txt, trenord_prima.png, trenord_pagina.png e la cartella memoria\\trenord_risposte")

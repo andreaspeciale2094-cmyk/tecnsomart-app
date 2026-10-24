@@ -64,6 +64,7 @@ WORKDIR = Path(os.getenv("JARVIS_WORKDIR", "./workspace")).resolve()
 DB_PATH = os.getenv("JARVIS_DB", "jarvis.db")
 MAX_TOOL_ROUNDS = 12
 ENABLE_VIGILE = _flag("JARVIS_VIGILE", True)  # agente vigile in sottofondo: ti avvisa solo se c'e' qualcosa che conta (impegno imminente, mail o messaggi importanti)
+BANCA_SOGLIA = float(os.getenv("BANCA_SOGLIA", "50"))  # il vigile segnala solo movimenti da questa cifra in su (euro); il saldo solo a richiesta
 VIGILE_BANCA = _flag("JARVIS_VIGILE_BANCA", True)  # il vigile controlla il conto 4 volte al giorno e avvisa di entrate e uscite nuove (solo se la banca e' collegata)
 VIGILE_BANCA_ORARI = [x.strip() for x in os.getenv("VIGILE_BANCA_ORARI", "09:00,13:00,17:00,21:00").split(",") if x.strip()]
 ENABLE_AGENTI = _flag("JARVIS_AGENTI", True)  # agenti specializzati che lavorano insieme per le richieste ampie (quadro di oggi, briefing...)

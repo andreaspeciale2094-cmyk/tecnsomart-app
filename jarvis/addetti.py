@@ -142,3 +142,36 @@ def riepilogo(nome: str = "", mese: str = "") -> str:
     if nome and not parti:
         return f"Non trovo nessun addetto chiamato '{nome}' ne' nel Report normale ne' nel Multi Brand questo mese."
     return "\n\n".join(parti)
+
+
+def indietro(soglia: float = 0.75, massimo: int = 5) -> str:
+    """Chi e' molto sotto la media della squadra: per ogni Report (normale e Multi Brand, liste separate) un addetto e' 'indietro' se in almeno
+    la meta' delle categorie dove la squadra fa qualcosa (media >= 3 punti) sta sotto il 75% della media. Nomina le due categorie piu' deboli.
+    Stessi punti dell'app; i numeri dei due Report non si sommano. Stringa vuota se nessuno e' indietro."""
+    frasi = []
+    for tipo in RUN:
+        try:
+            raw = leggi(tipo=tipo)
+        except Exception:
+            continue
+        etichetta, cats = RUN[tipo]
+        addetti = {n: pezzi(a, tipo) for n, a in (raw.get("addetti") or {}).items()}
+        if len(addetti) < 3:
+            continue
+        medie = {}
+        for ci in cats:
+            tot = {a: punti_categoria(p, ci, cats) for a, p in addetti.items()}
+            m = sum(tot.values()) / len(tot)
+            if m >= 3:
+                medie[ci] = (m, tot)
+        if len(medie) < 2:
+            continue
+        indietro_ = []
+        for nome in addetti:
+            sotto = [(medie[ci][1][nome] / medie[ci][0], cats[ci][0]) for ci in medie if medie[ci][1][nome] < soglia * medie[ci][0]]
+            if len(sotto) * 2 >= len(medie):
+                indietro_.append((sum(r for r, _ in sotto) / len(sotto), nome, [c for _, c in sorted(sotto)[:2]]))
+        indietro_.sort()
+        if indietro_:
+            frasi.append(f"{etichetta}: " + "; ".join(f"{n} (piu' deboli: {', '.join(c).lower()})" for _, n, c in indietro_[:massimo]) + ".")
+    return ("Addetti indietro rispetto alla squadra. " + " ".join(frasi)) if frasi else ""
