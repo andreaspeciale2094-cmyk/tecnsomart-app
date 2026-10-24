@@ -218,8 +218,14 @@ def _leggi(cfg: dict, oggi: date, max_eta: float = 0.0) -> dict:
     return fetch(cfg["url"], oggi.isoformat(), fresco=max_eta)
 
 
+def _fatto(categorie: list[dict], massimo: int = 7) -> str:
+    """Solo cio' che e' stato fatto oggi (le categorie a zero non si dicono): 'fisso 3 su 6, telefoni 5 su 4'."""
+    voci = [f"{c['categoria'].lower()} {c['oggi']:g} su {c['target_giorno']:g}" for c in categorie if c["oggi"] > 0]
+    return ", ".join(voci[:massimo]) + (f" e altre {len(voci) - massimo}" if len(voci) > massimo else "")
+
+
 def parlato() -> str:
-    """Il resoconto dei negozi di oggi gia' pronto da dire a voce (solo numeri, calcolato dal codice, senza modello). Frasi corte, una per negozio.
+    """Il resoconto dei negozi di oggi gia' pronto da dire a voce (solo numeri, calcolato dal codice, senza modello). Si dice SOLO cio' che e' stato fatto: niente categorie a zero.
     Nel Multi Brand un negozio che non ha MAI inserito dati questo mese non viene detto 'mancante': magari non fa multi brand."""
     cfg = load_config()
     oggi = date.today()
@@ -230,17 +236,16 @@ def parlato() -> str:
             continue
         a = analyze(cfg["run"][kind], raw.get(kind) or {}, oggi)
         righe = [f"{etichetta}."]
-        if a["gruppo"]:
-            righe.append("Totale di gruppo oggi: " + ", ".join(f"{g['categoria']} {g['oggi']:g} su {g['target_giorno']:g}, {g['stato']}" for g in a["gruppo"]) + ".")
+        gruppo = _fatto([{"categoria": g["categoria"], "oggi": g["oggi"], "target_giorno": g["target_giorno"]} for g in a["gruppo"]])
+        if gruppo:
+            righe.append("Totale di gruppo oggi: " + gruppo + ".")
         senza = []
         for n in a["negozi"]:
-            if not n["dati_oggi"]:
-                if kind == "mono" or n["giorni_con_dati"] > 0:
-                    senza.append(n["negozio"])
-                continue
-            ros = sum(1 for c in n["categorie"] if c["stato"] in ("rosso", "zero"))
-            gia = sum(1 for c in n["categorie"] if c["stato"] == "giallo")
-            righe.append(f"{n['negozio']}: " + (" e ".join(([f"{ros} rosse"] if ros else []) + ([f"{gia} gialle"] if gia else [])) if ros or gia else "tutto verde") + ".")
+            cosa = _fatto(n["categorie"]) if n["dati_oggi"] else ""
+            if cosa:
+                righe.append(f"{n['negozio']}: {cosa}.")
+            elif kind == "mono" or n["giorni_con_dati"] > 0:
+                senza.append(n["negozio"])
         if senza:
             righe.append("Oggi non risultano dati per: " + ", ".join(senza) + ".")
         blocchi.append(" ".join(righe))
@@ -270,7 +275,7 @@ def trova_negozio(testo: str) -> str | None:
 
 
 def parlato_negozio(nome: str) -> str:
-    """Solo quel negozio: per ogni categoria quanto ha inserito oggi rispetto all'obiettivo del giorno (mono e multi brand)."""
+    """Solo quel negozio, solo cio' che ha fatto oggi (categorie a zero non dette), mono e multi brand."""
     cfg = load_config()
     oggi = date.today()
     raw = _leggi(cfg, oggi, 900)
@@ -282,11 +287,11 @@ def parlato_negozio(nome: str) -> str:
         n = next((x for x in a["negozi"] if x["negozio"] == nome), None)
         if n is None:
             continue
-        if not n["dati_oggi"]:
-            if kind == "mono" or n["giorni_con_dati"] > 0:
-                parti.append(f"{etichetta}: oggi non risultano dati.")
-            continue
-        parti.append(f"{etichetta}: " + ", ".join(f"{c['categoria']} {c['oggi']:g} su {c['target_giorno']:g} ({c['stato']})" for c in n["categorie"]) + ".")
+        cosa = _fatto(n["categorie"], 12) if n["dati_oggi"] else ""
+        if cosa:
+            parti.append(f"{etichetta}: {cosa}.")
+        elif kind == "mono" or n["giorni_con_dati"] > 0:
+            parti.append(f"{etichetta}: oggi non ha inserito niente.")
     return f"{nome}. " + " ".join(parti) if parti else f"Per {nome} non ho dati di oggi."
 
 

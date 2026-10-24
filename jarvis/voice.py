@@ -49,6 +49,7 @@ def clean_for_speech(text: str) -> str:
     t = re.sub(r"https?://\S+", " link ", t)
     t = re.sub(r"\b(\d{1,2}):(\d{2})\b", _ora_parlata, t)  # 23:27 -> "ventitre' e ventisette"
     t = _EMOJI.sub(" ", t)
+    t = re.sub(r"\b[A-ZÀ-Ý]{4,}\b", lambda m: m.group(0).lower(), t)  # FISSO FASTWEB, SKY MOBILE: in maiuscolo la voce multilingue sbaglia lingua e parla 'quasi spagnolo'
     t = re.sub(r"[*_`#>|~]+", " ", t)
     t = re.sub(r"^\s*[-•]\s+", "", t, flags=re.M)
     t = (t.replace("&", " e ").replace("%", " per cento").replace("°C", " gradi").replace("°", " gradi")
