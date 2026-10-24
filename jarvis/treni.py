@@ -13,11 +13,11 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from . import config, logs
+from . import config, logs, trenord
 
 FILE = Path(__file__).parent.parent / "memoria" / "treni.json"
 BASE = "http://www.viaggiatreno.it/infomobilitamobile/resteasy/viaggiatreno"
-PREDEFINITO = {"partenza": "Gaggiano", "direzione": ["VIGEVANO", "MORTARA"], "treni": {"apertura": "07:48", "chiusura": "13:18"}}
+PREDEFINITO = {"partenza": "Gaggiano", "direzione": ["ALBAIRATE", "VIGEVANO", "MORTARA"], "treni": {"apertura": "07:48", "chiusura": "13:18"}}
 _cache: dict[str, tuple[float, object]] = {}
 
 
@@ -72,6 +72,25 @@ def partenze(codice: str, quando: datetime) -> list[dict]:
     except ValueError:
         raise TreniError("I dati dei treni sono arrivati in un formato che non capisco: il servizio potrebbe essere cambiato.")
     return dati if isinstance(dati, list) else []
+
+
+def _unisci(nome: str, codice: str, quando: datetime) -> list[dict]:
+    """Partenze da Trenord (il sito ufficiale, solo se si guarda l'ora presente: mostra le prossime) piu' quelle di ViaggiaTreno per gli orari che Trenord non ha."""
+    adesso = datetime.now(ZoneInfo(config.FUSO))
+    out: list[dict] = []
+    if abs((quando - adesso).total_seconds()) < 3 * 3600:
+        try:
+            out = trenord.partenze(nome)
+        except trenord.TrenordError as e:
+            logs.log_route("TRENI: Trenord non letto (" + str(e)[:60] + ")")
+    try:
+        vt = partenze(codice, quando)
+    except TreniError:
+        if not out:
+            raise
+        vt = []
+    visti = {_ora_partenza(t) for t in out}
+    return out + [t for t in vt if _ora_partenza(t) not in visti]
 
 
 def _ora_partenza(t: dict) -> str:
@@ -133,7 +152,7 @@ def stato(ora: str = "", turno: str = "", stazione: str = "", direzione: str = "
         ora = ora.replace(".", ":").zfill(5)
         h, m = (int(x) for x in ora.split(":"))
         quando = adesso.replace(hour=h, minute=m, second=0, microsecond=0) - timedelta(minutes=10)
-        elenco = partenze(codice, quando)
+        elenco = _unisci(nome, codice, quando)
         candidati = [t for t in elenco if _ora_partenza(t) == ora]
         giusti = [t for t in candidati if verso(t)] or candidati
         logs.log_route(f"TRENI: controllo delle {ora} da {nome}: {len(elenco)} partenze lette, {len(giusti)} corrispondenti")
@@ -142,7 +161,7 @@ def stato(ora: str = "", turno: str = "", stazione: str = "", direzione: str = "
         vicini = sorted((t for t in elenco if verso(t)), key=_ora_partenza)[:3]
         extra = (" Nelle vicinanze vedo: " + "; ".join(_etichetta(t) for t in vicini) + ".") if vicini else ""
         return f"Non vedo il treno delle {ora} tra le partenze di {nome}: potrebbe non essere ancora tracciato oppure cancellato.{extra} Controlla anche l'app Trenord."
-    elenco = partenze(codice, adesso)
+    elenco = _unisci(nome, codice, adesso)
     logs.log_route(f"TRENI: prossime partenze da {nome}: {len(elenco)} lette")
     if numero:
         trovati = [t for t in elenco if str(t.get("numeroTreno")) == str(numero).strip()]
@@ -169,7 +188,11 @@ def fascia(da: str, a: str, giorno: str = "", stazione: str = "", direzione: str
     trovati: dict[str, dict] = {}
     q = inizio
     while q <= fine + timedelta(minutes=45):
-        for t in partenze(codice, q):
+        try:
+            lista = _unisci(nome, codice, q)
+        except TreniError:
+            lista = []
+        for t in lista:
             o = _ora_partenza(t)
             if o and f"{h1:02d}:{m1:02d}" <= o <= f"{h2:02d}:{m2:02d}":
                 trovati[f"{t.get('numeroTreno')}-{o}"] = t
@@ -224,7 +247,7 @@ def controllo_turno(turno: str) -> dict | None:
     adesso = datetime.now(ZoneInfo(config.FUSO))
     h, m = (int(x) for x in ora.split(":"))
     nome, codice = codice_stazione(imp["partenza"])
-    elenco = partenze(codice, adesso.replace(hour=h, minute=m, second=0, microsecond=0) - timedelta(minutes=10))
+    elenco = _unisci(nome, codice, adesso)
     cand = [t for t in elenco if _ora_partenza(t) == ora]
     parole = [p.upper() for p in imp["direzione"]]
     t = next((t for t in cand if not parole or any(p in str(t.get("destinazione", "")).upper() for p in parole)), cand[0] if cand else None)
