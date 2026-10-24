@@ -17,7 +17,7 @@ from . import config, logs, trenord
 
 FILE = Path(__file__).parent.parent / "memoria" / "treni.json"
 BASE = "http://www.viaggiatreno.it/infomobilitamobile/resteasy/viaggiatreno"
-PREDEFINITO = {"partenza": "Gaggiano", "direzione": ["ALBAIRATE", "VIGEVANO", "MORTARA"], "treni": {"apertura": "07:48", "chiusura": "13:18"}}
+PREDEFINITO = {"partenza": "Gaggiano", "direzione": ["ALBAIRATE", "VIGEVANO", "MORTARA"], "treni": {"apertura": "07:48", "chiusura": "13:18"}, "sveglia_minuti": {"apertura": 28, "chiusura": 90}, "ore_sonno": 7}
 _cache: dict[str, tuple[float, object]] = {}
 
 
@@ -213,22 +213,97 @@ def fascia(da: str, a: str, giorno: str = "", stazione: str = "", direzione: str
 FILE_TURNO = Path(__file__).parent.parent / "memoria" / "turno.json"
 
 
-def imposta_turno(turno: str, giorno: str = "") -> str:
-    """Segna che turno fa Andrea (apertura/chiusura/riposo) per oggi o domani. Il vigile controlla solo il treno di quel turno."""
-    turno = turno.strip().lower()
-    if turno not in ("apertura", "chiusura", "riposo"):
-        raise TreniError("Il turno puo' essere apertura, chiusura o riposo.")
+_GIORNI = {"lunedi": 0, "lun": 0, "martedi": 1, "mar": 1, "mercoledi": 2, "mer": 2, "giovedi": 3, "gio": 3, "venerdi": 4, "ven": 4, "sabato": 5, "sab": 5, "domenica": 6, "dom": 6}
+
+
+def _giorno(testo: str):
+    """'oggi', 'domani', 'dopodomani', un giorno della settimana ('lunedi': il prossimo, oggi compreso) o una data (2026-10-26, 26/10)."""
+    import re
+    import unicodedata
     oggi = datetime.now(ZoneInfo(config.FUSO)).date()
-    d = oggi + timedelta(days=1) if giorno.strip().lower() in ("domani", "tomorrow") else oggi
+    t = "".join(c for c in unicodedata.normalize("NFD", (testo or "").strip().lower()) if unicodedata.category(c) != "Mn")
+    if t in ("", "oggi", "today"):
+        return oggi
+    if t in ("domani", "tomorrow"):
+        return oggi + timedelta(days=1)
+    if t == "dopodomani":
+        return oggi + timedelta(days=2)
+    if t in _GIORNI:
+        return oggi + timedelta(days=(_GIORNI[t] - oggi.weekday()) % 7)
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", t)
+    if m:
+        return datetime(int(m[1]), int(m[2]), int(m[3])).date()
+    m = re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?", t)
+    if m:
+        anno = int(m[3]) + (2000 if m[3] and int(m[3]) < 100 else 0) if m[3] else oggi.year
+        try:
+            d = datetime(anno, int(m[2]), int(m[1])).date()
+        except ValueError:
+            raise TreniError(f"Non capisco la data '{testo}'.")
+        return d if m[3] or d >= oggi else d.replace(year=oggi.year + 1)
+    raise TreniError(f"Non capisco il giorno '{testo}': dimmi oggi, domani, un giorno della settimana o una data.")
+
+
+def _scrivi_turni(nuovi: dict):
+    oggi = datetime.now(ZoneInfo(config.FUSO)).date()
     try:
         dati = json.loads(FILE_TURNO.read_text(encoding="utf-8")) if FILE_TURNO.exists() else {}
     except (OSError, ValueError):
         dati = {}
     dati = {k: v for k, v in dati.items() if k >= oggi.isoformat()}  # via i giorni passati
-    dati[d.isoformat()] = turno
+    dati.update({d.isoformat(): t for d, t in nuovi.items() if d >= oggi})
     FILE_TURNO.parent.mkdir(parents=True, exist_ok=True)
     FILE_TURNO.write_text(json.dumps(dati), encoding="utf-8")
-    return f"Segnato: {'domani' if d != oggi else 'oggi'} {turno}."
+
+
+def _turno_valido(turno: str) -> str:
+    turno = (turno or "").strip().lower()
+    if turno not in ("apertura", "chiusura", "riposo"):
+        raise TreniError("Il turno puo' essere apertura, chiusura o riposo.")
+    return turno
+
+
+def imposta_turno(turno: str, giorno: str = "") -> str:
+    """Segna che turno fa Andrea (apertura/chiusura/riposo) per un giorno (oggi, domani, un giorno della settimana, una data). Il vigile controlla solo il treno di quel turno."""
+    turno = _turno_valido(turno)
+    oggi = datetime.now(ZoneInfo(config.FUSO)).date()
+    d = _giorno(giorno)
+    _scrivi_turni({d: turno})
+    nome = "oggi" if d == oggi else "domani" if d == oggi + timedelta(days=1) else f"{d:%d/%m}"
+    frase = f"Segnato: {nome} {turno}."
+    if d == oggi + timedelta(days=1) and turno != "riposo":
+        frase += " " + frase_sveglia(turno)
+    return frase
+
+
+def imposta_settimana(turni: list) -> str:
+    """Tutti i turni della settimana in una volta: [{'giorno': 'lunedi', 'turno': 'apertura'}, ...]. Da un solo messaggio di Andrea ogni venerdi."""
+    if not turni:
+        raise TreniError("Dimmi i turni: per esempio lunedi apertura, martedi chiusura, mercoledi riposo.")
+    nuovi = {}
+    for t in turni[:14]:
+        nuovi[_giorno(str(t.get("giorno", "")))] = _turno_valido(str(t.get("turno", "")))
+    _scrivi_turni(nuovi)
+    giorni = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
+    return "Segnati: " + ", ".join(f"{giorni[d.weekday()]} {d:%d/%m} {t}" for d, t in sorted(nuovi.items())) + ". Da ora il treno e la sveglia si controllano da soli."
+
+
+def frase_sveglia(turno: str) -> str:
+    """Per la sera prima: a che ora ti svegli e a che ora conviene andare a letto, dal treno del turno. Vuota se il turno e' riposo o non c'e' il treno.
+    I minuti tra sveglia e treno e le ore di sonno stanno in memoria/treni.json ('sveglia_minuti', 'ore_sonno')."""
+    imp = _impostazioni()
+    ora = imp["treni"].get(turno)
+    if not ora:
+        return ""
+    h, m = (int(x) for x in ora.split(":"))
+    prima = int((imp.get("sveglia_minuti") or {}).get(turno, 60))
+    treno = datetime(2000, 1, 1, h, m)
+    sveglia = treno - timedelta(minutes=prima)
+    letto = sveglia - timedelta(hours=float(imp.get("ore_sonno", 7)))
+    f = f"Domani {turno}: sveglia alle {sveglia:%H:%M}, treno alle {treno:%H:%M}."
+    if letto.hour >= 20 or letto.hour < 2:  # ha senso solo se il letto e' la sera prima (un turno di chiusura non ne ha bisogno)
+        f += f" Per dormire {float(imp.get('ore_sonno', 7)):g} ore vai a letto verso le {letto:%H:%M}."
+    return f
 
 
 def turno_del_giorno(giorno=None) -> str:

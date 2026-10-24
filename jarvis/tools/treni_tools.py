@@ -7,7 +7,14 @@ SCHEMAS = [
                         "(apertura 7:48, chiusura 13:18) e lo avvisa se e' puntuale, in ritardo o cancellato. Usalo quando dice 'domani faccio apertura', 'oggi chiusura', 'domani sono a casa'."),
         "input_schema": {"type": "object", "properties": {
             "turno": {"type": "string", "enum": ["apertura", "chiusura", "riposo"]},
-            "giorno": {"type": "string", "description": "oggi (predefinito) o domani"}}, "required": ["turno"]},
+            "giorno": {"type": "string", "description": "oggi (predefinito), domani, un giorno della settimana (lunedi...) o una data"}}, "required": ["turno"]},
+    },
+    {
+        "name": "turni_settimana",
+        "description": ("Segna in una volta TUTTI i turni di una settimana (Andrea li manda ogni venerdi): per esempio 'lunedi apertura, martedi chiusura, mercoledi riposo...'. "
+                        "Per ogni giorno scrivi giorno (un giorno della settimana, oggi, domani o una data) e turno (apertura, chiusura, riposo). Da quel momento Jarvis controlla da solo il treno e dice la sveglia la sera prima."),
+        "input_schema": {"type": "object", "properties": {"turni": {"type": "array", "items": {"type": "object", "properties": {
+            "giorno": {"type": "string"}, "turno": {"type": "string", "enum": ["apertura", "chiusura", "riposo"]}}, "required": ["giorno", "turno"]}}}, "required": ["turni"]},
     },
     {
         "name": "treno_stato",
@@ -47,4 +54,11 @@ def _turno(turno: str, giorno: str = "") -> str:
         return f"Errore: {e}"
 
 
-HANDLERS = {"treno_stato": _stato, "turno_imposta": _turno}
+def _settimana(turni):
+    try:
+        return treni.imposta_settimana(turni)
+    except treni.TreniError as e:
+        return f"Errore: {e}"
+
+
+HANDLERS = {"treno_stato": _stato, "turno_imposta": _turno, "turni_settimana": _settimana}

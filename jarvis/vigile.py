@@ -327,11 +327,18 @@ def _domani_fai(adesso: datetime) -> int:
     if config.ENABLE_TRENI:
         try:
             from . import treni
-            if not treni.turno_del_giorno(domani):
+            t = treni.turno_del_giorno(domani)
+            if not t:
                 f = "Domani che turno fai? Dimmi: domani faccio apertura, chiusura o riposo."
                 _aggiungi("domani", f, False)
                 frasi.append(f)
                 creati += 1
+            elif t != "riposo":
+                f = treni.frase_sveglia(t)
+                if f:
+                    _aggiungi("domani", f, False)
+                    frasi.append(f)
+                    creati += 1
         except Exception as e:
             logs.log_error(e, "vigile domani")
     if frasi:
@@ -385,6 +392,50 @@ def _controlla_obiettivi(adesso: datetime) -> int:
     return 1
 
 
+_fc = {"giorno": ""}
+
+
+def _controlla_fine_ciclo(adesso: datetime) -> int:
+    """Negli ultimi 3 giorni del ciclo, una volta al giorno (dalle 9:30 alle 13): scheda e voce con quanto manca ai target. Senza modello, dati gia' pronti."""
+    if not config.ENABLE_NEGOZI or (adesso.hour, adesso.minute) < (9, 30) or adesso.hour >= 13 or _fc["giorno"] == adesso.strftime("%Y-%m-%d"):
+        return 0
+    from . import negozi
+    try:
+        with _ag.lavora("negozi"):
+            testo = negozi.fine_ciclo()
+    except Exception as e:
+        logs.log_route("VIGILE: fine ciclo non calcolato (" + type(e).__name__ + ")")
+        return 0
+    _fc["giorno"] = adesso.strftime("%Y-%m-%d")  # un solo tentativo al giorno
+    if not testo:
+        return 0
+    _aggiungi("obiettivi", testo, False)
+    logs.log_route("VIGILE: fine ciclo")
+    threading.Thread(target=_parla, args=(testo,), daemon=True).start()
+    return 1
+
+
+_ts = {"giorno": ""}
+
+
+def _controlla_turni_settimana(adesso: datetime) -> int:
+    """Il venerdi dalle 17 (una volta, senza modello): se non hai ancora detto nessun turno della settimana dopo, te li chiede. Voce solo se non e' notte."""
+    if not config.ENABLE_TRENI or adesso.weekday() != 4 or adesso.hour < 17 or _ts["giorno"] == adesso.strftime("%Y-%m-%d"):
+        return 0
+    _ts["giorno"] = adesso.strftime("%Y-%m-%d")
+    from datetime import timedelta
+    from . import treni
+    lunedi = (adesso + timedelta(days=3)).date()
+    if any(treni.turno_del_giorno(lunedi + timedelta(days=i)) for i in range(7)):
+        return 0
+    f = "Mandami i turni della prossima settimana: per esempio lunedi apertura, martedi chiusura, mercoledi riposo."
+    _aggiungi("domani", f, False)
+    logs.log_route("VIGILE: chiesti i turni della settimana")
+    if not _notte(adesso):
+        threading.Thread(target=_parla, args=(f,), daemon=True).start()
+    return 1
+
+
 def _controlla_promesse(adesso: datetime) -> int:
     """Una volta, tra le 21:30 e mezzanotte: ti ricorda cosa hai promesso oggi su WhatsApp e non hai ancora fatto (voce solo fino alle 23, se Jarvis e' libero)."""
     if not (config.ENABLE_WHATSAPP and config.ENABLE_WHATSAPP_LEGGI) or (adesso.hour, adesso.minute) < (21, 30) or _prom_ag["giorno"] == adesso.strftime("%Y-%m-%d"):
@@ -415,9 +466,10 @@ def agenti_elenco() -> str:
         voci.append("treno (apertura o chiusura)")
     if config.ENABLE_NEGOZI:
         voci.append("negozi (numeri pronti)")
+        voci.append("fine ciclo (ultimi 3 giorni)")
         voci.append("obiettivi (il lunedi')")
     if config.ENABLE_AGENDA or config.ENABLE_TRENI:
-        voci.append("domani (impegni e turno)")
+        voci.append("domani (impegni, turno e sveglia)")
     if config.ENABLE_PROMEMORIA:
         voci.append("promemoria")
     if config.ENABLE_VIGILE:
@@ -842,6 +894,8 @@ def controlla(adesso: datetime | None = None) -> int:
     try:
         _controlla_treni_pronti(adesso)
         _controlla_notizie(adesso)
+        _controlla_fine_ciclo(adesso)
+        _controlla_turni_settimana(adesso)
         _controlla_scioperi(adesso)
         _controlla_milan(adesso)
         _controlla_meteo_allerta(adesso)
