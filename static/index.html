@@ -704,10 +704,10 @@ speechSynthesis?.getVoices();
   async function vistaChat(c) { apri(c.nome, 'Letta solo qui: a chi ha scritto non arriva nessuna spunta blu.'); attendi('Apro la chat…');
     try { const d = await chiama('/api/whatsapp/messaggi?id=' + encodeURIComponent(c.id)); const nodi = [btn('← indietro', vistaWhatsApp, 'ind')];
       for (const m of d.messaggi) { const b = h('div', 'bolla' + (m.da_me ? ' mio' : ''), m.testo); b.append(h('small', '', (m.da_me ? 'tu' : d.nome) + ' · ' + m.ora)); nodi.push(b); }
-      if (d.in_rubrica) nodi.push(btn('↩ Rispondi', () => vistaScrivi({ nome: d.nome, indietro: () => vistaChat(c) }), 'ok'));
+      if (d.in_rubrica) nodi.push(btn('↩ Rispondi' + (d.rispondi_a && d.rispondi_a !== d.nome ? ' a ' + d.rispondi_a : ''), () => vistaScrivi({ nome: d.rispondi_a || d.nome, indietro: () => vistaChat(c) }), 'ok'));
       else if (d.numero_noto) { const nm = h('input'); nm.placeholder = 'Che nome gli dai in rubrica?'; nm.value = c.nome.startsWith('+') ? '' : c.nome; const st = h('div', 'dim', 'Questa persona non e\' ancora nella tua rubrica: per rispondere va salvata (resta solo sul tuo PC).');
         nodi.push(st, nm, btn('Salva in rubrica', async () => { try { await chiama('/api/whatsapp/salva', { chat_id: c.id, nome: nm.value.trim() }); vistaChat(c); } catch (e) { st.textContent = e.message; st.className = 'err'; } }));
-      } else nodi.push(h('div', 'dim', 'Di questa chat WhatsApp non mi dice il numero, quindi da qui non posso rispondere.'));
+      } else nodi.push(h('div', 'dim', d.gruppo ? 'Questo e\' un gruppo: qui si legge soltanto, non si scrive.' : 'WhatsApp non mi da\' il numero di questa persona e il suo nome non e\' in rubrica: per rispondere scrivi il nome come e\' in rubrica con "Scrivi a qualcuno", oppure rispondi dall\'app.'));
       mostra(...nodi); Bd.scrollTop = Bd.scrollHeight; } catch (e) { guasto(e, vistaWhatsApp); } }
 
   // ---- scrivere e confermare ----
@@ -845,6 +845,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261035"></script>
+<script src="/static/rete.js?v=20261036"></script>
 </body>
 </html>

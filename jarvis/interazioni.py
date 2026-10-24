@@ -82,12 +82,23 @@ def chat_messaggi(chat_id: str) -> dict:
         raise whatsapp.WhatsAppError("Non ho messaggi recenti di questa chat.")
     numero = r.get("numero", "")
     nome = whatsapp._nome_chat(r)
-    in_rubrica = False
+    in_rubrica, rispondi_a = False, ""
+    gruppo = bool(r.get("gruppo"))
     try:
-        in_rubrica = any(n == numero for n in whatsapp._carica().values()) if numero else False
+        rubrica = whatsapp._carica()
+        in_rubrica = any(n == numero for n in rubrica.values()) if numero else False
+        if numero and in_rubrica:
+            rispondi_a = next(k for k, n in rubrica.items() if n == numero)
+        elif not numero and not gruppo and r.get("nome"):
+            # WhatsApp a volte non da' il numero (contatti con numero nascosto): se il NOME coincide con una sola voce della rubrica si risponde a quella
+            def norma(t: str) -> str:
+                return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", t.lower())).strip()
+            uguali = [k for k in rubrica if norma(k) == norma(r["nome"])]
+            if len(uguali) == 1:
+                in_rubrica, rispondi_a = True, uguali[0]
     except whatsapp.WhatsAppError:
         pass
-    return {"nome": nome, "numero_noto": bool(numero), "in_rubrica": in_rubrica,
+    return {"nome": nome, "numero_noto": bool(numero), "in_rubrica": in_rubrica, "gruppo": gruppo, "rispondi_a": rispondi_a,
             "messaggi": [{"da_me": bool(m["da_me"]), "testo": (m["chi"] + ": " if m.get("chi") else "") + m["testo"], "ora": datetime.fromtimestamp(m["ts"]).strftime("%H:%M")} for m in r["messaggi"]]}
 
 
