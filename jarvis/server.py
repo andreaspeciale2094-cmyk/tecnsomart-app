@@ -318,6 +318,28 @@ def api_chiamata_persa(request: Request, numero: str = "", nome: str = "", k: st
     return {"ok": True}
 
 
+@app.get("/api/appuntamenti")
+def api_appuntamenti(request: Request):
+    """Un appuntamento preso in chat che aspetta il tuo Si' per finire sul calendario (solo dal PC)."""
+    from . import promesse
+    if not _dal_pc(request):
+        return {"proposta": None}
+    return {"proposta": promesse.proposta_in_attesa()}
+
+
+class AppuntamentoSi(BaseModel):
+    id: str
+    si: bool
+
+
+@app.post("/api/appuntamenti/conferma")
+def api_appuntamenti_conferma(body: AppuntamentoSi, request: Request):
+    from . import promesse
+    if not _dal_pc(request):
+        return JSONResponse({"error": "Questa funzione e' disponibile solo dal PC."}, status_code=403)
+    return {"ok": True, "testo": promesse.conferma_proposta(body.id[:12], body.si)}
+
+
 @app.get("/api/chiamata")
 def api_chiamata(request: Request):
     """La chiamata che aspetta il si' (solo dal PC): la pagina mostra 'Chiamo X?' con i pulsanti Si'/No."""

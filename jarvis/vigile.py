@@ -363,8 +363,14 @@ def _controlla_promesse(adesso: datetime) -> int:
     from . import promesse
     with _ag.lavora("whatsapp"):
         a = promesse.aperte()
+    from . import calendario
+    con_collegamento = [p for p in promesse._proposte if not p.get("gia") and calendario.configurato(p["cal"])]
+    if con_collegamento:
+        _aggiungi("calendario", f"Ho trovato {len(con_collegamento)} appuntament{'o' if len(con_collegamento) == 1 else 'i'} preso in chat: conferma dalla scheda per metterlo sul calendario.", False)
     if not a:
-        return 0
+        if con_collegamento and not _notte(adesso):
+            threading.Thread(target=_parla, args=("Ho trovato un appuntamento preso in chat: guarda la scheda per metterlo sul calendario.",), daemon=True).start()
+        return 1 if con_collegamento else 0
     frase = "Hai promesso: " + "; ".join(f"{x['chat']}: {x['cosa']}" for x in a[:5]) + "."
     _aggiungi("promesse", frase, False)
     if not _notte(adesso):

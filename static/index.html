@@ -742,7 +742,7 @@ speechSynthesis?.getVoices();
   M.onclick = e => { if (e.target.id === 'int') chiudi(); }; addEventListener('keydown', e => { if (e.key === 'Escape') chiudi(); }); }
 
 // avvisi dell'agente vigile: una scheda per ogni cosa che conta; cliccandola si apre la finestra giusta; sparisce da sola dopo un po'
-{ const C = $('#avvisi'), mostrati = new Set(); const TAG = { impegno: 'impegno', posta: 'posta', whatsapp: 'whatsapp', banca: 'banca', treno: 'treno', negozi: 'negozi', domani: 'domani', promemoria: 'promemoria', obiettivi: 'obiettivi', promesse: 'promesse', salute: 'salute', chiamate: 'chiamata persa' };
+{ const C = $('#avvisi'), mostrati = new Set(); const TAG = { impegno: 'impegno', posta: 'posta', whatsapp: 'whatsapp', banca: 'banca', treno: 'treno', negozi: 'negozi', domani: 'domani', promemoria: 'promemoria', obiettivi: 'obiettivi', promesse: 'promesse', salute: 'salute', chiamate: 'chiamata persa', calendario: 'calendario' };
   const chiudi = (id, el) => { el.remove(); api('/api/vigile/letto', { method: 'POST', body: JSON.stringify({ id }) }).catch(() => {}); };
   async function sonda() { if (document.hidden) return;
     try { const d = await (await api('/api/vigile')).json();
@@ -768,6 +768,20 @@ speechSynthesis?.getVoices();
       bs.onclick = manda(true); bn.onclick = manda(false); e.append(t, m, bs, bn); C.append(e);
     } catch (e) {} }
   setInterval(sondaChiamata, 1500); }
+
+// appuntamento preso su WhatsApp: scheda con Si'/No (il clic vale come conferma, solo sul PC); solo dopo il Si' va sul calendario
+{ const C = $('#avvisi'); let corrente = '';
+  async function sondaApp() { if (document.hidden || !document.body.classList.contains('conbarra')) return;
+    try { const d = await (await api('/api/appuntamenti')).json(); const a = d.proposta; const el = document.getElementById('av-app');
+      if (!a) { if (el) el.remove(); corrente = ''; return; }
+      if (el && corrente === a.id) return; if (el) el.remove(); corrente = a.id;
+      const e = document.createElement('div'); e.id = 'av-app'; e.className = 'avviso urgente'; const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'calendario';
+      const m = document.createElement('span'); m.textContent = 'Aggiungo al calendario ' + a.calendario + ': ' + a.titolo + ', ' + a.quando + (a.luogo ? ' (' + a.luogo + ')' : '') + '?' + (a.conflitti && a.conflitti.length ? ' Attenzione, a quell\u2019ora hai gi\u00e0: ' + a.conflitti.join(', ') + '.' : '');
+      const bs = document.createElement('button'); bs.className = 'bt'; bs.textContent = 'S\u00ec, aggiungi'; const bn = document.createElement('button'); bn.className = 'bt'; bn.textContent = 'No';
+      const manda = si => async ev => { ev.stopPropagation(); try { await api('/api/appuntamenti/conferma', { method: 'POST', body: JSON.stringify({ id: a.id, si }) }); } catch (x) {} e.remove(); corrente = ''; };
+      bs.onclick = manda(true); bn.onclick = manda(false); e.append(t, m, bs, bn); C.append(e);
+    } catch (e) {} }
+  setInterval(sondaApp, 2500); }
 
 // posizione per il meteo: la chiede il browser (con il tuo permesso) solo sul PC, ogni 3 ore; se la neghi si usa la citta' dall'indirizzo internet
 { const manda = () => { if (!document.body.classList.contains('conbarra') || !navigator.geolocation) return;
@@ -820,6 +834,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261032"></script>
+<script src="/static/rete.js?v=20261033"></script>
 </body>
 </html>
