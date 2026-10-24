@@ -37,6 +37,26 @@ foreach ($f in $p) {
 $o | ConvertTo-Json -Compress
 """
 
+_PS_ICONE_FINESTRE = r"""
+Add-Type -AssemblyName System.Drawing
+$p = [Console]::In.ReadToEnd() | ConvertFrom-Json
+$o = @{}
+foreach ($k in $p) {
+  try {
+    $h = [long]($k -split '\|')[1]
+    $i = [System.Drawing.Icon]::FromHandle([IntPtr]$h)
+    $b = New-Object System.Drawing.Bitmap 32,32
+    $g = [System.Drawing.Graphics]::FromImage($b)
+    $g.InterpolationMode = 'HighQualityBicubic'
+    $g.DrawImage($i.ToBitmap(), 0, 0, 32, 32)
+    $m = New-Object System.IO.MemoryStream
+    $b.Save($m, [System.Drawing.Imaging.ImageFormat]::Png)
+    $o[$k] = [Convert]::ToBase64String($m.ToArray())
+  } catch {}
+}
+$o | ConvertTo-Json -Compress
+"""
+
 _PS_ICONE_APP = r"""
 Add-Type -AssemblyName System.Drawing
 $ids = [Console]::In.ReadToEnd() | ConvertFrom-Json
@@ -261,6 +281,28 @@ def _api():
     return ctypes, wintypes, u, k
 
 
+# programmi che mostrano tante app diverse: l'icona vera e' quella della finestra, non quella del programma
+DA_FINESTRA = {"applicationframehost.exe", "chrome.exe", "msedge.exe", "brave.exe", "firefox.exe"}
+
+
+def _icona_finestra(hwnd, ctypes, wintypes, u) -> int:
+    """L'icona che la finestra stessa mostra (per le app dello Store e le app-sito di Chrome). Ritorna l'handle o 0."""
+    try:
+        u.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM, wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+        u.SendMessageTimeoutW.restype = ctypes.c_ssize_t
+        u.GetClassLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+        u.GetClassLongPtrW.restype = ctypes.c_size_t
+        r = ctypes.c_size_t(0)
+        for quale in (1, 2, 0):  # grande, piccola (sistema), piccola
+            r.value = 0
+            u.SendMessageTimeoutW(hwnd, 0x7F, quale, 0, 2, 150, ctypes.byref(r))
+            if r.value:
+                return int(r.value)
+        return int(u.GetClassLongPtrW(hwnd, -14) or 0)
+    except Exception:
+        return 0
+
+
 def _exe_di(hwnd, ctypes, wintypes, u, k) -> str:
     pid = wintypes.DWORD()
     u.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
@@ -302,16 +344,22 @@ def finestre() -> list[dict]:
             exe = _exe_di(hwnd, ctypes, wintypes, u, k)
             if os.path.basename(exe).lower() in IGNORA_EXE:
                 return True
-            out.append({"id": int(hwnd or 0), "titolo": titolo, "exe": exe, "attiva": hwnd == davanti, "ridotta": bool(u.IsIconic(hwnd))})
+            hic = _icona_finestra(hwnd, ctypes, wintypes, u) if os.path.basename(exe).lower() in DA_FINESTRA or not exe else 0
+            out.append({"id": int(hwnd or 0), "titolo": titolo, "exe": exe, "attiva": hwnd == davanti, "ridotta": bool(u.IsIconic(hwnd)), "hicon": hic})
         except Exception:
             pass
         return True
 
     u.EnumWindows(passo, 0)
-    _estrai_icone([f["exe"] for f in out if f["exe"]])
+    _estrai_icone([f["exe"] for f in out if f["exe"] and not f["hicon"]])
+    _estrai_icone([f"{f['id']}|{f['hicon']}" for f in out if f["hicon"]], _PS_ICONE_FINESTRE)
     for f in out:
-        f["icona"] = _icone.get(f["exe"])
+        chiave = f"{f['id']}|{f['hicon']}"
+        f["icona"] = _icone.get(chiave) if f["hicon"] else None
+        if not f["icona"]:
+            f["icona"] = _icone.get(f["exe"])
         f["nome"] = Path(f["exe"]).stem.capitalize() if f["exe"] else f["titolo"]
+        f.pop("hicon", None)
     return out
 
 
