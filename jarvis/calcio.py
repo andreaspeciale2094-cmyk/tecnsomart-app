@@ -66,8 +66,12 @@ def prossime() -> str:
         return "Non riesco a leggere il calendario del Milan (" + ("manca la chiave" if "chiave" in str(e) else type(e).__name__) + ")."
     ora = datetime.now(ZoneInfo(config.FUSO))
     finite = [p for p in pp if p["stato"] == "FINISHED"]
-    prossime_ = [p for p in pp if p["stato"] not in ("FINISHED", "CANCELLED", "POSTPONED") and p["quando"] + timedelta(hours=3) > ora]
+    in_corso = [p for p in pp if p["stato"] in ("IN_PLAY", "PAUSED", "LIVE")]
+    prossime_ = [p for p in pp if p["stato"] not in ("FINISHED", "CANCELLED", "POSTPONED", "IN_PLAY", "PAUSED", "LIVE") and p["quando"] + timedelta(hours=3) > ora]
     righe = []
+    for p in in_corso:
+        g, o = (p["gol_casa"], p["gol_ospite"]) if p["milan_in_casa"] else (p["gol_ospite"], p["gol_casa"])
+        righe.append(f"IN CORSO: Milan con {_avversario(p)}, {g if g is not None else 0} a {o if o is not None else 0} (dati ufficiali con qualche minuto di ritardo; i marcatori non ci sono: per quelli cerca su internet con la ricerca web).")
     if finite:
         righe.append("Ultima: " + frase_dopo(finite[-1]) + f" ({finite[-1]['quando']:%d/%m})")
     for p in prossime_[:3]:
