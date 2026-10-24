@@ -74,7 +74,20 @@ def diario_testo() -> str:
     return "Gli agenti di sottofondo oggi: " + "; ".join(righe) + "."
 
 
+def _al_telefono(tipo: str, testo: str):
+    """Gli avvisi scelti (treno, promemoria, chiamate perse) arrivano anche su Telegram, ma solo se non sei vicino al PC (non tocchi tastiera o mouse da qualche minuto)."""
+    if tipo not in config.TELEGRAM_AVVISI or not config.ENABLE_TELEGRAM:
+        return
+    from . import presenza, telegram_bot
+    if presenza.inattivo_s() >= config.TELEGRAM_ASSENTE_S:
+        threading.Thread(target=telegram_bot.avvisa, args=(testo,), daemon=True).start()
+
+
 def _aggiungi(tipo: str, testo: str, urgente: bool, anteprima: str = "", diario: bool = True):
+    try:
+        _al_telefono(tipo, testo)
+    except Exception as e:
+        logs.log_error(e, "avviso al telefono")
     with _lock:
         if diario:
             _diario.append((datetime.now(ZoneInfo(config.FUSO)).strftime("%H:%M"), tipo, testo[:140]))

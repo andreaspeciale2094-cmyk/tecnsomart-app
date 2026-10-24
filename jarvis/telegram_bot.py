@@ -93,6 +93,17 @@ def _ciclo():
             time.sleep(10)
 
 
+def avvisa(testo: str):
+    """Un avviso di Jarvis sul tuo telefono (solo all'account di Andrea). Nei registri solo 'avviso mandato', mai il testo."""
+    if not (config.ENABLE_TELEGRAM and config.TELEGRAM_TOKEN and str(config.TELEGRAM_USER_ID).strip().lstrip("-").isdigit()):
+        return
+    try:
+        _scrivi(int(config.TELEGRAM_USER_ID), testo)
+        logs.log_route("TELEGRAM: avviso mandato")
+    except Exception as e:
+        logs.log_route("TELEGRAM: avviso non mandato (" + type(e).__name__ + ")")
+
+
 def avvia():
     if config.ENABLE_TELEGRAM and config.TELEGRAM_TOKEN:
         threading.Thread(target=_ciclo, daemon=True).start()

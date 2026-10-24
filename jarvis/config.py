@@ -44,6 +44,8 @@ ENABLE_PULIZIA = _flag("JARVIS_PULIZIA", True)  # pulizia di fine giornata a mez
 ENABLE_TELEGRAM = _flag("JARVIS_TELEGRAM")  # parlare con Jarvis dal telefono con Telegram (solo l'account di Andrea)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")  # dal bot creato con @BotFather: solo in .env
 TELEGRAM_USER_ID = os.getenv("TELEGRAM_USER_ID", "")
+TELEGRAM_AVVISI = [x.strip() for x in os.getenv("TELEGRAM_AVVISI", "treno,promemoria,chiamate").split(",") if x.strip()]  # quali avvisi arrivano anche sul telefono (solo se non sei vicino al PC); vuoto = nessuno
+TELEGRAM_ASSENTE_S = float(os.getenv("TELEGRAM_ASSENTE_S", "180"))  # dopo quanti secondi senza toccare il PC si considera "non sei qui"
 ENABLE_ASCOLTO = _flag("JARVIS_ASCOLTO")  # ascolto in stanza: risponde solo se chiamato ("Hey Jarvis")
 ASCOLTO_SOGLIA = float(os.getenv("ASCOLTO_SOGLIA", "0.5"))  # piu' bassa = si sveglia piu' facilmente (anche per errore)
 ASCOLTO_PAUSA_FINE = int(os.getenv("ASCOLTO_PAUSA_FINE", "9"))  # blocchi da 80 ms di silenzio che chiudono la frase (9 = 0,7 s; piu' basso = piu' veloce ma puo' tagliarti)
