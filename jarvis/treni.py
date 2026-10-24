@@ -17,7 +17,7 @@ from . import config, logs, trenord
 
 FILE = Path(__file__).parent.parent / "memoria" / "treni.json"
 BASE = "http://www.viaggiatreno.it/infomobilitamobile/resteasy/viaggiatreno"
-PREDEFINITO = {"partenza": "Gaggiano", "direzione": ["ALBAIRATE", "VIGEVANO", "MORTARA"], "treni": {"apertura": "07:48", "chiusura": "13:18"}, "sveglia_minuti": {"apertura": 28, "chiusura": 90}, "ore_sonno": 7}
+PREDEFINITO = {"partenza": "Gaggiano", "direzione": ["ALBAIRATE", "VIGEVANO", "MORTARA"], "treni": {"apertura": "07:48", "chiusura": "13:18"}, "sveglia_minuti": {"apertura": 28, "chiusura": 90}, "sveglia_ora": {"apertura": "07:20", "chiusura": "09:00"}, "ore_sonno": 7}
 _cache: dict[str, tuple[float, object]] = {}
 
 
@@ -256,6 +256,29 @@ def _scrivi_turni(nuovi: dict):
     FILE_TURNO.write_text(json.dumps(dati), encoding="utf-8")
 
 
+FILE_SVEGLIA = Path(__file__).parent.parent / "memoria" / "sveglia.json"  # sveglie diverse dal solito, per data
+
+
+def _sveglia_giorno(d, ora: str = ""):
+    """Con ora: segna una sveglia diversa dal solito per quel giorno. Senza: ritorna quella segnata (o '')."""
+    try:
+        dati = json.loads(FILE_SVEGLIA.read_text(encoding="utf-8")) if FILE_SVEGLIA.exists() else {}
+    except (OSError, ValueError):
+        dati = {}
+    if not ora:
+        return dati.get(d.isoformat(), "")
+    import re
+    m = re.fullmatch(r"(\d{1,2})[:.](\d{2})", ora.strip())
+    if not m or int(m[1]) > 23 or int(m[2]) > 59:
+        raise TreniError("L'ora della sveglia va detta cosi': 8:30.")
+    oggi = datetime.now(ZoneInfo(config.FUSO)).date()
+    dati = {k: v for k, v in dati.items() if k >= oggi.isoformat()}
+    dati[d.isoformat()] = f"{int(m[1]):02d}:{m[2]}"
+    FILE_SVEGLIA.parent.mkdir(parents=True, exist_ok=True)
+    FILE_SVEGLIA.write_text(json.dumps(dati), encoding="utf-8")
+    return dati[d.isoformat()]
+
+
 def _turno_valido(turno: str) -> str:
     turno = (turno or "").strip().lower()
     if turno not in ("apertura", "chiusura", "riposo"):
@@ -263,16 +286,18 @@ def _turno_valido(turno: str) -> str:
     return turno
 
 
-def imposta_turno(turno: str, giorno: str = "") -> str:
+def imposta_turno(turno: str, giorno: str = "", sveglia: str = "") -> str:
     """Segna che turno fa Andrea (apertura/chiusura/riposo) per un giorno (oggi, domani, un giorno della settimana, una data). Il vigile controlla solo il treno di quel turno."""
     turno = _turno_valido(turno)
     oggi = datetime.now(ZoneInfo(config.FUSO)).date()
     d = _giorno(giorno)
     _scrivi_turni({d: turno})
+    if sveglia:
+        _sveglia_giorno(d, sveglia)
     nome = "oggi" if d == oggi else "domani" if d == oggi + timedelta(days=1) else f"{d:%d/%m}"
     frase = f"Segnato: {nome} {turno}."
     if d == oggi + timedelta(days=1) and turno != "riposo":
-        frase += " " + frase_sveglia(turno)
+        frase += " " + frase_sveglia(turno, d)
     return frase
 
 
@@ -282,26 +307,35 @@ def imposta_settimana(turni: list) -> str:
         raise TreniError("Dimmi i turni: per esempio lunedi apertura, martedi chiusura, mercoledi riposo.")
     nuovi = {}
     for t in turni[:14]:
-        nuovi[_giorno(str(t.get("giorno", "")))] = _turno_valido(str(t.get("turno", "")))
+        d = _giorno(str(t.get("giorno", "")))
+        nuovi[d] = _turno_valido(str(t.get("turno", "")))
+        if t.get("sveglia"):
+            _sveglia_giorno(d, str(t["sveglia"]))
     _scrivi_turni(nuovi)
     giorni = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
     return "Segnati: " + ", ".join(f"{giorni[d.weekday()]} {d:%d/%m} {t}" for d, t in sorted(nuovi.items())) + ". Da ora il treno e la sveglia si controllano da soli."
 
 
-def frase_sveglia(turno: str) -> str:
-    """Per la sera prima: a che ora ti svegli e a che ora conviene andare a letto, dal treno del turno. Vuota se il turno e' riposo o non c'e' il treno.
-    I minuti tra sveglia e treno e le ore di sonno stanno in memoria/treni.json ('sveglia_minuti', 'ore_sonno')."""
+def frase_sveglia(turno: str, giorno=None) -> str:
+    """Per la sera prima: a che ora ti svegli e a che ora conviene andare a letto. Vuota se il turno e' riposo o non c'e' il treno.
+    La sveglia e' quella segnata per quel giorno, altrimenti quella solita ('sveglia_ora' in memoria/treni.json: apertura 07:20, chiusura 09:00; in mancanza,
+    'sveglia_minuti' prima del treno). Ore di sonno: 'ore_sonno'."""
     imp = _impostazioni()
     ora = imp["treni"].get(turno)
     if not ora:
         return ""
     h, m = (int(x) for x in ora.split(":"))
-    prima = int((imp.get("sveglia_minuti") or {}).get(turno, 60))
     treno = datetime(2000, 1, 1, h, m)
-    sveglia = treno - timedelta(minutes=prima)
+    giorno = giorno or (datetime.now(ZoneInfo(config.FUSO)).date() + timedelta(days=1))
+    fissa = _sveglia_giorno(giorno) or (imp.get("sveglia_ora") or {}).get(turno)
+    if fissa:
+        sh, sm = (int(x) for x in str(fissa).split(":"))
+        sveglia = datetime(2000, 1, 1, sh, sm)
+    else:
+        sveglia = treno - timedelta(minutes=int((imp.get("sveglia_minuti") or {}).get(turno, 60)))
     letto = sveglia - timedelta(hours=float(imp.get("ore_sonno", 7)))
     f = f"Domani {turno}: sveglia alle {sveglia:%H:%M}, treno alle {treno:%H:%M}."
-    if letto.hour >= 20 or letto.hour < 2:  # ha senso solo se il letto e' la sera prima (un turno di chiusura non ne ha bisogno)
+    if letto.hour >= 20 or letto.hour < 2:  # ha senso solo se il letto e' la sera prima
         f += f" Per dormire {float(imp.get('ore_sonno', 7)):g} ore vai a letto verso le {letto:%H:%M}."
     return f
 

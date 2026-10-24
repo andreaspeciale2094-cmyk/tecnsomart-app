@@ -42,7 +42,7 @@ Segna con [x] quando provato. Dopo ogni prova dire a Jarvis/Claude com'e' andata
 ## Turni, sveglia, fine ciclo
 - [ ] Dire a Jarvis i turni della settimana ("lunedi apertura, martedi chiusura...") e controllare che li ripeta
 - [ ] La sera: "Domani apertura: sveglia alle 7:20..."
-- [ ] Dire a che ora vuoi la sveglia per la chiusura (ora e' 90 minuti prima del treno, inventata)
+- [ ] Chiusura: sveglia alle 9:00; prova a dire "domani chiusura, sveglia alle 8:30"
 
 ## Altre prove rimaste
 - [ ] Interruzioni a voce (pezzo 4 Fase 2) e fermare Jarvis mentre parla

@@ -334,7 +334,7 @@ def _domani_fai(adesso: datetime) -> int:
                 frasi.append(f)
                 creati += 1
             elif t != "riposo":
-                f = treni.frase_sveglia(t)
+                f = treni.frase_sveglia(t, domani)
                 if f:
                     _aggiungi("domani", f, False)
                     frasi.append(f)

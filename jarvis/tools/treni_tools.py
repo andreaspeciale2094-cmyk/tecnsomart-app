@@ -4,17 +4,18 @@ SCHEMAS = [
     {
         "name": "turno_imposta",
         "description": ("Segna il turno di lavoro di Andrea: apertura, chiusura o riposo, per oggi o per domani. Serve all'agente dei treni: guarda da solo il treno di quel turno "
-                        "(apertura 7:48, chiusura 13:18) e lo avvisa se e' puntuale, in ritardo o cancellato. Usalo quando dice 'domani faccio apertura', 'oggi chiusura', 'domani sono a casa'."),
+                        "(apertura 7:48, chiusura 13:18; sveglia di solito apertura 7:20, chiusura 9:00) e lo avvisa se e' puntuale, in ritardo o cancellato. Usalo quando dice 'domani faccio apertura', 'oggi chiusura', 'domani sono a casa'."),
         "input_schema": {"type": "object", "properties": {
             "turno": {"type": "string", "enum": ["apertura", "chiusura", "riposo"]},
-            "giorno": {"type": "string", "description": "oggi (predefinito), domani, un giorno della settimana (lunedi...) o una data"}}, "required": ["turno"]},
+            "giorno": {"type": "string", "description": "oggi (predefinito), domani, un giorno della settimana (lunedi...) o una data"},
+            "sveglia": {"type": "string", "description": "solo se Andrea dice una sveglia diversa dal solito per quel giorno, per esempio 8:30"}}, "required": ["turno"]},
     },
     {
         "name": "turni_settimana",
         "description": ("Segna in una volta TUTTI i turni di una settimana (Andrea li manda ogni venerdi): per esempio 'lunedi apertura, martedi chiusura, mercoledi riposo...'. "
                         "Per ogni giorno scrivi giorno (un giorno della settimana, oggi, domani o una data) e turno (apertura, chiusura, riposo). Da quel momento Jarvis controlla da solo il treno e dice la sveglia la sera prima."),
         "input_schema": {"type": "object", "properties": {"turni": {"type": "array", "items": {"type": "object", "properties": {
-            "giorno": {"type": "string"}, "turno": {"type": "string", "enum": ["apertura", "chiusura", "riposo"]}}, "required": ["giorno", "turno"]}}}, "required": ["turni"]},
+            "giorno": {"type": "string"}, "turno": {"type": "string", "enum": ["apertura", "chiusura", "riposo"]}, "sveglia": {"type": "string", "description": "facoltativa: sveglia diversa dal solito (8:30)"}}, "required": ["giorno", "turno"]}}}, "required": ["turni"]},
     },
     {
         "name": "treno_stato",
@@ -47,9 +48,9 @@ def _stato(turno: str = "", ora: str = "", stazione: str = "", direzione: str = 
         return f"Errore: {e}"
 
 
-def _turno(turno: str, giorno: str = "") -> str:
+def _turno(turno: str, giorno: str = "", sveglia: str = "") -> str:
     try:
-        return treni.imposta_turno(turno, giorno)
+        return treni.imposta_turno(turno, giorno, sveglia)
     except treni.TreniError as e:
         return f"Errore: {e}"
 
