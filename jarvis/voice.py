@@ -42,10 +42,6 @@ def _ora_parlata(m: re.Match) -> str:
         return m.group(0)
     if h == 24:
         h = 0
-    if h == 0:
-        return "mezzanotte" if mi == 0 else f"mezzanotte e {numero_parlato(mi)}"
-    if h == 12 and mi == 0:
-        return "mezzogiorno"
     ore = "una" if h == 1 else numero_parlato(h)
     return ore if mi == 0 else f"{ore} e {numero_parlato(mi)}"
 

@@ -89,6 +89,10 @@ export function impostaMiei(ids) { for (const i of ids || []) if (i) miei.add(no
 
 function unisci(vecchio, nuovo) {  // un contatto trovato con due indirizzi: si riuniscono le due chat in una
   const a = chats.get(vecchio), b = chats.get(nuovo);
+  if (a && !b) {  // c'era solo la chat con il codice nascosto: ora si sa il numero, la chat cambia indirizzo
+    chats.delete(vecchio); a.id = nuovo; a.numero = nuovo.split('@')[0]; chats.set(nuovo, a); a.sporca = true;
+    return;
+  }
   if (!a || !b || a === b) return;
   for (const m of a.msgs) if (!m.id || !b.ids.has(m.id)) { b.msgs.push(m); if (m.id) b.ids.add(m.id); }
   b.nome = b.nome || a.nome; b.numero = b.numero || a.numero;
