@@ -137,6 +137,11 @@ export function registraStorico({ chats: cs, contacts, messages }, ora = Date.no
 }
 
 // ---------- lettura e ricerca ----------
+export function gruppoNoto(jid) {
+  const c = chats.get(jid);
+  return !!c && !!c.gruppo;
+}
+
 export function gruppoSenzaNome(jid) {
   const c = chats.get(jid);
   return !!c && c.gruppo && !c.nome;

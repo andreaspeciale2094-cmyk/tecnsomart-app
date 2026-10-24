@@ -111,6 +111,18 @@ def prepara(a: str, testo: str) -> str:
             "Leggilo ad Andrea e chiedi: 'Lo apro in WhatsApp?'. Dopo il suo si': se hai lo strumento whatsapp_invia lo mandi tu senza finestre, altrimenti si apre WhatsApp e lo invia lui.")
 
 
+def prepara_gruppo(chat_id: str, nome: str, testo: str) -> str:
+    """Prepara un messaggio per un GRUPPO che c'e' gia' nell'archivio (solo dal pulsante della pagina: il clic su 'Invia' e' il si' di Andrea)."""
+    testo = testo.strip()
+    if not testo:
+        raise WhatsAppError("Manca il testo del messaggio.")
+    if not re.fullmatch(r"\d{5,}(-\d+)?@g\.us", chat_id or ""):
+        raise WhatsAppError("Questo non e' un gruppo che conosco.")
+    pid = uuid.uuid4().hex[:6]
+    _pronti[pid] = {"nome": nome or "gruppo", "numero": "", "gruppo_id": chat_id, "testo": testo[:1000], "turno": posta.turno(), "in_rubrica": True, "t": time.time()}
+    return f"MESSAGGIO {pid} per {nome} (gruppo, non ancora inviato)"
+
+
 def apri(pid: str) -> str:
     p = _pronti.get(pid)
     if not p:
@@ -183,6 +195,8 @@ def invia(pid: str, da_pagina: bool = False) -> str:
         raise WhatsAppError("Non trovo quel messaggio: ripreparalo.")
     if p["turno"] == posta.turno() and not da_pagina:
         raise WhatsAppError("Prima Andrea deve vedere il messaggio e dirti di inviarlo: aspetta il suo si'.")
+    if p.get("gruppo_id") and not da_pagina:
+        raise WhatsAppError("Nei gruppi si scrive solo dal pulsante 'Invia' della finestra, dopo aver letto il testo.")
     if not p.get("in_rubrica"):
         raise WhatsAppError("Senza finestre invio solo a persone della rubrica: salva prima il numero con il suo nome.")
     st = _avvia_helper()
@@ -191,14 +205,14 @@ def invia(pid: str, da_pagina: bool = False) -> str:
     if not st.get("connesso"):
         raise WhatsAppError("WhatsApp non e' ancora collegato: va fatto una volta con 3_collega_whatsapp.bat (codice da scansionare con il telefono).")
     try:
-        r = httpx.post(HELPER_URL + "/invia", headers=_chiave(), json={"numero": p["numero"], "testo": p["testo"]}, timeout=90).json()
+        r = httpx.post(HELPER_URL + "/invia", headers=_chiave(), json={"numero": p["numero"], "testo": p["testo"], **({"gruppo": p["gruppo_id"]} if p.get("gruppo_id") else {})}, timeout=90).json()
     except (httpx.HTTPError, ValueError):
         raise WhatsAppError("Non sono riuscito a parlare con il programma di WhatsApp. Il messaggio non e' partito.")
     if not r.get("ok"):
         raise WhatsAppError("Il messaggio non e' partito: " + str(r.get("errore", "errore sconosciuto")))
     del _pronti[pid]
-    logs.log_azione("WHATSAPP inviato senza finestre (contenuto non salvato)")
-    return f"Messaggio inviato a {p['nome']}."
+    logs.log_azione("WHATSAPP inviato a un gruppo senza finestre (contenuto non salvato)" if p.get("gruppo_id") else "WHATSAPP inviato senza finestre (contenuto non salvato)")
+    return f"Messaggio inviato al gruppo {p['nome']}." if p.get("gruppo_id") else f"Messaggio inviato a {p['nome']}."
 
 
 def chiudi_helper():

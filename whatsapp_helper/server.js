@@ -13,7 +13,7 @@ import { lookup } from 'node:dns/promises';
 import { connect } from 'node:net';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { registra, registraStorico, impostaNomi, gruppoSenzaNome, nomeGruppo, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
+import { registra, registraStorico, impostaNomi, gruppoNoto, gruppoSenzaNome, nomeGruppo, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, fetchLatestWaWebVersion, Browsers } from '@whiskeysockets/baileys';
 
 const QUI = dirname(fileURLToPath(import.meta.url));
@@ -151,16 +151,19 @@ let coda = Promise.resolve();
 const attesa = (ms) => new Promise((r) => setTimeout(r, ms));
 let ultimo = 0;
 
-function invia(numero, testo) {
+function invia(numero, testo, gruppo = '') {
   const lavoro = coda.then(async () => {
     if (stato.bloccato) throw new Error(stato.errore);
     if (!stato.connesso) throw new Error("WhatsApp non e' collegato.");
     const pausa = 5000 + Math.random() * 7000;
     const gia = Date.now() - ultimo;
     if (gia < pausa) await attesa(pausa - gia);
-    const [esiste] = (await sock.onWhatsApp(numero)) || [];
-    if (!esiste?.exists) throw new Error('Quel numero non risulta su WhatsApp.');
-    const jid = esiste.jid;
+    let jid = gruppo;  // un gruppo che c'e' gia' nell'archivio (mai un indirizzo mandato da fuori)
+    if (!gruppo) {
+      const [esiste] = (await sock.onWhatsApp(numero)) || [];
+      if (!esiste?.exists) throw new Error('Quel numero non risulta su WhatsApp.');
+      jid = esiste.jid;
+    }
     await sock.presenceSubscribe(jid);
     await sock.sendPresenceUpdate('composing', jid);
     await attesa(Math.min(1000 + testo.length * 40, 4000));
@@ -200,11 +203,12 @@ createServer(async (req, res) => {
   }
   if (req.method === 'POST' && req.url === '/invia') {
     try {
-      const { numero, testo } = await leggiCorpo(req);
-      if (!/^\d{8,15}$/.test(String(numero || '')) || !String(testo || '').trim() || String(testo).length > 1000) {
+      const { numero, testo, gruppo } = await leggiCorpo(req);
+      const valido = gruppo ? (/^\d{5,}(-\d+)?@g\.us$/.test(String(gruppo)) && gruppoNoto(String(gruppo))) : /^\d{8,15}$/.test(String(numero || ''));
+      if (!valido || !String(testo || '').trim() || String(testo).length > 1000) {
         return rispondi(res, 400, { ok: false, errore: 'dati non validi' });
       }
-      await invia(String(numero), String(testo));
+      await invia(String(numero || ''), String(testo), gruppo ? String(gruppo) : '');
       return rispondi(res, 200, { ok: true });
     } catch (e) {
       return rispondi(res, 200, { ok: false, errore: String(e.message || e).slice(0, 200) });

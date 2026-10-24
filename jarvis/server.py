@@ -474,12 +474,15 @@ def api_wa_app(request: Request):
 
 
 class WaPrepara(BaseModel):
-    a: str
+    a: str = ""
     testo: str
+    chat_id: str = ""  # solo per i gruppi
 
 
 @app.post("/api/whatsapp/prepara")
 def api_wa_prepara(body: WaPrepara, request: Request):
+    if body.chat_id:
+        return _pc_o_errore(request) or _chiama(interazioni.prepara_gruppo, body.chat_id[:60], body.testo[:1000])
     return _pc_o_errore(request) or _chiama(interazioni.prepara, body.a[:60], body.testo[:1000])
 
 

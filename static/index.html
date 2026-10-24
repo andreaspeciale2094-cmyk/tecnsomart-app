@@ -707,22 +707,23 @@ speechSynthesis?.getVoices();
       if (d.in_rubrica) nodi.push(btn('↩ Rispondi' + (d.rispondi_a && d.rispondi_a !== d.nome ? ' a ' + d.rispondi_a : ''), () => vistaScrivi({ nome: d.rispondi_a || d.nome, indietro: () => vistaChat(c) }), 'ok'));
       else if (d.numero_noto) { const nm = h('input'); nm.placeholder = 'Che nome gli dai in rubrica?'; nm.value = c.nome.startsWith('+') ? '' : c.nome; const st = h('div', 'dim', 'Questa persona non e\' ancora nella tua rubrica: per rispondere va salvata (resta solo sul tuo PC).');
         nodi.push(st, nm, btn('Salva in rubrica', async () => { try { await chiama('/api/whatsapp/salva', { chat_id: c.id, nome: nm.value.trim() }); vistaChat(c); } catch (e) { st.textContent = e.message; st.className = 'err'; } }));
-      } else nodi.push(h('div', 'dim', d.gruppo ? 'Questo e\' un gruppo: qui si legge soltanto, non si scrive.' : 'WhatsApp non mi da\' il numero di questa persona e il suo nome non e\' in rubrica: per rispondere scrivi il nome come e\' in rubrica con "Scrivi a qualcuno", oppure rispondi dall\'app.'));
+      } else if (d.gruppo) nodi.push(btn('↩ Scrivi al gruppo', () => vistaScrivi({ nome: d.nome, indietro: () => vistaChat(c), gruppoId: c.id }), 'ok'), h('div', 'dim', 'Il messaggio arriva a tutti i membri del gruppo: prima lo rileggi, poi premi Invia.'));
+      else nodi.push(h('div', 'dim',  'WhatsApp non mi da\' il numero di questa persona e il suo nome non e\' in rubrica: per rispondere scrivi il nome come e\' in rubrica con "Scrivi a qualcuno", oppure rispondi dall\'app.'));
       mostra(...nodi); Bd.scrollTop = Bd.scrollHeight; } catch (e) { guasto(e, vistaWhatsApp); } }
 
   // ---- scrivere e confermare ----
-  async function vistaScrivi({ nome, indietro, testo = '' }) { apri(nome ? 'Messaggio per ' + nome : 'Scrivi su WhatsApp', 'Prima vedi il testo, poi premi Invia: senza il tuo clic non parte niente.');
+  async function vistaScrivi({ nome, indietro, testo = '', gruppoId = '' }) { apri(nome ? 'Messaggio per ' + nome : 'Scrivi su WhatsApp', 'Prima vedi il testo, poi premi Invia: senza il tuo clic non parte niente.');
     const nodi = [btn('← indietro', indietro, 'ind')]; let campo = null;
     if (!nome) { campo = h('input'); campo.placeholder = 'A chi? Scrivi un nome della rubrica'; campo.setAttribute('list', 'dl-rubrica'); nodi.push(campo);
       if (!$('#dl-rubrica')) { const dl = h('datalist'); dl.id = 'dl-rubrica'; document.body.append(dl); } chiama('/api/whatsapp/rubrica').then(d => $('#dl-rubrica').replaceChildren(...d.nomi.map(n => { const o = h('option'); o.value = n; return o; }))).catch(() => {}); }
     const ta = h('textarea'); ta.placeholder = 'Scrivi il messaggio…'; ta.value = testo; nodi.push(ta); const er = h('div', 'err');
-    nodi.push(btn('Prepara il messaggio', async () => { er.textContent = ''; const a = (campo ? campo.value : nome).trim(); if (!a) { er.textContent = 'Scrivi a chi vuoi mandarlo.'; return; }
-      try { const prep = await chiama('/api/whatsapp/prepara', { a, testo: ta.value }); vistaConferma(prep, () => vistaScrivi({ nome: campo ? a : nome, indietro, testo: ta.value })); } catch (e) { er.textContent = e.message; } }, 'ok'), er);
+    nodi.push(btn('Prepara il messaggio', async () => { er.textContent = ''; const a = (campo ? campo.value : nome).trim(); if (!a && !gruppoId) { er.textContent = 'Scrivi a chi vuoi mandarlo.'; return; }
+      try { const prep = await chiama('/api/whatsapp/prepara', { a, testo: ta.value, chat_id: gruppoId }); vistaConferma(prep, () => vistaScrivi({ nome: campo ? a : nome, indietro, testo: ta.value, gruppoId })); } catch (e) { er.textContent = e.message; } }, 'ok'), er);
     mostra(...nodi); (campo || ta).focus(); }
   function vistaConferma(prep, modifica) { apri('Confermi l\'invio?', 'Il messaggio parte solo se premi "Invia".');
     const inv = btn('Invia', async () => { inv.disabled = true; inv.textContent = 'Invio…'; try { const d = await chiama('/api/whatsapp/invia', { pid: prep.pid }); apri('Fatto', ''); mostra(h('div', 'dett', d.messaggio), btn('Chiudi', chiudi)); }
       catch (e) { mostra(h('div', 'err', e.message), btn('← indietro', modifica, 'ind')); } }, 'ok'); inv.disabled = true; setTimeout(() => { inv.disabled = false; }, 1300);  // il tempo di leggere
-    const nodi = [h('div', 'dett', 'Sto per mandare a ' + prep.nome + ':'), h('div', 'citaz', prep.testo)];
+    const nodi = [h('div', 'dett', (prep.gruppo ? 'Sto per mandare al GRUPPO ' + prep.nome + ' (lo leggono tutti i membri):' : 'Sto per mandare a ' + prep.nome + ':')), h('div', 'citaz', prep.testo)];
     if (!prep.in_rubrica) nodi.push(h('div', 'err', 'Questa persona non e\' in rubrica: per sicurezza non posso inviare. Salvala prima.'));
     const g = h('div', 'gruppo'); if (prep.in_rubrica) g.append(inv); g.append(btn('Modifica', modifica), btn('Annulla', chiudi, 'alt')); nodi.push(g); mostra(...nodi); }
 
@@ -845,6 +846,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261036"></script>
+<script src="/static/rete.js?v=20261037"></script>
 </body>
 </html>

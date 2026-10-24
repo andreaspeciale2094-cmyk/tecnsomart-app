@@ -102,6 +102,21 @@ def chat_messaggi(chat_id: str) -> dict:
             "messaggi": [{"da_me": bool(m["da_me"]), "testo": (m["chi"] + ": " if m.get("chi") else "") + m["testo"], "ora": datetime.fromtimestamp(m["ts"]).strftime("%H:%M")} for m in r["messaggi"]]}
 
 
+def prepara_gruppo(chat_id: str, testo: str) -> dict:
+    """Prepara un messaggio per un gruppo gia' in archivio (NON lo invia). Il nome del gruppo lo prende il server dalla chat, non dalla pagina."""
+    from urllib.parse import quote
+    testo = (testo or "").strip()
+    if not testo:
+        raise whatsapp.WhatsAppError("Scrivi prima il testo del messaggio.")
+    r = whatsapp._helper_json(f"/messaggi?id={quote(chat_id)}&n=1&segna=0")
+    if not r.get("ok") or not r.get("gruppo"):
+        raise whatsapp.WhatsAppError("Questo gruppo non e' nell'archivio: non posso scrivergli.")
+    out = whatsapp.prepara_gruppo(chat_id, r.get("nome") or "gruppo", testo)
+    pid = re.search(r"MESSAGGIO (\w+) per", out).group(1)
+    p = whatsapp._pronti[pid]
+    return {"pid": pid, "nome": p["nome"], "testo": p["testo"], "in_rubrica": True, "gruppo": True}
+
+
 def prepara(a: str, testo: str, numero_chat: str = "") -> dict:
     """Prepara il messaggio (NON lo invia) e ritorna cio' che la pagina deve far vedere ad Andrea."""
     testo = (testo or "").strip()

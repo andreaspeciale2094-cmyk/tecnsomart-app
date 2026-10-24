@@ -25,7 +25,7 @@
   // Questa schermata si apre subito; Jarvis intanto si accende in sottofondo. Appena risponde si passa alla pagina vera.
   const inizio = Date.now(), porta = new URLSearchParams(location.search).get('porta') || '8000';
   async function prova() {
-    try { await fetch('http://127.0.0.1:' + porta + '/api/auth', { mode: 'no-cors', cache: 'no-store' }); document.getElementById('s').textContent = 'pronto'; location.replace('http://localhost:' + porta + '/?v=20261036'); return; } catch (e) {}
+    try { await fetch('http://127.0.0.1:' + porta + '/api/auth', { mode: 'no-cors', cache: 'no-store' }); document.getElementById('s').textContent = 'pronto'; location.replace('http://localhost:' + porta + '/?v=20261037'); return; } catch (e) {}
     const sec = Math.round((Date.now() - inizio) / 1000);
     document.getElementById('n').textContent = sec < 20 ? '' : sec < 90 ? 'Ci sta mettendo un po\'… ' + sec + ' secondi' : 'Ci sta mettendo piu\' del solito (' + sec + ' secondi). Se non parte, spegni Jarvis dal collegamento "Spegni Jarvis" e riaccendilo.';
     setTimeout(prova, 700);
