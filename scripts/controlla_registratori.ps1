@@ -12,6 +12,7 @@ $visti = @{}
 Get-Process | ForEach-Object {
   if ($sospetti.ContainsKey($_.ProcessName) -and -not $visti.ContainsKey($_.ProcessName)) { $visti[$_.ProcessName] = $sospetti[$_.ProcessName] }
 }
+Get-Process | Where-Object { $_.ProcessName -match 'display|cast|mirror|portal|miracast|wfd|wireless' -and -not $visti.ContainsKey($_.ProcessName) } | ForEach-Object { $visti[$_.ProcessName] = 'Programma che sembra passare lo schermo a un altro dispositivo' }
 Write-Host ''
 if ($visti.Count -eq 0) { Write-Host 'Non vedo programmi dell''elenco dei sospetti.' }
 else { Write-Host 'Programmi accesi che Sky Go potrebbe scambiare per un registratore:'; $visti.GetEnumerator() | Sort-Object Name | ForEach-Object { Write-Host (' - ' + $_.Value + '   [' + $_.Name + ']') } }
