@@ -1,4 +1,4 @@
-// Programma di appoggio di Jarvis per WhatsApp, senza finestre: invia, riceve e ARCHIVIA i messaggi delle chat singole (niente gruppi).
+// Programma di appoggio di Jarvis per WhatsApp, senza finestre: invia, riceve e ARCHIVIA i messaggi delle chat singole e dei gruppi (si INVIA solo a numeri singoli).
 // L'archivio sta solo sul PC, cifrato (memoria/whatsapp/archivio.bin): mai su GitHub, mai nei registri.
 // Ascolta solo su 127.0.0.1 e vuole una chiave (memoria/whatsapp/token.txt). Non scrive mai i messaggi su disco ne' nei registri.
 // I dati del collegamento (come una password) stanno in memoria/whatsapp/auth, solo sul PC di Andrea.
@@ -13,7 +13,7 @@ import { lookup } from 'node:dns/promises';
 import { connect } from 'node:net';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { registra, registraStorico, impostaNomi, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
+import { registra, registraStorico, impostaNomi, gruppoSenzaNome, nomeGruppo, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, fetchLatestWaWebVersion, Browsers } from '@whiskeysockets/baileys';
 
 const QUI = dirname(fileURLToPath(import.meta.url));
@@ -74,10 +74,18 @@ async function avvia() {
   if (MOSTRA_QR && chiusure > 0) console.log('  (versione di WhatsApp: ' + (version ? version.join('.') : 'quella inclusa nel programma') + ')');
   sock = makeWASocket({ ...(version ? { version } : {}), auth: state, logger: pino({ level: MOSTRA_QR ? 'warn' : 'silent' }), browser: Browsers.macOS('Desktop'), ...(chiusure >= 3 ? {} : { syncFullHistory: true, shouldSyncHistoryMessage: () => true }), markOnlineOnConnect: false });  // la storia vecchia arriva una volta sola, subito dopo il collegamento
   sock.ev.on('creds.update', saveCreds);
-  sock.ev.on('messages.upsert', ({ messages }) => { for (const m of messages || []) { try { registra(m); } catch (e) {} } });
+  const nomiRichiesti = new Set();
+  const cercaNomeGruppo = async (jid) => {  // il nome del gruppo si chiede una volta sola a WhatsApp
+    if (nomiRichiesti.has(jid) || !gruppoSenzaNome(jid)) return;
+    nomiRichiesti.add(jid);
+    try { const g = await sock.groupMetadata(jid); nomeGruppo(jid, g?.subject); } catch (e) {}
+  };
+  sock.ev.on('messages.upsert', ({ messages }) => { for (const m of messages || []) { try { registra(m); const j = m?.key?.remoteJid || ''; if (j.endsWith('@g.us')) cercaNomeGruppo(j); } catch (e) {} } });
+  sock.ev.on('groups.upsert', (gs) => { try { impostaNomi((gs || []).map((g) => ({ id: g.id, name: g.subject }))); } catch (e) {} });
   sock.ev.on('messaging-history.set', (h) => {
     try {
       const n = registraStorico(h);
+      for (const c of h.chats || []) if (String(c.id || '').endsWith('@g.us')) cercaNomeGruppo(c.id);
       stato.storia.ricevuta += n; stato.storia.ultimo = Date.now();
       if (MOSTRA_QR) process.stdout.write(`\rStorico scaricato: ${stato.storia.ricevuta} messaggi (${totali().chat} chat)...   `);
     } catch (e) {}

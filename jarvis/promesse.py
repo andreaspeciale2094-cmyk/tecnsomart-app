@@ -51,7 +51,7 @@ def candidati() -> list[dict]:
     """Estratti con una possibile promessa di oggi: {'chat': nome, 'testo': 'Andrea: ...' + messaggi dopo}."""
     from . import whatsapp
     inizio = _inizio_giorno()
-    chat = [c for c in whatsapp._helper_json("/chat?tutte=1").get("chat", []) if c.get("ultimo", 0) >= inizio][:25]
+    chat = [c for c in whatsapp._helper_json("/chat?tutte=1").get("chat", []) if c.get("ultimo", 0) >= inizio and not c.get("gruppo")][:25]
     out = []
     for c in chat:
         r = whatsapp._helper_json(f"/messaggi?id={quote(c['id'])}&n=40&segna=0")

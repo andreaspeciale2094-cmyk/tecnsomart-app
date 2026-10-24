@@ -1,4 +1,4 @@
-// Archivio dei messaggi WhatsApp (solo chat singole, niente gruppi). Sta SOLO sul PC di Andrea, in memoria/whatsapp/archivio.bin,
+// Archivio dei messaggi WhatsApp (chat singole e, dal 24/10 su richiesta di Andrea, anche i gruppi; mai stati e canali). Sta SOLO sul PC di Andrea, in memoria/whatsapp/archivio.bin,
 // CIFRATO (AES-256-GCM, chiave in memoria/whatsapp/archivio.key): mai su GitHub, mai nei registri. Chi ha accesso ai file del PC potrebbe comunque
 // leggerlo: la cifratura protegge dallo sguardo distratto, non da chi ha in mano il PC.
 // Funzioni pure o quasi, cosi' si provano senza collegarsi a WhatsApp.
@@ -46,7 +46,7 @@ function preparaChat(c) {
 export function salvaSubito() {
   if (!fileArchivio) return false;
   if (timer) { clearTimeout(timer); timer = null; }
-  const dati = [...chats.values()].map((c) => { ordina(c); return { id: c.id, numero: c.numero, nome: c.nome, lettoFino: c.lettoFino, ultimo: c.ultimo, msgs: c.msgs }; });
+  const dati = [...chats.values()].map((c) => { ordina(c); return { id: c.id, numero: c.numero, nome: c.nome, gruppo: !!c.gruppo, lettoFino: c.lettoFino, ultimo: c.ultimo, msgs: c.msgs }; });
   const tmp = fileArchivio + '.tmp';
   writeFileSync(tmp, cifra(Buffer.from(JSON.stringify(dati), 'utf8')));
   renameSync(tmp, fileArchivio);
@@ -86,7 +86,8 @@ export function registra(m, ora = Date.now() / 1000, storico = false) {
   const k = m?.key;
   if (!k) return false;
   const jid = k.remoteJidAlt || k.remoteJid || '';
-  if (!(jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid'))) return false;  // niente gruppi, stati, newsletter
+  const gruppo = jid.endsWith('@g.us');
+  if (!(jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid') || gruppo)) return false;  // niente stati e newsletter
   const testo = testoDi(m);
   if (testo == null) return false;
   const ts = Number(m.messageTimestamp?.low ?? m.messageTimestamp ?? ora);
@@ -98,12 +99,15 @@ export function registra(m, ora = Date.now() / 1000, storico = false) {
       const vecchia = [...chats.values()].sort((a, b) => a.ultimo - b.ultimo)[0];
       chats.delete(vecchia.id);
     }
-    c = preparaChat({ id: jid, numero, nome: '', msgs: [], lettoFino: 0, ultimo: 0 });
+    c = preparaChat({ id: jid, numero, nome: '', gruppo, msgs: [], lettoFino: 0, ultimo: 0 });
     chats.set(jid, c);
   }
   if (k.id && c.ids.has(k.id)) return false;  // gia' registrato (la storia e i messaggi in diretta possono sovrapporsi)
-  if (!k.fromMe && m.pushName) c.nome = String(m.pushName).slice(0, 40);
-  c.msgs.push({ id: k.id || '', da_me: !!k.fromMe, testo: String(testo).slice(0, 1500), ts });
+  if (gruppo) c.gruppo = true;
+  if (!k.fromMe && m.pushName && !gruppo) c.nome = String(m.pushName).slice(0, 40);
+  const msg = { id: k.id || '', da_me: !!k.fromMe, testo: String(testo).slice(0, 1500), ts };
+  if (gruppo && !k.fromMe) msg.chi = String(m.pushName || (k.participant || '').split('@')[0].split(':')[0] || '').slice(0, 40);  // chi ha scritto nel gruppo
+  c.msgs.push(msg);
   if (k.id) c.ids.add(k.id);
   c.sporca = true;
   if (c.msgs.length > limiti.perChat + 200) {  // ogni tanto si buttano i piu' vecchi
@@ -119,7 +123,7 @@ export function registra(m, ora = Date.now() / 1000, storico = false) {
 // nomi dei contatti che arrivano con la storia (solo per le chat che esistono gia' o appena create)
 export function impostaNomi(elenco) {
   for (const x of elenco || []) {
-    const nome = String(x?.name || x?.notify || '').slice(0, 40);
+    const nome = String(x?.name || x?.notify || x?.subject || '').slice(0, 40);
     const c = nome && chats.get(x.id);
     if (c && !c.nome) c.nome = nome;
   }
@@ -133,6 +137,16 @@ export function registraStorico({ chats: cs, contacts, messages }, ora = Date.no
 }
 
 // ---------- lettura e ricerca ----------
+export function gruppoSenzaNome(jid) {
+  const c = chats.get(jid);
+  return !!c && c.gruppo && !c.nome;
+}
+
+export function nomeGruppo(jid, nome) {
+  const c = chats.get(jid);
+  if (c && nome) { c.nome = String(nome).slice(0, 40); programmaSalvataggio(); }
+}
+
 export function totali() {
   let messaggi = 0;
   for (const c of chats.values()) messaggi += c.msgs.length;
@@ -143,8 +157,8 @@ export function elenco(tutte = false) {
   return [...chats.values()].map((c) => {
     ordina(c);
     const nuovi = c.msgs.filter((x) => !x.da_me && x.ts > c.lettoFino);
-    return { id: c.id, numero: c.numero, nome: c.nome, ultimo: c.ultimo, messaggi: c.msgs.length, non_lette: nuovi.length,
-             anteprima: nuovi.length ? String(nuovi[nuovi.length - 1].testo).slice(0, 160) : '' };  // l'ultimo messaggio non letto, solo per la scheda sullo schermo
+    return { id: c.id, numero: c.numero, nome: c.nome, gruppo: !!c.gruppo, ultimo: c.ultimo, messaggi: c.msgs.length, non_lette: nuovi.length,
+             anteprima: nuovi.length ? ((nuovi[nuovi.length - 1].chi ? nuovi[nuovi.length - 1].chi + ': ' : '') + String(nuovi[nuovi.length - 1].testo)).slice(0, 160) : '' };  // l'ultimo messaggio non letto, solo per la scheda sullo schermo
   }).filter((c) => tutte || c.non_lette > 0).sort((a, b) => b.ultimo - a.ultimo);
 }
 
@@ -157,7 +171,7 @@ export function leggi(id, n = 10, segna = true) {
     c.lettoFino = c.ultimo;
     programmaSalvataggio();
   }
-  return { id: c.id, nome: c.nome, numero: c.numero, messaggi: ultimi };
+  return { id: c.id, nome: c.nome, numero: c.numero, gruppo: !!c.gruppo, messaggi: ultimi };
 }
 
 const pulisci = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -173,7 +187,7 @@ export function cerca({ q = '', chat = '', giorni = 0, n = 15 } = {}, ora = Date
     for (const m of c.msgs) {
       if (m.ts < da) continue;
       const t = pulisci(m.testo);
-      if (parole.every((p) => t.includes(p))) trovati.push({ chat_id: c.id, nome: c.nome, numero: c.numero, da_me: m.da_me, testo: m.testo, ts: m.ts });
+      if (parole.every((p) => t.includes(p))) trovati.push({ chat_id: c.id, nome: c.nome, numero: c.numero, gruppo: !!c.gruppo, chi: m.chi || '', da_me: m.da_me, testo: m.testo, ts: m.ts });
     }
   }
   return trovati.sort((a, b) => b.ts - a.ts).slice(0, Math.max(1, Math.min(n, 50)));

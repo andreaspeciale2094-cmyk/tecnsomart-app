@@ -71,7 +71,7 @@ def chat_lista() -> list[dict]:
         rubrica_per_numero = {n: k for k, n in whatsapp._carica().items()}
     except whatsapp.WhatsAppError:
         pass
-    return [{"id": c["id"], "nome": whatsapp._nome_da_rubrica(c.get("numero", ""), c.get("nome", "")), "non_lette": c["non_lette"],
+    return [{"id": c["id"], "nome": whatsapp._nome_chat(c), "non_lette": c["non_lette"],
              "in_rubrica": c.get("numero", "") in rubrica_per_numero} for c in chat[:30]]
 
 
@@ -81,14 +81,14 @@ def chat_messaggi(chat_id: str) -> dict:
     if not r.get("ok"):
         raise whatsapp.WhatsAppError("Non ho messaggi recenti di questa chat.")
     numero = r.get("numero", "")
-    nome = whatsapp._nome_da_rubrica(numero, r.get("nome", ""))
+    nome = whatsapp._nome_chat(r)
     in_rubrica = False
     try:
         in_rubrica = any(n == numero for n in whatsapp._carica().values()) if numero else False
     except whatsapp.WhatsAppError:
         pass
     return {"nome": nome, "numero_noto": bool(numero), "in_rubrica": in_rubrica,
-            "messaggi": [{"da_me": bool(m["da_me"]), "testo": m["testo"], "ora": datetime.fromtimestamp(m["ts"]).strftime("%H:%M")} for m in r["messaggi"]]}
+            "messaggi": [{"da_me": bool(m["da_me"]), "testo": (m["chi"] + ": " if m.get("chi") else "") + m["testo"], "ora": datetime.fromtimestamp(m["ts"]).strftime("%H:%M")} for m in r["messaggi"]]}
 
 
 def prepara(a: str, testo: str, numero_chat: str = "") -> dict:
