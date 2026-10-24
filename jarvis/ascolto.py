@@ -754,8 +754,25 @@ def _leggi_blocco(s, rate, np, guadagno=1.0):
     return np.clip(x, -32768, 32767).astype(np.int16)
 
 
+_T_ASCOLTO = time.time()  # quando il programma ha caricato l'ascolto: per misurare in quanto tempo e' pronto
+_pronto_loggato = False
+
+
+def _scalda_il_resto():
+    """Appena il microfono e' aperto, in sottofondo, si preparano le cose che altrimenti rallenterebbero la PRIMA risposta: il modello della tua voce e la voce di Jarvis."""
+    try:
+        if voce_id.attiva():
+            voce_id._estrattore()
+    except Exception:
+        pass
+    try:
+        voice._edge_synthesize("ok")  # la prima sintesi vocale e' la piu' lenta: la si fa adesso, a vuoto
+    except Exception:
+        pass
+
+
 def _ciclo_vero():
-    global _parlando_fino
+    global _parlando_fino, _pronto_loggato
     import numpy as np
     import sounddevice as sd
     from ._oww import VAD, Model, download_models
@@ -778,6 +795,10 @@ def _ciclo_vero():
                 stato["errore"] = ""
                 stato["in_ascolto"] = True
                 stato["riapri"] = False
+                if not _pronto_loggato:
+                    _pronto_loggato = True
+                    logs.log_route(f"ASCOLTO: pronto dopo {time.time() - _T_ASCOLTO:.1f} s (da quando il programma ha caricato l'ascolto)")
+                    threading.Thread(target=_scalda_il_resto, daemon=True).start()
                 try:
                     stato["dispositivo"] = sd.query_devices(dispositivo if dispositivo is not None else sd.default.device[0])["name"]
                 except Exception:

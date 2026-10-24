@@ -22,7 +22,6 @@ def _avvio_scaglionato():
     Prima si vede la pagina; gli altri pezzi partono a pochi secondi di distanza l'uno dall'altro."""
     passi = [
         (1, lambda: whatsapp.avvia_per_ricevere() if config.ENABLE_WHATSAPP_LEGGI else None),  # per ricevere i messaggi deve essere sempre acceso
-        (2, ascolto.avvia),  # l'ascolto per primo: e' quello che Andrea aspetta
         (3, voice.scalda_connessioni),  # connessioni verso Groq e Claude sempre calde
         (5, benvenuto.avvia),
         (7, lambda: voice.prepare_fixed()),
@@ -48,6 +47,7 @@ def _avvio_scaglionato():
 
 @asynccontextmanager
 async def lifespan(app):
+    ascolto.avvia()  # per PRIMO: i modelli dell'ascolto sono la parte lenta, devono caricarsi mentre il resto si prepara
     if config.ENABLE_AGENTS:
         scheduler.start()
     CHIUDI_TOKEN.parent.mkdir(parents=True, exist_ok=True)
