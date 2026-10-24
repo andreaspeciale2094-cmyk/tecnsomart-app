@@ -279,6 +279,16 @@ def _sveglia_giorno(d, ora: str = ""):
     return dati[d.isoformat()]
 
 
+def _togli_sveglia(d):
+    """Cambiando turno la sveglia diversa del giorno non vale piu'."""
+    try:
+        dati = json.loads(FILE_SVEGLIA.read_text(encoding="utf-8")) if FILE_SVEGLIA.exists() else {}
+    except (OSError, ValueError):
+        return
+    if dati.pop(d.isoformat(), None) is not None:
+        FILE_SVEGLIA.write_text(json.dumps(dati), encoding="utf-8")
+
+
 def _turno_valido(turno: str) -> str:
     turno = (turno or "").strip().lower()
     if turno not in ("apertura", "chiusura", "riposo"):
@@ -294,6 +304,8 @@ def imposta_turno(turno: str, giorno: str = "", sveglia: str = "") -> str:
     _scrivi_turni({d: turno})
     if sveglia:
         _sveglia_giorno(d, sveglia)
+    else:
+        _togli_sveglia(d)
     nome = "oggi" if d == oggi else "domani" if d == oggi + timedelta(days=1) else f"{d:%d/%m}"
     frase = f"Segnato: {nome} {turno}."
     if d == oggi + timedelta(days=1) and turno != "riposo":
@@ -311,6 +323,8 @@ def imposta_settimana(turni: list) -> str:
         nuovi[d] = _turno_valido(str(t.get("turno", "")))
         if t.get("sveglia"):
             _sveglia_giorno(d, str(t["sveglia"]))
+        else:
+            _togli_sveglia(d)
     _scrivi_turni(nuovi)
     giorni = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
     return "Segnati: " + ", ".join(f"{giorni[d.weekday()]} {d:%d/%m} {t}" for d, t in sorted(nuovi.items())) + ". Da ora il treno e la sveglia si controllano da soli."
