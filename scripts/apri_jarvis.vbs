@@ -14,7 +14,7 @@ Function acceso()
 End Function
 
 ' Se Jarvis e' gia' acceso si apre subito la pagina; altrimenti lo si accende (nascosto) e si apre SUBITO una schermata di avvio che passa da sola a Jarvis quando e' pronto
-indirizzo = "http://localhost:8000/?v=20261033"
+indirizzo = "http://localhost:8000/?v=20261034"
 If Not acceso() Then
   sh.CurrentDirectory = cartella
   sh.Run """" & cartella & "\.venv\Scripts\python.exe"" -m uvicorn jarvis.server:app --port 8000", 0, False

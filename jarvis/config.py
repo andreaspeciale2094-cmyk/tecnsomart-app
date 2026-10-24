@@ -34,6 +34,7 @@ ENABLE_PROMEMORIA = _flag("JARVIS_PROMEMORIA", True)  # "ricordami alle 17 di...
 ENABLE_SALUTE = _flag("JARVIS_SALUTE", True)  # controlla da solo che le parti di Jarvis funzionino, ripara le cose sicure e avvisa del resto (+ guardiano dei consumi)
 TETTO_MENSILE = os.getenv("TETTO_MENSILE", "25")  # dollari: soglia del guardiano dei consumi (il tetto vero lo imposta Andrea nella Console Anthropic)
 ENABLE_BACKUP = _flag("JARVIS_BACKUP", True)  # copia di sicurezza settimanale di schede, rubrica a mano, promemoria, target (solo sul PC)
+ENABLE_AMAZON = _flag("JARVIS_AMAZON", True)  # cerca su Amazon e mette nel carrello dopo il si' (mai pagamenti); serve login_amazon.bat una volta
 ENABLE_TRENI = _flag("JARVIS_TRENI", True)  # "com'e' il mio treno?" (fonte non ufficiale, spegnere con false)
 ENABLE_CHIAMATE = _flag("JARVIS_CHIAMATE", True)  # telefonate dal PC con il si' di Andrea (spegnere con false)
 ENABLE_WHATSAPP = _flag("JARVIS_WHATSAPP")  # prepara messaggi WhatsApp e apre l'app con il testo pronto (invia Andrea)

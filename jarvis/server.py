@@ -318,6 +318,44 @@ def api_chiamata_persa(request: Request, numero: str = "", nome: str = "", k: st
     return {"ok": True}
 
 
+@app.get("/api/posta/elenco")
+def api_posta_elenco(request: Request):
+    """Mail non lette per conto (solo dal PC): mittente e oggetto, per la finestra del riquadro posta. Solo in memoria."""
+    from . import posta
+    if not _dal_pc(request):
+        return JSONResponse({"error": "Questa funzione e' disponibile solo dal PC."}, status_code=403)
+    conti = []
+    for c in posta._configurati():
+        try:
+            conti.append({"conto": c, "mail": posta.elenco_pannello(c)})
+        except Exception as e:
+            conti.append({"conto": c, "mail": [], "errore": str(e)[:120]})
+    return {"conti": conti}
+
+
+class PostaApri(BaseModel):
+    conto: str
+    thrid: str = ""
+
+
+@app.post("/api/posta/apri")
+def api_posta_apri(body: PostaApri, request: Request):
+    """Apre Gmail nel browser predefinito, sull'account giusto: la mail scelta oppure tutte le non lette. L'indirizzo lo costruisce il server (solo mail.google.com)."""
+    import webbrowser
+    from urllib.parse import quote
+    from . import posta
+    if not _dal_pc(request):
+        return JSONResponse({"error": "Questa funzione e' disponibile solo dal PC."}, status_code=403)
+    try:
+        utente = posta.indirizzo(body.conto if body.conto in posta.CONTI else "personale")
+    except Exception:
+        return JSONResponse({"error": "Questo conto di posta non e' collegato."}, status_code=400)
+    ancora = f"#all/{int(body.thrid):x}" if body.thrid.isdigit() else "#search/is%3Aunread"
+    webbrowser.open(f"https://mail.google.com/mail/?authuser={quote(utente)}{ancora}")
+    logs.log_route("POSTA: aperta Gmail")
+    return {"ok": True}
+
+
 @app.get("/api/appuntamenti")
 def api_appuntamenti(request: Request):
     """Un appuntamento preso in chat che aspetta il tuo Si' per finire sul calendario (solo dal PC)."""

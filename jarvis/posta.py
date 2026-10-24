@@ -91,6 +91,28 @@ def _non_lette_conto(conto: str, limite: int) -> list[str]:
     return righe
 
 
+def indirizzo(conto: str) -> str:
+    """L'indirizzo Gmail del conto (serve solo a scegliere l'account giusto quando si apre Gmail; non viene scritto nei registri)."""
+    return _credenziali(conto)[0]
+
+
+def elenco_pannello(conto: str, limite: int = 10) -> list[dict]:
+    """Per la finestra del riquadro posta: [{'da', 'oggetto', 'thrid'}] delle non lette piu' recenti (thrid = codice della conversazione di Gmail)."""
+    m = _imap(conto)
+    out = []
+    try:
+        m.select("INBOX", readonly=True)
+        _, data = m.uid("search", None, "UNSEEN")
+        for u in reversed(data[0].split()[-max(1, min(limite, 20)):]):
+            _, msg = m.uid("fetch", u, "(X-GM-THRID BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])")
+            h = email.message_from_bytes(msg[0][1])
+            t = re.search(rb"X-GM-THRID (\d+)", msg[0][0] or b"")
+            out.append({"da": _dec(h["From"])[:80], "oggetto": _dec(h["Subject"])[:120], "thrid": t.group(1).decode() if t else ""})
+    finally:
+        m.logout()
+    return out
+
+
 def non_lette(limite: int = 10, conto: str = "tutti") -> str:
     conti = _configurati() if conto == "tutti" else [conto]
     if not conti:

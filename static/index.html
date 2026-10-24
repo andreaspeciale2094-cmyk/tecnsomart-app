@@ -306,7 +306,7 @@ setInterval(() => orb.classList.toggle('speaking', speaking() && !orb.classList.
     e.innerHTML = `<div class="gr">${MT[m.cat] || MT.nuvole}<b>${m.temp}°</b></div>${esc(m.citta)} · ${m.min}° / ${m.max}°`; }
   async function pannello() { try { const p = await (await api('/api/pannello')).json(); let sx = '', bs = ''; window.panDati = p; disegnaMeteo(p.meteo);
     if (p.agenda) sx = `<span class="t">${IC.cal}oggi</span><b>${p.agenda.n}</b> impegni` + (p.agenda.prossimo ? `<br>prossimo: <b>${esc(p.agenda.prossimo.ora)}</b> ${esc(p.agenda.prossimo.titolo)}` : '<br>nient\'altro per oggi');
-    if (p.mail) bs += `<div><span class="t">${IC.mail}posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' · ') + '</div>';
+    if (p.mail) bs += `<div class="cl" data-apri="posta" title="Clicca per vedere le mail e aprirle su Gmail"><span class="t">${IC.mail}posta</span>` + Object.entries(p.mail).map(([k, n]) => `${esc(k)}: <b>${n}</b>`).join(' \u00b7 ') + '</div>';
     if (p.whatsapp) bs += `<div class="cl" data-apri="whatsapp-app" title="Clicca per aprire WhatsApp"><span class="t">${IC.wa}whatsapp</span><b>${p.whatsapp.messaggi}</b> messaggi da ${p.whatsapp.chat} chat<br><span class="sub" data-apri="whatsapp" title="Leggi e rispondi da qui, con la tua conferma prima dell'invio">rispondi con Jarvis ›</span></div>`;
     if (sx) sx = '<div class="cl" data-apri="impegni" title="Clicca per vedere gli impegni">' + sx + '</div>'; $('#hud-sx').style.display = sx ? 'block' : 'none'; $('#hud-sx').innerHTML = sx; $('#hud-bs').style.display = bs ? 'block' : 'none'; $('#hud-bs').innerHTML = bs; } catch (e) {} }
   let provePannello = 0; const caricaPannello = async () => { await pannello(); const d = window.panDati || {}; if (!d.whatsapp && provePannello++ < 40) setTimeout(caricaPannello, 2000); };  // all'accensione i dati arrivano a pezzi (WhatsApp per ultimo): riprova ogni 2 s finche' c'e' anche WhatsApp
@@ -684,6 +684,15 @@ speechSynthesis?.getVoices();
     ev.contatti.forEach(n => g.append(btn(n, () => vistaScrivi({ nome: n, indietro: () => vistaEvento(ev) }))));
     g.append(btn('Un\'altra persona…', () => vistaScrivi({ nome: '', indietro: () => vistaEvento(ev) }), 'alt')); nodi.push(g); mostra(...nodi); }
 
+  // ---- Posta: elenco delle non lette, un clic apre quella mail su Gmail (account giusto) ----
+  async function vistaPosta() { apri('Posta', 'Mail non lette. Clicca una mail per aprirla su Gmail, sull\'account giusto.'); attendi('Leggo la posta…');
+    try { const d = await chiama('/api/posta/elenco'); const nodi = [];
+      for (const c of d.conti) { nodi.push(h('div', 'sezt', 'Posta ' + c.conto));
+        if (c.errore) nodi.push(h('div', 'dim', c.errore)); else if (!c.mail.length) nodi.push(h('div', 'dim', 'Nessuna mail non letta.'));
+        for (const m of c.mail) { const r = h('button', 'riga'); r.append(h('span', 'q', m.da.replace(/<.*>/, '').trim() || m.da), h('span', 'n', m.oggetto || '(senza oggetto)')); r.onclick = () => chiama('/api/posta/apri', { conto: c.conto, thrid: m.thrid }).catch(guasto); nodi.push(r); }
+        nodi.push(btn('Apri Gmail (' + c.conto + ')', () => chiama('/api/posta/apri', { conto: c.conto }).catch(guasto), 'alt')); }
+      mostra(...nodi); } catch (e) { guasto(e); } }
+
   // ---- WhatsApp ----
   async function vistaWhatsApp() { apri('WhatsApp', 'Messaggi non letti. Clicca una chat per leggerla e rispondere.'); attendi('Leggo i messaggi…');
     try { const d = await chiama('/api/whatsapp/chat'); const nodi = [];
@@ -737,8 +746,8 @@ speechSynthesis?.getVoices();
       if (buone >= 3) g.append(btn('Salva la mia voce', async () => { try { const d = await chiama('/api/voce/salva', {}); apri('Fatto', ''); mostra(h('div', 'dett', 'Ho imparato la tua voce (' + d.campioni + ' registrazioni). Da ora Jarvis risponde solo a te. Se un giorno non ti riconosce, nella finestra del microfono puoi abbassare la severita\' o aggiungere un\'altra registrazione.'), btn('Chiudi', chiudi)); } catch (e) { disegna(e.message, true); } }, buone >= 3 && i >= FRASI_VOCE.length ? 'ok' : ''));
       g.append(btn('Annulla', async () => { await chiama('/api/voce/annulla', {}).catch(() => {}); chiudi(); }, 'alt')); nodi.push(g); mostra(...nodi); };
     disegna(''); }
-  window.jarvisApri = { impegni: vistaImpegni, whatsapp: vistaWhatsApp, voce: vistaVoce };
-  $('#hud').addEventListener('click', e => { const a = e.target.closest('[data-apri]'); if (!a || !document.body.classList.contains('conbarra')) return; ({ impegni: vistaImpegni, whatsapp: vistaWhatsApp, 'whatsapp-app': () => chiama('/api/whatsapp/app', {}).catch(e => { apri('WhatsApp', ''); guasto(e); }) })[a.dataset.apri]?.(); });
+  window.jarvisApri = { posta: vistaPosta, impegni: vistaImpegni, whatsapp: vistaWhatsApp, voce: vistaVoce };
+  $('#hud').addEventListener('click', e => { const a = e.target.closest('[data-apri]'); if (!a || !document.body.classList.contains('conbarra')) return; ({ impegni: vistaImpegni, posta: vistaPosta, whatsapp: vistaWhatsApp, 'whatsapp-app': () => chiama('/api/whatsapp/app', {}).catch(e => { apri('WhatsApp', ''); guasto(e); }) })[a.dataset.apri]?.(); });
   M.onclick = e => { if (e.target.id === 'int') chiudi(); }; addEventListener('keydown', e => { if (e.key === 'Escape') chiudi(); }); }
 
 // avvisi dell'agente vigile: una scheda per ogni cosa che conta; cliccandola si apre la finestra giusta; sparisce da sola dopo un po'
@@ -750,7 +759,7 @@ speechSynthesis?.getVoices();
         const el = document.createElement('div'); el.className = 'avviso' + (a.urgente ? ' urgente' : ''); const t = document.createElement('span'); t.className = 'tag'; t.textContent = TAG[a.tipo] || 'avviso';
         const m = document.createElement('span'); m.textContent = a.testo; if (a.anteprima) { const pv = document.createElement('div'); pv.className = 'prev'; pv.textContent = '\u201c' + a.anteprima + '\u201d'; m.append(pv); } const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'Chiudi';
         x.onclick = e => { e.stopPropagation(); chiudi(a.id, el); };
-        el.onclick = () => { if (document.body.classList.contains('conbarra')) { if (a.tipo === 'impegno') window.jarvisApri?.impegni(); else if (a.tipo === 'whatsapp') window.jarvisApri?.whatsapp(); } chiudi(a.id, el); };
+        el.onclick = () => { if (document.body.classList.contains('conbarra')) { if (a.tipo === 'impegno') window.jarvisApri?.impegni(); else if (a.tipo === 'whatsapp') window.jarvisApri?.whatsapp(); else if (a.tipo === 'posta') window.jarvisApri?.posta(); } chiudi(a.id, el); };
         el.append(t, m, x); C.append(el); while (C.children.length > 3) C.firstChild.remove(); setTimeout(() => { if (el.isConnected) chiudi(a.id, el); }, 60000); }
     } catch (e) {} }
   setTimeout(sonda, 4000); setInterval(sonda, 6000); }
@@ -834,6 +843,6 @@ speechSynthesis?.getVoices();
   $('#b-esci').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} post('schermo'); };
   aggiornaBarra(); setInterval(aggiornaBarra, 2500); document.addEventListener('visibilitychange', aggiornaBarra); }
 </script>
-<script src="/static/rete.js?v=20261033"></script>
+<script src="/static/rete.js?v=20261034"></script>
 </body>
 </html>

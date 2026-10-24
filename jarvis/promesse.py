@@ -206,3 +206,37 @@ def svuota():
         _cache.update(t=0.0, giorno="", aperte=None)
         _proposte.clear()
         _gestiti.clear()
+
+
+def prepara_da_voce(titolo: str, data: str, ora: str, durata_min: int = 60, luogo: str = "", cal: str = "personale") -> str:
+    """Un appuntamento detto a voce o scritto da Andrea: diventa una proposta (scheda con Si'/No), ma si scrive solo dopo il suo si' in un messaggio SUCCESSIVO (o col clic)."""
+    from . import calendario, posta
+    cal = "lavoro" if str(cal).lower() == "lavoro" else "personale"
+    if not calendario.configurato(cal):
+        return f"Errore: il collegamento per scrivere sul calendario {cal} non c'e' ancora: va preparato con Cowork (apps_script_calendario)."
+    antes = len(_proposte)
+    _nuove_proposte([{"data": data, "ora": ora, "durata_min": durata_min, "titolo": titolo, "luogo": luogo, "calendario": cal, "chat": "voce"}])
+    if len(_proposte) == antes:
+        return "Errore: non riesco a preparare quell'appuntamento (data e ora non valide, nel passato o gia' preparato)."
+    p = _proposte[-1]
+    p["turno"] = posta.turno()
+    p["mostrata"] = time.time()
+    try:
+        _controlla_conflitti()
+    except Exception:
+        pass
+    avviso = f" Attenzione: a quell'ora hai gia' {', '.join(p['conflitti'])}." if p["conflitti"] else ""
+    return f"Preparato sul calendario {cal}: {p['titolo']}, {p['inizio'][8:10]}/{p['inizio'][5:7]} alle {p['inizio'][11:]}.{avviso} Id {p['id']}. Chiedi ad Andrea se lo metto (aspetta il suo si')."
+
+
+def conferma_da_brain(id_: str) -> str:
+    """Solo se Andrea ha scritto un messaggio DOPO la preparazione (stessa regola della posta)."""
+    from . import posta
+    with _lock:
+        p = next((x for x in _proposte if x["id"] == id_), None)
+    if p is None:
+        return "Errore: non trovo quell'appuntamento."
+    if p.get("turno") == posta.turno():
+        return "Errore: serve il si' di Andrea in un nuovo messaggio: chiedigli se lo metto e aspetta."
+    p["mostrata"] = time.time() - 5  # il si' e' arrivato in un messaggio successivo: il controllo del secondo non serve
+    return conferma_proposta(id_, True)
