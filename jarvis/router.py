@@ -5,7 +5,7 @@ import re
 
 import httpx
 
-from . import brain_prompts, config, logs
+from . import brain_prompts, config, logs, voice
 
 ESCAPE = "@@CLAUDE@@"
 
@@ -83,7 +83,7 @@ def ask_groq(history: list[dict], query: str, summary: str = "") -> str | None:
         # modello che "ragiona": poco ragionamento, cosi' resta veloce e i token bastano per la risposta
         payload["reasoning_effort"] = "low"
         payload["max_tokens"] = 800
-    r = httpx.post(
+    r = voice._http.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {config.GROQ_API_KEY}"},
         json=payload,

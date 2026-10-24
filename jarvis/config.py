@@ -48,7 +48,7 @@ TELEGRAM_AVVISI = [x.strip() for x in os.getenv("TELEGRAM_AVVISI", "treno,promem
 TELEGRAM_ASSENTE_S = float(os.getenv("TELEGRAM_ASSENTE_S", "180"))  # dopo quanti secondi senza toccare il PC si considera "non sei qui"
 ENABLE_ASCOLTO = _flag("JARVIS_ASCOLTO")  # ascolto in stanza: risponde solo se chiamato ("Hey Jarvis")
 ASCOLTO_SOGLIA = float(os.getenv("ASCOLTO_SOGLIA", "0.5"))  # piu' bassa = si sveglia piu' facilmente (anche per errore)
-ASCOLTO_PAUSA_FINE = int(os.getenv("ASCOLTO_PAUSA_FINE", "9"))  # blocchi da 80 ms di silenzio che chiudono la frase (9 = 0,7 s; piu' basso = piu' veloce ma puo' tagliarti)
+ASCOLTO_PAUSA_FINE = int(os.getenv("ASCOLTO_PAUSA_FINE", "6"))  # blocchi da 80 ms di silenzio che chiudono la frase (6 = 0,5 s, prima 9 = 0,7 s; piu' basso = piu' veloce ma puo' tagliarti)
 ASCOLTO_INTERRUZIONE = os.getenv("ASCOLTO_INTERRUZIONE", "auto")  # "Hey Jarvis" mentre parla lo ferma: auto = acceso (con le cuffie anche parlando sopra), true/false per forzare
 ASCOLTO_FINESTRA = int(os.getenv("ASCOLTO_FINESTRA", "45"))  # secondi di conversazione aperta dopo una risposta, senza ripetere "Hey Jarvis"
 RITMO_RITARDO = float(os.getenv("RITMO_RITARDO", "0.15"))  # secondi di ritardo tra l'audio che parte e quello che si sente (cuffie bluetooth: 0.2-0.3)

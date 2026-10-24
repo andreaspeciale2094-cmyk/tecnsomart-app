@@ -23,6 +23,7 @@ def _avvio_scaglionato():
     passi = [
         (1, lambda: whatsapp.avvia_per_ricevere() if config.ENABLE_WHATSAPP_LEGGI else None),  # per ricevere i messaggi deve essere sempre acceso
         (2, ascolto.avvia),  # l'ascolto per primo: e' quello che Andrea aspetta
+        (3, voice.scalda_connessioni),  # connessioni verso Groq e Claude sempre calde
         (5, benvenuto.avvia),
         (7, lambda: voice.prepare_fixed()),
         (11, tools.avvia_cache),  # agenda, posta e WhatsApp sempre pronti per i quadri veloci

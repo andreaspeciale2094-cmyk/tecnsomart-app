@@ -5,6 +5,8 @@ import re
 import time
 from pathlib import Path
 
+import threading
+
 import httpx
 from . import config, logs
 
@@ -137,6 +139,30 @@ def synthesize_named(text: str) -> tuple[bytes, str]:
     raise last or RuntimeError("nessuna voce disponibile")
 
 
+# Connessione sempre aperta verso Groq: la prima richiesta dopo una pausa non deve rifare la stretta di mano sicura (0,2-0,4 s)
+_http = httpx.Client(timeout=60, limits=httpx.Limits(max_keepalive_connections=4, keepalive_expiry=600))
+
+
+def _scalda_giro():
+    while True:
+        try:
+            if config.GROQ_API_KEY:
+                _http.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {config.GROQ_API_KEY}"}, timeout=10)
+            try:
+                from . import brain
+                brain.client.models.list(limit=1)  # tiene calda anche la connessione verso Claude
+            except Exception:
+                pass
+        except Exception:
+            pass
+        time.sleep(150)
+
+
+def scalda_connessioni():
+    """Ogni 2,5 minuti una richiesta leggera e gratuita: le connessioni restano aperte e la prima risposta e' piu' pronta."""
+    threading.Thread(target=_scalda_giro, daemon=True).start()
+
+
 def transcribe(audio: bytes, content_type: str) -> str:
     """Voce -> testo. Prima Groq (whisper, economico e veloce) se c'e' la chiave, altrimenti o se non risponde OpenAI."""
     ext = "mp4" if "mp4" in content_type else "ogg" if "ogg" in content_type else "wav" if "wav" in content_type else "webm"
@@ -148,7 +174,7 @@ def transcribe(audio: bytes, content_type: str) -> str:
         if not chiave:
             continue
         try:
-            r = httpx.post(url, headers={"Authorization": f"Bearer {chiave}"}, files={"file": (f"audio.{ext}", audio, content_type)},
+            r = _http.post(url, headers={"Authorization": f"Bearer {chiave}"}, files={"file": (f"audio.{ext}", audio, content_type)},
                            data={"model": modello, "language": "it"}, timeout=60)
             r.raise_for_status()
             return r.json()["text"].strip()
