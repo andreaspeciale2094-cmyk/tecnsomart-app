@@ -42,12 +42,17 @@ def viva_prompt() -> str:
     return f"Memoria viva (cio' che sai sempre di {config.USER_NAME}, sempre vera):\n{core}" if core else ""
 
 
+def cache_ctl() -> dict:
+    """Quanto resta in cache la parte fissa della richiesta: 1 ora (se l'account lo permette) oppure i 5 minuti normali."""
+    return {"type": "ephemeral", "ttl": "1h"} if config.CACHE_1H else {"type": "ephemeral"}
+
+
 def system_blocks(query: str = "", unattended: bool = False, summary: str = "") -> list[dict]:
     # Due punti di cache: (1) strumenti + identita' + regole, (2) memoria viva. Cambia solo l'ultimo blocco.
-    blocks = [{"type": "text", "text": STATIC_PROMPT, "cache_control": {"type": "ephemeral"}}]
+    blocks = [{"type": "text", "text": STATIC_PROMPT, "cache_control": cache_ctl()}]
     viva = viva_prompt()
     if viva:
-        blocks.append({"type": "text", "text": viva, "cache_control": {"type": "ephemeral"}})
+        blocks.append({"type": "text", "text": viva, "cache_control": cache_ctl()})
     blocks.append({"type": "text", "text": context_prompt(query, unattended, summary)})
     return blocks
 

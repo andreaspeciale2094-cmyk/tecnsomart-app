@@ -4,6 +4,7 @@ import threading
 from . import brain, fase, logs, sessions
 
 _lock = threading.Lock()
+strumento = {"nome": ""}   # cosa sta controllando Jarvis adesso (serve a dire la frase d'attesa giusta, es. 'Controllo il treno.')
 
 
 def _veloce(testo: str):
@@ -42,7 +43,10 @@ def rispondi_stream(sid: str, testo: str):
         history, before = sessions.start_request(sid, testo)
         try:
             fase.imposta("capisco")
+            strumento["nome"] = ""
             for ev in brain.think_stream(history, summary=sessions.summaries.get(sid, "")):
+                if ev["type"] == "tool":
+                    strumento["nome"] = str(ev.get("name", ""))
                 if ev["type"] == "text" and ev.get("delta"):
                     fase.imposta("rispondo")
                     yield ev["delta"]

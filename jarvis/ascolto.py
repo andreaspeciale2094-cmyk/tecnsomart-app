@@ -182,6 +182,20 @@ def nota_interruzione() -> str:
             "senza ripetere cio' che ha gia' sentito, altrimenti lascia perdere il resto.]\n")
 
 
+_PER_STRUMENTO = (("treno", "stato_treno"), ("turno", "stato_treno"), ("mail", "stato_mail"), ("posta", "stato_mail"), ("whatsapp", "stato_whatsapp"), ("negozi", "stato_negozi"),
+                  ("addett", "stato_negozi"), ("briefing", "stato_agenda"), ("agenda", "stato_agenda"), ("calendar", "stato_agenda"), ("banca", "stato_banca"),
+                  ("web_search", "stato_cerca"), ("fetch", "stato_pagina"), ("recall", "stato_memoria"), ("memor", "stato_memoria"))
+
+
+def _frase_attesa() -> str:
+    """La frase d'attesa: se so cosa sta controllando ('Controllo il treno.'), quella; altrimenti una generica a caso."""
+    nome = str(dialogo.strumento.get("nome", "")).lower()
+    for parte, chiave in _PER_STRUMENTO:
+        if parte in nome:
+            return chiave
+    return random.choice(("attesa1", "attesa2", "attesa3", "attesa4"))
+
+
 def parla_stream(frammenti, filler: str = ""):
     """Parla MENTRE Claude scrive: ogni frase completa va subito alla voce, e mentre una si sente le successive si preparano.
     Se la prima frase tarda piu' di ASCOLTO_ATTESA secondi (predefinito 2,5) parte una frase fissa gia' registrata, scelta a caso: mai silenzio, ma senza ripetere sempre la stessa."""
@@ -225,7 +239,7 @@ def parla_stream(frammenti, filler: str = ""):
     def riempitivo():
         if not primo.is_set():
             try:
-                q_audio.put(voice.fixed_audio(filler or random.choice(("attesa1", "attesa2", "attesa3", "attesa4"))))
+                q_audio.put(voice.fixed_audio(filler or _frase_attesa()))
             except Exception:
                 pass
 

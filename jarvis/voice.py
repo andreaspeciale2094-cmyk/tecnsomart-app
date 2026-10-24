@@ -169,6 +169,13 @@ FIXED_PHRASES = {
     "stato_pagina": "Sto leggendo la pagina.",
     "stato_memoria": "Controllo la memoria.",
     "stato_ancora": "Ci sto ancora lavorando.",
+    # dette mentre Jarvis controlla una cosa precisa (al posto del solito 'Un attimo')
+    "stato_treno": "Controllo il treno.",
+    "stato_mail": "Guardo la posta.",
+    "stato_whatsapp": "Guardo i messaggi.",
+    "stato_negozi": "Guardo i numeri.",
+    "stato_agenda": "Guardo l'agenda.",
+    "stato_banca": "Guardo il conto.",
 }
 
 

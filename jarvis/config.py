@@ -103,7 +103,7 @@ BRIEFING_TIME = os.getenv("BRIEFING_TIME", "")  # es. 07:30 (ora locale del serv
 
 # Voce gratuita (Edge TTS, nessuna chiave). Voci italiane: it-IT-DiegoNeural (maschile), it-IT-GiuseppeMultilingualNeural, it-IT-ElsaNeural (femminile)
 EDGE_VOICE = os.getenv("EDGE_VOICE", "it-IT-GiuseppeMultilingualNeural")
-EDGE_RATE = os.getenv("EDGE_RATE", "-3%")
+EDGE_RATE = os.getenv("EDGE_RATE", "+8%")  # un po' piu' svelta (prima -3%): le risposte sembrano piu' pronte; con -3% torna com'era
 EDGE_PITCH = os.getenv("EDGE_PITCH", "+0Hz")
 
 # Router: domande semplici a Groq (economico), il resto a Claude. Attivo solo se c'e' GROQ_API_KEY.
@@ -113,6 +113,8 @@ GROQ_STT_MODEL = os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo")  # ricono
 ENABLE_ROUTER = bool(GROQ_API_KEY) and _flag("JARVIS_ROUTER", True)
 
 # Quanto "pensa" Claude: low (veloce ed economico, consigliato), medium, high.
+MODELLO_VELOCE = os.getenv("JARVIS_MODELLO_VELOCE", "claude-haiku-5-5")  # per le domande normali (senza azioni ne' ragionamenti): piu' rapido e economico; vuoto = sempre il modello normale
+CACHE_1H = _flag("JARVIS_CACHE_1H", True)  # la parte fissa della richiesta resta in cache 1 ora invece di 5 minuti (la prima domanda dopo una pausa e' piu' veloce)
 EFFORT = os.getenv("JARVIS_EFFORT", "auto")  # "auto" = basso per le cose semplici, medio quando c'e' da ragionare (o low/medium/high fisso)
 
 # Prezzi in dollari per milione di token, usati SOLO per il costo stimato nel registro consumi.

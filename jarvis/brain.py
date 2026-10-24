@@ -82,6 +82,20 @@ def _effort(query: str) -> str:
     return "medium" if (len(query.split()) > 14 or _RAGIONA.search(query or "")) else "low"
 
 
+# Modello rapido (Haiku) per le domande normali; il modello forte per azioni con effetti (inviare, chiamare, comprare, spegnere...) e per ragionare/scrivere.
+_AZIONI = re.compile(r"\b(invia\w*|mand\w+|chiam\w+|telefon\w+|pag\w+|compr\w+|ordin\w+|prenot\w+|cancell\w+|elimin\w+|spegn\w+|riavvi\w+|carrello|amazon|bozza|rispond\w+|scriv\w+|prepara\w*|modific\w+|sposta\w*|aggiung\w+|togli\w*|metti|appuntamento|calendario)\b", re.IGNORECASE)
+_SINTESI = re.compile(r"\b(giornata|briefing|buon\s?g\w*|resoconto|concludi|chiudi\w*|fine giornata|negozi|quadro|situazione|aggiorna\w*)\b", re.IGNORECASE)  # sintesi di piu' dati: meglio il modello forte
+_veloce = {"ok": True}   # se il modello rapido non c'e' sull'account si smette di usarlo (una volta sola)
+
+
+def _scegli_modello(query: str, unattended: bool) -> str:
+    if unattended or not config.MODELLO_VELOCE or not _veloce["ok"] or config.MODELLO_VELOCE == config.MODEL:
+        return config.MODEL
+    if len(query.split()) > 28 or _RAGIONA.search(query or "") or _AZIONI.search(query or "") or _SINTESI.search(query or ""):
+        return config.MODEL
+    return config.MODELLO_VELOCE
+
+
 def think_stream(history: list[dict], unattended: bool = False, summary: str = ""):
     """Ciclo agentico a pezzi: produce eventi {"type": "text"|"tool"|"done", ...}.
     Il testo arriva man mano che Claude lo scrive, cosi' Jarvis puo' parlare subito."""
@@ -97,22 +111,45 @@ def think_stream(history: list[dict], unattended: bool = False, summary: str = "
             yield {"type": "done", "reply": quick, "tools": ["risposto da Groq"]}
             return
     schemas = [t for t in tools.SCHEMAS if not (unattended and t["name"] in BLOCKED_UNATTENDED)]
+    modello = _scegli_modello(query, unattended)
+    rapido = modello != config.MODEL
+    if rapido:
+        logs.log_route("ROUTER | modello rapido per questa domanda")
     for _ in range(config.MAX_TOOL_ROUNDS):
-        with client.messages.stream(
-            model=config.MODEL,
-            max_tokens=4096,  # il "pensiero" conta nel limite
-            output_config={"effort": _effort(query)},
-            system=system_blocks(query, unattended, summary),
-            tools=schemas + SERVER_TOOLS,
-            messages=history,
-        ) as stream:
-            for ev in stream:
-                if ev.type == "text":
-                    yield {"type": "text", "delta": ev.text}
-                elif ev.type == "content_block_start" and getattr(ev.content_block, "type", "") in ("tool_use", "server_tool_use"):
-                    yield {"type": "tool", "name": ev.content_block.name}  # subito: la pagina puo' dire cosa sta facendo
-            resp = stream.get_final_message()
-        logs.log_usage(config.MODEL, resp.usage)
+        parziale = False
+        try:
+            parametri = {} if rapido else {"output_config": {"effort": _effort(query)}}  # il modello rapido non usa l'impegno di ragionamento
+            with client.messages.stream(
+                model=modello,
+                max_tokens=4096,  # il "pensiero" conta nel limite
+                system=system_blocks(query, unattended, summary),
+                tools=schemas + SERVER_TOOLS,
+                messages=history,
+                **parametri,
+            ) as stream:
+                for ev in stream:
+                    if ev.type == "text":
+                        parziale = True
+                        yield {"type": "text", "delta": ev.text}
+                    elif ev.type == "content_block_start" and getattr(ev.content_block, "type", "") in ("tool_use", "server_tool_use"):
+                        parziale = True
+                        yield {"type": "tool", "name": ev.content_block.name}  # subito: la pagina puo' dire cosa sta facendo
+                resp = stream.get_final_message()
+        except (anthropic.NotFoundError, anthropic.BadRequestError) as e:
+            if parziale:
+                raise
+            if config.CACHE_1H and "ttl" in str(e).lower():  # la cache da 1 ora non e' disponibile: si torna ai 5 minuti
+                config.CACHE_1H = False
+                logs.log_route("ROUTER | cache 1 ora non disponibile: uso quella da 5 minuti")
+                continue
+            if rapido:  # il modello rapido non c'e' o non accetta la richiesta: si usa quello normale (e se proprio non esiste non si riprova piu')
+                if isinstance(e, anthropic.NotFoundError) or "model" in str(e).lower():
+                    _veloce["ok"] = False
+                modello, rapido = config.MODEL, False
+                logs.log_route("ROUTER | modello rapido non disponibile: uso quello normale")
+                continue
+            raise
+        logs.log_usage(modello, resp.usage)
         history.append({"role": "assistant", "content": _without_thinking(resp.content)})
 
         if resp.stop_reason == "pause_turn":  # il server-side tool ha bisogno di continuare
