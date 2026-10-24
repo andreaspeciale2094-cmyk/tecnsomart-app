@@ -29,6 +29,7 @@ _prom = {"tentativi": {}}   # promemoria: quante volte si e' provato a dirlo a v
 _obi = {"settimana": ""}   # obiettivi del mese: una volta il lunedi
 _prom_ag = {"giorno": ""}   # promesse di WhatsApp: una volta la sera
 _senza = {"ultimo": 0.0, "avvisati": set()}   # WhatsApp senza risposta: chat+messaggio gia' segnalati (solo RAM)
+_tp = {"ultimo": 0.0}   # tabellone dei treni tenuto pronto
 _lock = threading.Lock()
 SISTEMA = ("Sei l'agente vigile di Andrea, che gestisce negozi TecnoSmart. Ti arrivano le NOVITA' appena comparse (mail non lette: mittente e oggetto; chat WhatsApp: solo il nome). "
            "Decidi se vale la pena interromperlo adesso. SI' per: persone vere (clienti, colleghi, ragazzi dei negozi, familiari), richieste, problemi, scadenze, soldi. "
@@ -471,6 +472,20 @@ def _controlla_addetti_indietro(adesso: datetime) -> int:
     return 1
 
 
+def _controlla_treni_pronti(adesso: datetime) -> int:
+    """Senza modello, costo zero: ogni 30 minuti (dalle 5:30 alle 15:30) rilegge il tabellone Trenord della tua stazione e lo tiene pronto, cosi' quando chiedi del treno la risposta e' immediata."""
+    if not config.ENABLE_TRENI or not _in_fascia("treni_pronti", adesso, ((5, 30), (15, 30))) or time.time() - _tp["ultimo"] < 1800:
+        return 0
+    _tp["ultimo"] = time.time()
+    from . import trenord, treni
+    try:
+        with _ag.lavora("treno"):
+            trenord.aggiorna(treni._impostazioni()["partenza"])
+    except Exception as e:
+        logs.log_route("VIGILE: tabellone treni non aggiornato (" + type(e).__name__ + ")")
+    return 0
+
+
 def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
     """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
     try:
@@ -561,6 +576,10 @@ def controlla(adesso: datetime | None = None) -> int:
         creati += _controlla_negozi(adesso)
     except Exception as e:
         logs.log_error(e, "vigile negozi")
+    try:
+        _controlla_treni_pronti(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile treni pronti")
     try:
         creati += _controlla_treno(adesso)
     except Exception as e:

@@ -126,9 +126,17 @@ def analizza(html: str) -> list[dict]:
     return risultato
 
 
-def partenze(nome_stazione: str) -> list[dict]:
+_pronte: dict[str, tuple[float, list]] = {}   # nome stazione -> (quando, partenze): tenute fresche dall'agente, solo RAM
+
+
+def partenze(nome_stazione: str, max_eta: float = 600, forza: bool = False) -> list[dict]:
+    """Le partenze di una stazione: se l'agente le ha lette da meno di max_eta secondi si rispondono subito, altrimenti si legge il sito (circa un secondo)."""
+    chiave = nome_stazione.strip().lower()
+    pronte = _pronte.get(chiave)
+    if not forza and pronte and time.time() - pronte[0] < max_eta:
+        return pronte[1]
     codice = codice_stazione(nome_stazione)
-    html = _get(f"/station-details?mirCode={codice}&mxp=false&L=0&map_zoom=", durata=45)
+    html = _get(f"/station-details?mirCode={codice}&mxp=false&L=0&map_zoom=", durata=0 if forza else 45)
     ris = analizza(html)
     if not ris:
         try:
@@ -137,4 +145,10 @@ def partenze(nome_stazione: str) -> list[dict]:
         except OSError:
             pass
         raise TrenordError("Il sito Trenord ha risposto ma non riesco a leggere le partenze (la pagina potrebbe essere cambiata).")
+    _pronte[chiave] = (time.time(), ris)
     return ris
+
+
+def aggiorna(nome_stazione: str) -> int:
+    """Per l'agente: rilegge adesso e tiene le partenze pronte. Ritorna quante ne ha lette."""
+    return len(partenze(nome_stazione, forza=True))

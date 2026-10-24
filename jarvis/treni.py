@@ -74,7 +74,7 @@ def partenze(codice: str, quando: datetime) -> list[dict]:
     return dati if isinstance(dati, list) else []
 
 
-def _unisci(nome: str, codice: str, quando: datetime) -> list[dict]:
+def _unisci(nome: str, codice: str, quando: datetime, ora: str = "") -> list[dict]:
     """Partenze da Trenord (il sito ufficiale, solo se si guarda l'ora presente: mostra le prossime) piu' quelle di ViaggiaTreno per gli orari che Trenord non ha."""
     adesso = datetime.now(ZoneInfo(config.FUSO))
     out: list[dict] = []
@@ -83,6 +83,8 @@ def _unisci(nome: str, codice: str, quando: datetime) -> list[dict]:
             out = trenord.partenze(nome)
         except trenord.TrenordError as e:
             logs.log_route("TRENI: Trenord non letto (" + str(e)[:60] + ")")
+    if out and (not ora or any(_ora_partenza(t) == ora for t in out)):
+        return out  # Trenord ha gia' quello che serve: niente seconda richiesta
     try:
         vt = partenze(codice, quando)
     except TreniError:
@@ -152,7 +154,7 @@ def stato(ora: str = "", turno: str = "", stazione: str = "", direzione: str = "
         ora = ora.replace(".", ":").zfill(5)
         h, m = (int(x) for x in ora.split(":"))
         quando = adesso.replace(hour=h, minute=m, second=0, microsecond=0) - timedelta(minutes=10)
-        elenco = _unisci(nome, codice, quando)
+        elenco = _unisci(nome, codice, quando, ora)
         candidati = [t for t in elenco if _ora_partenza(t) == ora]
         giusti = [t for t in candidati if verso(t)] or candidati
         logs.log_route(f"TRENI: controllo delle {ora} da {nome}: {len(elenco)} partenze lette, {len(giusti)} corrispondenti")
@@ -247,7 +249,7 @@ def controllo_turno(turno: str) -> dict | None:
     adesso = datetime.now(ZoneInfo(config.FUSO))
     h, m = (int(x) for x in ora.split(":"))
     nome, codice = codice_stazione(imp["partenza"])
-    elenco = _unisci(nome, codice, adesso)
+    elenco = _unisci(nome, codice, adesso, ora)
     cand = [t for t in elenco if _ora_partenza(t) == ora]
     parole = [p.upper() for p in imp["direzione"]]
     t = next((t for t in cand if not parole or any(p in str(t.get("destinazione", "")).upper() for p in parole)), cand[0] if cand else None)
