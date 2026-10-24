@@ -253,9 +253,8 @@ def _controlla_treno(adesso: datetime) -> int:
         return 0
     h, m = (int(x) for x in ora.split(":"))
     minuti = (adesso.replace(hour=h, minute=m, second=0, microsecond=0) - adesso).total_seconds() / 60
-    if minuti < 0 or minuti > 60 or (_treno["primo"] and time.time() - _treno["ultimo"] < 300):
-        return 0
-    if not _treno["primo"] and minuti > 28:  # il primo avviso poco dopo la sveglia (~28 minuti prima)
+    presto = not _treno["primo"] and minuti > 28  # fino a 90 minuti prima: controllo silenzioso, avvisa solo se c'e' un problema
+    if minuti < 0 or minuti > 90 or time.time() - _treno["ultimo"] < (600 if presto else 300):
         return 0
     _treno["ultimo"] = time.time()
     try:
@@ -267,12 +266,18 @@ def _controlla_treno(adesso: datetime) -> int:
     if not r:
         return 0
     firma = (r["stato"], r["ritardo"])
-    if _treno["primo"] and firma == _treno["stato"]:
+    if presto:  # il primo avviso "e' in orario" resta ~28 minuti prima; prima di allora solo ritardi e cancellazioni, subito
+        if r["stato"] == "orario" or firma == _treno["stato"]:
+            return 0
+    elif (_treno["primo"] or r["stato"] != "orario") and firma == _treno["stato"]:
+        _treno["primo"] = True  # gia' avvisato (anche presto) e non e' cambiato niente: non si ripete
         return 0
-    prima = not _treno["primo"]
-    _treno["primo"], _treno["stato"] = True, firma
+    prima = not _treno["primo"] and not presto
+    if presto:
+        prima = False
+    _treno["primo"], _treno["stato"] = (not presto), firma
     _aggiungi("treno", r["frase"], r["stato"] != "orario", diario=r["stato"] != "orario")  # un treno in orario e' gia' stato preso: non va nel resoconto della sera
-    logs.log_route(f"VIGILE: treno {r['ora']} {r['stato']}" + (" (primo avviso)" if prima else " (cambiato)"))
+    logs.log_route(f"VIGILE: treno {r['ora']} {r['stato']}" + (" (avviso anticipato)" if presto else " (primo avviso)" if prima else " (cambiato)"))
     if not _notte(adesso):
         threading.Thread(target=_parla, args=(r["frase"],), daemon=True).start()
     return 1
