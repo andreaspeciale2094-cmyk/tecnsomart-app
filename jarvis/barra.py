@@ -485,14 +485,32 @@ def _rimetti_al_posto(hwnd: int):
     u.SetWindowPos(wintypes.HWND(hwnd), None, x, y, w, h, 0x0004 | 0x0010)  # SWP_NOZORDER | SWP_NOACTIVATE
 
 
-def porta_davanti_veloce(hwnd: int):
-    """Porta davanti una finestra gia' trovata con trova_finestra (senza ricontrollare l'elenco, che e' lento)."""
+def _porta_in_schermo(hwnd: int):
+    """Se la finestra e' fuori dallo schermo (per esempio perche' Jarvis si e' riavviato mentre era spostata e non ricorda piu' dov'era), la rimette al centro."""
+    ctypes, wintypes, u, k = _api()
+    r = wintypes.RECT()
+    u.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(r))
+    sw, sh = u.GetSystemMetrics(0), u.GetSystemMetrics(1)
+    w, h = max(r.right - r.left, 0), max(r.bottom - r.top, 0)
+    dentro = r.right > 100 and r.bottom > 100 and r.left < sw - 100 and r.top < sh - 100
+    if dentro and w >= 300 and h >= 200:
+        return
+    w, h = (w if w >= 700 else 1100), (h if h >= 500 else 780)
+    w, h = min(w, sw), min(h, sh - 60)
+    u.SetWindowPos(wintypes.HWND(hwnd), None, max((sw - w) // 2, 0), max((sh - h) // 2, 0), w, h, 0x0004 | 0x0010)  # SWP_NOZORDER | SWP_NOACTIVATE
+
+
+def porta_davanti_veloce(hwnd: int) -> bool:
+    """Porta davanti una finestra gia' trovata con trova_finestra (senza ricontrollare l'elenco, che e' lento). Ritorna True se e' davvero davanti."""
     ctypes, wintypes, u, k = _api()
     _rimetti_al_posto(hwnd)
     if u.IsIconic(hwnd):
         u.ShowWindow(hwnd, 9)  # SW_RESTORE
+    _porta_in_schermo(hwnd)
     _tasto(0x12)  # un tocco su Alt: Windows altrimenti non lascia passare in primo piano un'altra app
     u.SetForegroundWindow(hwnd)
+    time.sleep(0.15)
+    return u.GetForegroundWindow() == hwnd
 
 
 def porta_davanti_per_nome(parola: str, attesa: float = 8.0) -> bool:

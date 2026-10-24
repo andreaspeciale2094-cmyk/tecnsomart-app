@@ -460,8 +460,11 @@ def api_wa_app(request: Request):
         try:
             h = barra.trova_finestra("whatsapp")
             if h:  # gia' accesa (dietro Jarvis): basta portarla davanti, all'istante
-                barra.porta_davanti_veloce(h)
-                logs.log_route("APP: whatsapp era gia' aperta, portata davanti subito")
+                davanti = barra.porta_davanti_veloce(h)
+                if not davanti:  # la finestra c'e' ma non e' passata davanti (nascosta o bloccata): si chiede a WhatsApp stesso di mostrarsi
+                    os.startfile("whatsapp://")  # type: ignore[attr-defined]
+                    threading.Thread(target=barra.porta_davanti_per_nome, args=("whatsapp",), daemon=True).start()
+                logs.log_route("APP: whatsapp era gia' aperta, portata davanti" + (" subito" if davanti else " (ha servito un secondo tentativo)"))
                 return {"ok": True}
             logs.log_route("APP: whatsapp NON era aperta: la avvio adesso")
             os.startfile("whatsapp://")  # type: ignore[attr-defined]
