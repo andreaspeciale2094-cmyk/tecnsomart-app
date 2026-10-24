@@ -380,6 +380,24 @@ def obiettivi() -> str:
     return " ".join(pezzi) or "Non ho target del mese da guardare."
 
 
+def settimana() -> str:
+    """Il resoconto della settimana in poche frasi: dove chiude il mese il gruppo a questo ritmo e chi dei ragazzi e' andato meglio. Dati gia' pronti, nessun modello."""
+    pezzi = []
+    try:
+        pezzi.append(obiettivi())
+    except Exception:
+        pass
+    try:
+        from . import addetti, config
+        if config.ENABLE_ADDETTI:
+            m = addetti.migliore()
+            if m:
+                pezzi.append("I migliori del mese: " + m)
+    except Exception:
+        pass
+    return "Settimana chiusa. " + " ".join(p for p in pezzi if p) if pezzi else "Non ho dati per il resoconto della settimana."
+
+
 def sintesi() -> dict:
     """Per il vigile (solo RAM, nessun testo salvato): {nome_negozio: {'dati': bool, 'rosse': n, 'gialle': n}} di oggi, mono e multi brand insieme."""
     cfg = load_config()

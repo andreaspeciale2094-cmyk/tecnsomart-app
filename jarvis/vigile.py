@@ -53,7 +53,7 @@ def segna_letto(id_: str):
 
 
 _diario: list[tuple[str, str, str]] = []   # (ora, tipo, testo): cosa hanno fatto gli agenti oggi, solo RAM, svuotato a mezzanotte
-_TESTO_NEL_DIARIO = {"treno", "salute", "promemoria", "domani", "obiettivi", "promesse", "addetti"}  # degli altri (banca, posta, WhatsApp, negozi, impegni) il diario tiene solo che e' successo
+_TESTO_NEL_DIARIO = {"treno", "salute", "promemoria", "domani", "obiettivi", "promesse", "addetti", "settimana"}  # degli altri (banca, posta, WhatsApp, negozi, impegni) il diario tiene solo che e' successo
 
 
 def diario_testo() -> str:
@@ -63,7 +63,7 @@ def diario_testo() -> str:
     if not voci:
         return "Oggi gli agenti di sottofondo non hanno avuto niente da segnalare."
     righe = []
-    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "chiamate": "chiamate perse", "senza risposta": "chat senza risposta", "addetti": "addetti indietro", "impegno": "ricordi di impegni"}
+    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "chiamate": "chiamate perse", "senza risposta": "chat senza risposta", "settimana": "resoconti della settimana", "addetti": "addetti indietro", "impegno": "ricordi di impegni"}
     conta: dict[str, int] = {}
     for ora, tipo, testo in voci:
         if tipo in _TESTO_NEL_DIARIO:
@@ -297,6 +297,15 @@ def _domani_fai(adesso: datetime) -> int:
                 creati += 1
         except Exception as e:
             logs.log_error(e, "vigile domani")
+    try:
+        from . import meteo
+        fm = meteo.frase_domani()
+        if fm:
+            frasi.append(fm)
+            _aggiungi("domani", fm, False)
+            creati += 1
+    except Exception as e:
+        logs.log_error(e, "vigile meteo domani")
     if config.ENABLE_TRENI:
         try:
             from . import treni
@@ -486,6 +495,21 @@ def _controlla_treni_pronti(adesso: datetime) -> int:
     return 0
 
 
+def _controlla_settimana(adesso: datetime) -> int:
+    """La domenica sera dopo le 20:30 (una volta): il resoconto della settimana in poche frasi (scheda e, fino alle 23, a voce se Jarvis e' libero). Senza modello."""
+    if not config.ENABLE_NEGOZI or adesso.weekday() != 6 or (adesso.hour, adesso.minute) < (20, 30) or _obi.get("fine_settimana") == adesso.strftime("%G-%V"):
+        return 0
+    _obi["fine_settimana"] = adesso.strftime("%G-%V")
+    from . import negozi
+    with _ag.lavora("negozi"):
+        testo = negozi.settimana()
+    _aggiungi("settimana", testo, False)
+    logs.log_route("VIGILE: resoconto della settimana")
+    if not _notte(adesso):
+        threading.Thread(target=_parla, args=(testo,), daemon=True).start()
+    return 1
+
+
 def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
     """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
     try:
@@ -559,6 +583,10 @@ def controlla(adesso: datetime | None = None) -> int:
         creati += _controlla_promesse(adesso)
     except Exception as e:
         logs.log_error(e, "vigile promesse")
+    try:
+        creati += _controlla_settimana(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile settimana")
     try:
         creati += _controlla_obiettivi(adesso)
         creati += _controlla_addetti_indietro(adesso)

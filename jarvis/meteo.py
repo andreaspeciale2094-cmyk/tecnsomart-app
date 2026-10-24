@@ -94,3 +94,39 @@ def oggi():
     parola, cat = _CODICI.get(int(c["weather_code"]), ("variabile", "nuvole"))
     return {"citta": p[2], "temp": round(c["temperature_2m"]), "cond": parola, "cat": cat, "min": round(g["temperature_2m_min"][0]), "max": round(g["temperature_2m_max"][0]),
             "pioggia": g["precipitation_probability_max"][0]}
+
+
+def domani():
+    """Domani: parola, minima/massima, probabilita' di pioggia e temperatura alle 7 e alle 13 (per chi parte presto). None se non si sa dove sei o manca internet."""
+    p = _dove()
+    if not p:
+        return None
+    d = httpx.get("https://api.open-meteo.com/v1/forecast", timeout=8, params={
+        "latitude": p[0], "longitude": p[1], "timezone": "auto", "forecast_days": 2,
+        "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max", "hourly": "temperature_2m,precipitation_probability"}).json()
+    g, h = d["daily"], d["hourly"]
+    parola, _ = _CODICI.get(int(g["weather_code"][1]), ("variabile", "nuvole"))
+    ore = {t[11:13]: i for i, t in enumerate(h["time"]) if t[:10] == g["time"][1]}
+    def alle(ora: str):
+        i = ore.get(ora)
+        return (round(h["temperature_2m"][i]), h["precipitation_probability"][i]) if i is not None else None
+    return {"citta": p[2], "cond": parola, "min": round(g["temperature_2m_min"][1]), "max": round(g["temperature_2m_max"][1]),
+            "pioggia": g["precipitation_probability_max"][1], "alle7": alle("07"), "alle13": alle("13")}
+
+
+def frase_domani() -> str:
+    """Una frase per l'agente 'domani': se piove, gradi alla partenza presto, parola del tempo. Vuota se non c'e' il meteo."""
+    try:
+        m = domani()
+    except Exception:
+        return ""
+    if not m:
+        return ""
+    parti = [f"Domani {m['cond']}, {m['min']} gradi di minima e {m['max']} di massima"]
+    if m["pioggia"] >= 40:
+        parti.append(f"pioggia probabile ({m['pioggia']}%): porta l'ombrello")
+    elif m["alle7"] and m["alle7"][1] >= 50:
+        parti.append("alle 7 potrebbe piovere")
+    elif m["alle7"] and m["alle7"][0] <= 5:
+        parti.append(f"alle 7 fa freddo, {m['alle7'][0]} gradi")
+    return ", ".join(parti) + "."

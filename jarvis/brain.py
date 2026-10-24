@@ -36,7 +36,7 @@ def _without_thinking(content: list) -> list:
 # Strumenti che SOLO leggono: se in una risposta Claude ne chiede piu' di uno, partono tutti nello stesso momento (agenda, posta, WhatsApp, negozi...).
 # Appena c'e' anche uno strumento che scrive o fa qualcosa, si torna a uno alla volta, nell'ordine (stesse regole di prima).
 SOLO_LETTURA = {"briefing_mattino", "riepilogo_negozi", "focus_addetto", "scheda_leggi", "mail_non_lette", "mail_leggi", "unread_emails", "upcoming_events",
-                "whatsapp_non_lette", "whatsapp_leggi", "whatsapp_rubrica", "whatsapp_cerca", "whatsapp_chat_recenti", "treno_stato", "diario_agenti", "agenti_attivi", "chiamate_perse", "promesse_aperte", "banca_riepilogo", "banca_movimenti", "cassa_resoconto", "pc_elenco_app", "pc_cerca",
+                "whatsapp_non_lette", "whatsapp_leggi", "whatsapp_rubrica", "whatsapp_cerca", "whatsapp_chat_recenti", "treno_stato", "diario_agenti", "appunti_leggi", "agenti_attivi", "chiamate_perse", "promesse_aperte", "banca_riepilogo", "banca_movimenti", "cassa_resoconto", "pc_elenco_app", "pc_cerca",
                 "fetch_url", "recall", "core_show", "list_tasks", "home_state", "read_file", "delega_agenti"}
 
 

@@ -175,3 +175,27 @@ def indietro(soglia: float = 0.75, massimo: int = 5) -> str:
         if indietro_:
             frasi.append(f"{etichetta}: " + "; ".join(f"{n} (piu' deboli: {', '.join(c).lower()})" for _, n, c in indietro_[:massimo]) + ".")
     return ("Addetti indietro rispetto alla squadra. " + " ".join(frasi)) if frasi else ""
+
+
+def migliore() -> str:
+    """Chi e' andato meglio: per ogni Report conta in quante categorie (dove la squadra fa >= 3 punti di media) un addetto e' il primo. Stesse regole di indietro()."""
+    frasi = []
+    for tipo in RUN:
+        try:
+            raw = leggi(tipo=tipo)
+        except Exception:
+            continue
+        etichetta, cats = RUN[tipo]
+        addetti = {n: pezzi(a, tipo) for n, a in (raw.get("addetti") or {}).items()}
+        if len(addetti) < 3:
+            continue
+        vittorie: dict[str, list[str]] = {}
+        for ci in cats:
+            tot = {a: punti_categoria(p, ci, cats) for a, p in addetti.items()}
+            if sum(tot.values()) / len(tot) >= 3:
+                primo = max(tot, key=lambda a: tot[a])
+                vittorie.setdefault(primo, []).append(cats[ci][0].lower())
+        if vittorie:
+            nome = max(vittorie, key=lambda a: len(vittorie[a]))
+            frasi.append(f"{etichetta}: {nome}, primo in {len(vittorie[nome])} categorie ({', '.join(vittorie[nome][:3])})")
+    return ". ".join(frasi) + "." if frasi else ""

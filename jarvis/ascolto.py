@@ -484,6 +484,8 @@ def negozi_veloce(testo: str) -> str | None:
             risp = negozi.domanda_gruppo(testo)
             if risp:
                 return risp
+        if re.search(r"\bsettimana\b", testo, re.IGNORECASE) and re.search(r"\b(?:andata|resoconto|riepilogo|come)\b", testo, re.IGNORECASE):
+            return negozi.settimana()
         if not _NEGOZI.search(testo):  # 'cosa ha inserito il Ducale?': un solo negozio, nominato
             if re.search(r"\b(?:inserit|dati|numeri|com'?\s*(?:e'|è)|come (?:sta|e'|è|va)|andat|risultat|fatto|vendut)", testo, re.IGNORECASE):
                 nome = negozi.trova_negozio(testo)
@@ -496,6 +498,11 @@ def negozi_veloce(testo: str) -> str | None:
     except Exception as e:
         logs.log_error(e, "negozi veloce")
         return None
+
+
+def appunti_veloce(testo: str) -> str | None:
+    from . import appunti
+    return appunti.comando_veloce(testo)
 
 
 def comando_veloce(testo: str) -> str | None:
@@ -581,6 +588,11 @@ def gestisci_chiamata(leggi, vad, pre=None):
             primo = False
             continue
         rapido = chiamata_veloce(resto or testo)
+        if rapido is None:
+            rapido = appunti_veloce(resto or testo)
+        if rapido is None:
+            from . import veloci
+            rapido = veloci.rispondi(resto or testo)
         if rapido is None:
             rapido = negozi_veloce(resto or testo)
         if rapido is None:
