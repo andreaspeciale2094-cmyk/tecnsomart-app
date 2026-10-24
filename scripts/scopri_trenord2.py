@@ -86,20 +86,22 @@ with sync_playwright() as p:
 
     # ricerca come una persona
     pag.screenshot(path=str(CARTELLA / "trenord2_prima.png"), full_page=True)
-    for etichetta in ("Cerca stazione", "Stazione", "Per stazione"):
-        try:
-            pag.get_by_text(re.compile(etichetta, re.I)).first.click(timeout=2500)
-            mappa.append(f"\nCliccato su: {etichetta}")
-            break
-        except Exception:
-            pass
-    pag.wait_for_timeout(1500)
+    try:  # la ricerca per stazione sta nella scheda "ARRIVI E PARTENZE" (non nella ricerca in alto del sito)
+        pag.get_by_text(re.compile("^\\s*arrivi e partenze\\s*$", re.I)).first.click(timeout=4000)
+        mappa.append("\nCliccato sulla scheda: ARRIVI E PARTENZE")
+    except Exception as e:
+        mappa.append("\nNon riesco a cliccare su ARRIVI E PARTENZE: " + str(e)[:100])
+    pag.wait_for_timeout(2500)
+    mappa.append("\n--- CAMPI VISIBILI DOPO LA SCHEDA ARRIVI E PARTENZE ---")
     campo = None
     for el in pag.locator("input").all():
         try:
-            if el.is_visible() and (el.get_attribute("type") or "text") in ("text", "search"):
+            if not el.is_visible() or (el.get_attribute("type") or "text") not in ("text", "search"):
+                continue
+            sp = (el.get_attribute("placeholder") or "")
+            mappa.append(f"campo id={el.get_attribute('id')} segnaposto={sp}")
+            if campo is None and not re.fullmatch(r"\s*cerca\W*", sp, re.I):  # non la ricerca generale in alto ("Cerca...")
                 campo = el
-                break
         except Exception:
             pass
     if campo is None:
