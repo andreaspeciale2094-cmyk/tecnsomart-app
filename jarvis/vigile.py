@@ -392,29 +392,6 @@ def _controlla_obiettivi(adesso: datetime) -> int:
     return 1
 
 
-_fc = {"giorno": ""}
-
-
-def _controlla_fine_ciclo(adesso: datetime) -> int:
-    """Negli ultimi 3 giorni del ciclo, una volta al giorno (dalle 9:30 alle 13): scheda e voce con quanto manca ai target. Senza modello, dati gia' pronti."""
-    if not config.ENABLE_NEGOZI or (adesso.hour, adesso.minute) < (9, 30) or adesso.hour >= 13 or _fc["giorno"] == adesso.strftime("%Y-%m-%d"):
-        return 0
-    from . import negozi
-    try:
-        with _ag.lavora("negozi"):
-            testo = negozi.fine_ciclo()
-    except Exception as e:
-        logs.log_route("VIGILE: fine ciclo non calcolato (" + type(e).__name__ + ")")
-        return 0
-    _fc["giorno"] = adesso.strftime("%Y-%m-%d")  # un solo tentativo al giorno
-    if not testo:
-        return 0
-    _aggiungi("obiettivi", testo, False)
-    logs.log_route("VIGILE: fine ciclo")
-    threading.Thread(target=_parla, args=(testo,), daemon=True).start()
-    return 1
-
-
 _ts = {"giorno": ""}
 
 
@@ -466,7 +443,6 @@ def agenti_elenco() -> str:
         voci.append("treno (apertura o chiusura)")
     if config.ENABLE_NEGOZI:
         voci.append("negozi (numeri pronti)")
-        voci.append("fine ciclo (ultimi 3 giorni)")
         voci.append("obiettivi (il lunedi')")
     if config.ENABLE_AGENDA or config.ENABLE_TRENI:
         voci.append("domani (impegni, turno e sveglia)")
@@ -894,7 +870,6 @@ def controlla(adesso: datetime | None = None) -> int:
     try:
         _controlla_treni_pronti(adesso)
         _controlla_notizie(adesso)
-        _controlla_fine_ciclo(adesso)
         _controlla_turni_settimana(adesso)
         _controlla_scioperi(adesso)
         _controlla_milan(adesso)

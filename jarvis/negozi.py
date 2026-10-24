@@ -318,11 +318,6 @@ def domanda_gruppo(testo: str) -> str | None:
             return obiettivi()
         except Exception:
             return None
-    if re.search(r"fine ciclo|chiusura del (mese|ciclo)|ultimi giorni|quanto manca alla chiusura|quanto manca a fine mese", t):
-        try:
-            return fine_ciclo(True)
-        except Exception:
-            return None
     proiez = bool(re.search(r"proiezion|a questo ritmo|a fine mese|chiudiam", t))
     manca = bool(re.search(r"\bmanc", t))
     totale = bool(re.search(r"\btotal[ei]\b|\bgruppo\b", t))
@@ -388,36 +383,6 @@ def obiettivi() -> str:
         pezzi.append(f"{etichetta}, giorno {a['giorno']} di {a['ciclo']}: a questo ritmo il gruppo chiude intorno al {round(100 * tot)}% dei target." +
                      (" Piu' indietro: " + ", ".join(indietro) + "." if indietro else " Tutte le categorie sono in linea o sopra."))
     return " ".join(pezzi) or "Non ho target del mese da guardare."
-
-
-def fine_ciclo(forza: bool = False) -> str | None:
-    """Gli ultimi 3 giorni del ciclo (o sempre, se forza): per ogni categoria quanto manca al target e quanto serve al giorno. Solo calcolo sui dati pronti, nessun modello.
-    None se non siamo negli ultimi giorni (e non e' stato chiesto)."""
-    cfg = load_config()
-    oggi = date.today()
-    raw = _leggi(cfg, oggi, 900)
-    pezzi = []
-    for kind, etichetta in (("mono", "Mono brand"), ("multi", "Multi brand")):
-        if kind not in (cfg.get("run") or {}):
-            continue
-        a = analyze(cfg["run"][kind], raw.get(kind) or {}, oggi)
-        rimasti = a["ciclo"] - a["giorno"] + 1  # compreso oggi
-        if rimasti > 3 and not forza:
-            continue
-        gap = []
-        for g in a["gruppo"]:
-            if g["target_mese"] > 0 and g["mese"] < g["target_mese"]:
-                manca = math.ceil(g["target_mese"] - g["mese"] - 1e-9)
-                gap.append((manca / g["target_mese"], manca, g["categoria"]))
-        gap.sort(reverse=True)
-        giorni = f"{rimasti} giorni" if rimasti != 1 else "ultimo giorno"
-        if not gap:
-            pezzi.append(f"{etichetta}, {giorni} alla chiusura: tutti i target sono raggiunti.")
-            continue
-        righe = [f"{c}: mancano {m:g}" + (f" ({math.ceil(m / rimasti):g} al giorno)" if rimasti > 1 else "") for _, m, c in gap[:4]]
-        resto = len(gap) - len(righe)
-        pezzi.append(f"{etichetta}, {giorni} alla chiusura. " + "; ".join(righe) + (f"; altre {resto} categorie sotto il target." if resto > 0 else ".") )
-    return " ".join(pezzi) or None
 
 
 def settimana() -> str:
