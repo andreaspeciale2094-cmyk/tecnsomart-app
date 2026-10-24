@@ -28,6 +28,11 @@ Segna con [x] quando provato. Dopo ogni prova dire a Jarvis/Claude com'e' andata
 - [ ] "Concludi la giornata": resoconto + diario degli agenti
 - [ ] Salute di Jarvis, guardiano dei consumi, backup settimanale
 
+## Notizie e siti
+- [ ] `controlla_notizie.bat`: quali giornali rispondono
+- [ ] "novita' su Milano", "notizie sul Milan", "cosa e' successo in politica"
+- [ ] Primo sito: "fammi un sito vetrina..." e anteprima
+
 ## Altre prove rimaste
 - [ ] Interruzioni a voce (pezzo 4 Fase 2) e fermare Jarvis mentre parla
 - [ ] Riconoscimento della tua voce

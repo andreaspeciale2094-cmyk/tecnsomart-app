@@ -13,7 +13,7 @@
   const dati = new Uint8Array(128);
   // agenti al lavoro (pezzo 3): ognuno ha una zona fissa intorno alla rete che si accende mentre lavora, con un raggio dal centro e il suo nome
   const AGENTI_ORD = ['agenda', 'posta', 'whatsapp', 'negozi', 'soldi', 'treno', 'promemoria'];
-  const COLORI = { agenda: [66, 133, 244], posta: [234, 67, 53], whatsapp: [37, 211, 102], negozi: [255, 159, 28], soldi: [45, 212, 191], treno: [168, 85, 247], promemoria: [250, 250, 150] };  // il colore di ogni app
+  const COLORI = { agenda: [66, 133, 244], posta: [234, 67, 53], whatsapp: [37, 211, 102], negozi: [255, 159, 28], soldi: [45, 212, 191], treno: [168, 85, 247], promemoria: [250, 250, 150], notizie: [96, 165, 250] };  // il colore di ogni app
   const scintille = [];
   const ag = {}; let agenti = {}, sondaggio = true;
   async function sondaAgenti() { if (!sondaggio || document.hidden) return;

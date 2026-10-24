@@ -22,6 +22,8 @@ DEFINIZIONI = {
                "ruolo": "Sei l'agente negozi: leggi l'andamento dei punti vendita e dei ragazzi. Dati dei clienti: solo quelli che servono."},
     "ricerca": {"strumenti": ["fetch_url"], "web": True, "predefinita": "Cerca online quello che serve e riassumilo.",
                 "ruolo": "Sei l'agente ricerca: cerchi su internet (anche leggendo pagine) e riporti solo i fatti utili, con la fonte in due parole. Se le fonti sono deboli o in contrasto, dillo."},
+    "notizie": {"strumenti": ["notizie_titoli", "notizia_leggi"], "predefinita": "Le novita' piu' importanti di cronaca, politica, Milano e Milan.",
+                "ruolo": "Sei l'agente notizie: prendi i titoli dei giornali, scegli i 3-5 che contano per l'argomento, leggi quegli articoli e riassumi i fatti con la fonte in due parole. Se un articolo e' a pagamento, dillo."},
     "memoria": {"strumenti": ["recall", "core_show"], "predefinita": "Cosa sai di questo argomento?",
                 "ruolo": "Sei l'agente memoria: cerchi nei ricordi di Andrea (archivio e memoria viva) e riporti solo quelli pertinenti. Se non c'e' niente, dillo in una riga."},
     "pc": {"strumenti": ["pc_cerca", "pc_elenco_app"], "predefinita": "Cerca nel PC.",

@@ -431,6 +431,8 @@ def agenti_elenco() -> str:
         voci.append("salute e consumi")
     if config.ENABLE_BACKUP:
         voci.append("backup settimanale")
+    if config.ENABLE_NOTIZIE:
+        voci.append("notizie (titoli dei giornali ogni ora)")
     chiamati = "agenda, posta, WhatsApp, negozi, soldi, ricerca, memoria e PC" if config.ENABLE_AGENTI else "nessuno"
     return "Di sottofondo ne ho " + str(len(voci)) + ": " + "; ".join(voci) + f". Poi quelli che chiamo io quando serve un quadro: {chiamati}. Dimmi se vuoi sapere cosa fa uno."
 
@@ -510,6 +512,23 @@ def _controlla_treni_pronti(adesso: datetime) -> int:
             trenord.aggiorna(treni._impostazioni()["partenza"])
     except Exception as e:
         logs.log_route("VIGILE: tabellone treni non aggiornato (" + type(e).__name__ + ")")
+    return 0
+
+
+_nz = {"ultimo": 0.0}
+
+
+def _controlla_notizie(adesso: datetime) -> int:
+    """Senza modello, costo zero: ogni ora (dalle 6 a mezzanotte) legge i titoli dei giornali e li tiene pronti per 'novita' su Milano'."""
+    if not config.ENABLE_NOTIZIE or not _in_fascia("notizie", adesso, ((6, 0), (23, 59))) or time.time() - _nz["ultimo"] < 3600:
+        return 0
+    _nz["ultimo"] = time.time()
+    from . import notizie
+    try:
+        with _ag.lavora("notizie"):
+            notizie.aggiorna()
+    except Exception as e:
+        logs.log_route("VIGILE: notizie non aggiornate (" + type(e).__name__ + ")")
     return 0
 
 
@@ -624,6 +643,7 @@ def controlla(adesso: datetime | None = None) -> int:
         logs.log_error(e, "vigile negozi")
     try:
         _controlla_treni_pronti(adesso)
+        _controlla_notizie(adesso)
     except Exception as e:
         logs.log_error(e, "vigile treni pronti")
     try:
