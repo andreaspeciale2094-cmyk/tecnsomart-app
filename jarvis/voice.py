@@ -40,6 +40,12 @@ def _ora_parlata(m: re.Match) -> str:
     h, mi = int(m.group(1)), int(m.group(2))
     if h > 24 or mi > 59:
         return m.group(0)
+    if h == 24:
+        h = 0
+    if h == 0:
+        return "mezzanotte" if mi == 0 else f"mezzanotte e {numero_parlato(mi)}"
+    if h == 12 and mi == 0:
+        return "mezzogiorno"
     ore = "una" if h == 1 else numero_parlato(h)
     return ore if mi == 0 else f"{ore} e {numero_parlato(mi)}"
 
@@ -50,6 +56,7 @@ def clean_for_speech(text: str) -> str:
     t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)  # [testo](url) -> testo
     t = re.sub(r"https?://\S+", " link ", t)
     t = re.sub(r"\b(\d{1,2}):(\d{2})\b", _ora_parlata, t)  # 23:27 -> "ventitre' e ventisette"
+    t = re.sub(r"\b((?:alle|dalle|fino alle|verso le|intorno alle|ore|per le|entro le|prima delle|dopo le)\s+)(\d{1,2})\.(\d{2})\b", lambda m: m.group(1) + _ora_parlata(re.match(r"(\d{1,2})\.(\d{2})", m.group(2) + "." + m.group(3))), t)  # alle 19.52 (con il punto)
     t = _EMOJI.sub(" ", t)
     t = re.sub(r"\b[A-ZÀ-Ý]{4,}\b", lambda m: m.group(0).lower(), t)  # FISSO FASTWEB, SKY MOBILE: in maiuscolo la voce multilingue sbaglia lingua e parla 'quasi spagnolo'
     t = re.sub(r"[*_`#>|~]+", " ", t)

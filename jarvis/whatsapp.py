@@ -232,7 +232,7 @@ def _nome_da_rubrica(numero: str, nome_whatsapp: str) -> str:
                 return nome
     except WhatsAppError:
         pass
-    return nome_whatsapp or (("+" + numero) if numero else "sconosciuto")
+    return nome_whatsapp or (("+" + numero) if numero else "un contatto senza nome")
 
 
 def _nome_chat(c: dict) -> str:

@@ -13,7 +13,7 @@ import { lookup } from 'node:dns/promises';
 import { connect } from 'node:net';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { registra, registraStorico, impostaNomi, gruppoNoto, gruppoSenzaNome, nomeGruppo, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
+import { registra, registraStorico, impostaNomi, impostaMiei, gruppoNoto, gruppoSenzaNome, nomeGruppo, elenco, leggi, cerca, totali, abilitaArchivio, salvaSubito } from './messaggi.js';
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, fetchLatestWaWebVersion, Browsers } from '@whiskeysockets/baileys';
 
 const QUI = dirname(fileURLToPath(import.meta.url));
@@ -108,6 +108,7 @@ async function avvia() {
     }
     if (u.connection === 'open') {
       chiusure = 0;
+      try { impostaMiei([sock.user?.id, sock.user?.lid]); } catch (e) {}
       stato.connesso = true; stato.bisogna_qr = false; stato.errore = '';
       if (MOSTRA_QR) {
         console.log("\nCOLLEGATO. Adesso WhatsApp manda la storia dei messaggi: NON chiudere questa finestra finche' non vedi FATTO (puo' volerci qualche minuto).");

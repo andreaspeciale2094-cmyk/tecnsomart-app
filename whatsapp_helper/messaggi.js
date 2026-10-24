@@ -81,11 +81,36 @@ function ordina(c) {
   if (c.sporca) { c.msgs.sort((a, b) => a.ts - b.ts); c.sporca = false; }
 }
 
+// ---------- identita': lo stesso contatto puo' comparire con il numero (@s.whatsapp.net) o con un codice nascosto (@lid) ----------
+const alias = new Map();   // @lid -> @s.whatsapp.net, imparato dai messaggi che hanno tutti e due
+const miei = new Set();    // i miei numeri/codici (per riconoscere i miei messaggi mandati da un altro dispositivo)
+const norm = (j) => String(j || '').split('@')[0].split(':')[0];
+export function impostaMiei(ids) { for (const i of ids || []) if (i) miei.add(norm(i)); }
+
+function unisci(vecchio, nuovo) {  // un contatto trovato con due indirizzi: si riuniscono le due chat in una
+  const a = chats.get(vecchio), b = chats.get(nuovo);
+  if (!a || !b || a === b) return;
+  for (const m of a.msgs) if (!m.id || !b.ids.has(m.id)) { b.msgs.push(m); if (m.id) b.ids.add(m.id); }
+  b.nome = b.nome || a.nome; b.numero = b.numero || a.numero;
+  b.lettoFino = Math.max(b.lettoFino, a.lettoFino); b.ultimo = Math.max(b.ultimo, a.ultimo); b.sporca = true;
+  chats.delete(vecchio);
+}
+
+function indirizzo(k) {
+  const grezzo = k.remoteJid || '', alt = k.remoteJidAlt || '';
+  const telefono = [grezzo, alt].find((j) => j.endsWith('@s.whatsapp.net'));
+  const lid = [grezzo, alt].find((j) => j.endsWith('@lid'));
+  if (telefono && lid && alias.get(lid) !== telefono) { alias.set(lid, telefono); unisci(lid, telefono); }
+  if (telefono) return telefono;
+  if (lid) return alias.get(lid) || lid;
+  return grezzo || alt;
+}
+
 // storico = true per i messaggi della storia vecchia: contano come gia' letti (non gonfiano i "non letti")
 export function registra(m, ora = Date.now() / 1000, storico = false) {
   const k = m?.key;
   if (!k) return false;
-  const jid = k.remoteJidAlt || k.remoteJid || '';
+  const jid = indirizzo(k);
   const gruppo = jid.endsWith('@g.us');
   if (!(jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid') || gruppo)) return false;  // niente stati e newsletter
   const testo = testoDi(m);
@@ -104,9 +129,10 @@ export function registra(m, ora = Date.now() / 1000, storico = false) {
   }
   if (k.id && c.ids.has(k.id)) return false;  // gia' registrato (la storia e i messaggi in diretta possono sovrapporsi)
   if (gruppo) c.gruppo = true;
-  if (!k.fromMe && m.pushName && !gruppo) c.nome = String(m.pushName).slice(0, 40);
-  const msg = { id: k.id || '', da_me: !!k.fromMe, testo: String(testo).slice(0, 1500), ts };
-  if (gruppo && !k.fromMe) msg.chi = String(m.pushName || (k.participant || '').split('@')[0].split(':')[0] || '').slice(0, 40);  // chi ha scritto nel gruppo
+  const mio = !!k.fromMe || (miei.size > 0 && (miei.has(norm(k.participant)) || miei.has(norm(k.participantAlt))));  // anche se l'ho mandato da un altro dispositivo
+  if (!mio && m.pushName && !gruppo) c.nome = String(m.pushName).slice(0, 40);
+  const msg = { id: k.id || '', da_me: mio, testo: String(testo).slice(0, 1500), ts };
+  if (gruppo && !mio) msg.chi = String(m.pushName || (k.participant || '').split('@')[0].split(':')[0] || '').slice(0, 40);  // chi ha scritto nel gruppo
   c.msgs.push(msg);
   if (k.id) c.ids.add(k.id);
   c.sporca = true;
@@ -115,7 +141,7 @@ export function registra(m, ora = Date.now() / 1000, storico = false) {
     for (const x of c.msgs.splice(0, c.msgs.length - limiti.perChat)) if (x.id) c.ids.delete(x.id);
   }
   c.ultimo = Math.max(c.ultimo, ts);
-  if (k.fromMe || storico) c.lettoFino = Math.max(c.lettoFino, ts);  // se rispondi dal telefono (o e' storia vecchia), conta come letta
+  if (mio || storico) c.lettoFino = Math.max(c.lettoFino, ts);  // se rispondi dal telefono (o e' storia vecchia), conta come letta
   programmaSalvataggio();
   return true;
 }
@@ -124,8 +150,11 @@ export function registra(m, ora = Date.now() / 1000, storico = false) {
 export function impostaNomi(elenco) {
   for (const x of elenco || []) {
     const nome = String(x?.name || x?.notify || x?.subject || '').slice(0, 40);
-    const c = nome && chats.get(x.id);
-    if (c && !c.nome) c.nome = nome;
+    if (!nome) continue;
+    for (const chiave of [x.id, x.lid, x.phoneNumber]) {  // il contatto puo' essere noto con il numero o con il codice nascosto
+      const c = chiave && (chats.get(chiave) || chats.get(alias.get(chiave)));
+      if (c && !c.nome) { c.nome = nome; break; }
+    }
   }
 }
 
