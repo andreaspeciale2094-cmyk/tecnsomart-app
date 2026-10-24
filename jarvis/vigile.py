@@ -575,7 +575,58 @@ _MILAN_PRIMA = r"formazioni? ufficiali|probabili formazioni|dove vederla|dove ve
 _MILAN_DOPO = r"fischio finale|finisce|termina|vince|batte|pareggia|ko|sconfitta|stende|travolge|beffa|rimonta|esulta"
 
 
+_mc = {"ultimo": 0.0, "prima": set(), "dopo": set(), "avviato": False}
+
+
+def _controlla_milan_calendario(adesso: datetime) -> int:
+    """Con la chiave di football-data.org: un'ora prima della partita e a partita finita, scheda + voce (se Jarvis e' libero e non e' notte). Senza modello."""
+    from . import calcio
+    # si controlla ogni 30 minuti; da un'ora prima fino a 3 ore dopo l'inizio ogni 5 minuti
+    vicina = any(-3 * 3600 < (p["quando"] - adesso).total_seconds() < 3900 for p in (calcio._cache["dati"] or []))
+    if time.time() - _mc["ultimo"] < (300 if vicina else 1800):
+        return 0
+    _mc["ultimo"] = time.time()
+    try:
+        with _ag.lavora("milan"):
+            pp = calcio.partite(max_eta=240)
+    except Exception as e:
+        logs.log_route("VIGILE: calendario Milan non letto (" + type(e).__name__ + ")")
+        return 0
+    creati = 0
+    for p in pp:
+        minuti = (p["quando"] - adesso).total_seconds() / 60
+        if not _mc["avviato"]:  # la prima lettura dopo l'accensione memorizza soltanto
+            if p["stato"] == "FINISHED" or minuti < 60:
+                _mc["dopo" if p["stato"] == "FINISHED" else "prima"].add(p["id"])
+            continue
+        if p["stato"] in ("SCHEDULED", "TIMED") and 0 < minuti <= 60 and p["id"] not in _mc["prima"]:
+            _mc["prima"].add(p["id"])
+            frase = calcio.frase_prima(p)
+            _aggiungi("milan", frase, False)
+            logs.log_route("VIGILE: Milan, partita tra poco")
+            if not _notte(adesso):
+                threading.Thread(target=_parla, args=(frase,), daemon=True).start()
+            creati += 1
+        elif p["stato"] == "FINISHED" and p["id"] not in _mc["dopo"] and (adesso - p["quando"]).total_seconds() < 6 * 3600:
+            _mc["dopo"].add(p["id"])
+            frase = calcio.frase_dopo(p)
+            _aggiungi("milan", frase, False)
+            logs.log_route("VIGILE: Milan, partita finita")
+            if not _notte(adesso):
+                threading.Thread(target=_parla, args=(frase,), daemon=True).start()
+            creati += 1
+    _mc["avviato"] = True
+    return creati
+
+
 def _controlla_milan(adesso: datetime) -> int:
+    from . import calcio
+    if calcio.attivo():
+        return _controlla_milan_calendario(adesso)
+    return _controlla_milan_notizie(adesso)
+
+
+def _controlla_milan_notizie(adesso: datetime) -> int:
     """Senza modello: ogni 20 minuti (8-24) cerca nei titoli le notizie sulla partita del Milan (prima: formazioni e orario; dopo: risultato). Una scheda ogni 3 ore per tipo, max 4 al giorno."""
     if not config.ENABLE_NOTIZIE or not _in_fascia("milan", adesso, ((8, 0), (23, 59))) or time.time() - _mi.get("ultimo", 0) < 1200:
         return 0
@@ -607,6 +658,8 @@ def _controlla_milan(adesso: datetime) -> int:
         _mi["n"] += 1
         _aggiungi("milan", nuovi[0]["titolo"][:140], False)
         logs.log_route("VIGILE: Milan segnalato (" + tipo + ")")
+        if not _notte(adesso):
+            threading.Thread(target=_parla, args=(nuovi[0]["titolo"][:140],), daemon=True).start()
         return 1
     if not _mi.get("avviato"):
         _mi["visti"].update(v["id"] for v in voci)
