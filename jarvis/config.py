@@ -30,6 +30,7 @@ BANCA_RITORNO = os.getenv("ENABLE_BANKING_RITORNO", "https://localhost:8000/banc
 BANCA_PRESENTE = _flag("ENABLE_BANKING_PRESENTE", True)  # avvisa la banca che Andrea e' presente (meno limiti)
 TELEFONO_URL = os.getenv("TELEFONO_URL", "").strip()  # indirizzo dell'app sul telefono che fa partire la chiamata (rete privata Tailscale), es. http://100.x.x.x:8080/chiama
 TELEFONO_CHIAVE = os.getenv("TELEFONO_CHIAVE", "").strip()  # parola segreta che il telefono controlla
+ENABLE_SENZA_RISPOSTA = _flag("JARVIS_SENZA_RISPOSTA", False)  # avviso "non hai risposto a..." (spento: Andrea vuole solo i messaggi non letti)
 ENABLE_NOTIZIE = _flag("JARVIS_NOTIZIE", True)  # notizie dai giornali, titoli pronti ogni ora (spegnere con false)
 ENABLE_SITI = _flag("JARVIS_SITI", True)  # Jarvis crea siti e webapp sul PC (spegnere con false)
 ENABLE_PROMEMORIA = _flag("JARVIS_PROMEMORIA", True)  # "ricordami alle 17 di..." (spegnere con false)

@@ -454,7 +454,7 @@ _CHIUSURA_CHAT = re.compile(r"^\W*(?:ok|okay|va bene|grazie|grazie mille|perfett
 def _controlla_senza_risposta(adesso: datetime) -> int:
     """Senza modello, costo zero: dalle 9 alle 21, ogni 10 minuti, guarda le chat singole dove l'ULTIMO messaggio e' dell'altra persona, di oltre 3 ore fa (ma di oggi o ieri),
     e non e' un semplice 'ok/grazie'. Una scheda che raggruppa i nomi, una volta per messaggio. Il testo dei messaggi non viene mai mostrato ne' registrato."""
-    if not (config.ENABLE_WHATSAPP and config.ENABLE_WHATSAPP_LEGGI) or not _in_fascia("senza_risposta", adesso, ((9, 0), (21, 0))) or time.time() - _senza["ultimo"] < 600:
+    if not config.ENABLE_SENZA_RISPOSTA or not (config.ENABLE_WHATSAPP and config.ENABLE_WHATSAPP_LEGGI) or not _in_fascia("senza_risposta", adesso, ((9, 0), (21, 0))) or time.time() - _senza["ultimo"] < 600:
         return 0
     _senza["ultimo"] = time.time()
     from . import whatsapp
