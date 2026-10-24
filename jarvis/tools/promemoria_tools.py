@@ -15,6 +15,8 @@ SCHEMAS = [
      "input_schema": {"type": "object", "properties": {}}},
     {"name": "chiamate_perse", "description": "Le chiamate perse di oggi sul telefono di Andrea (le manda il telefono a Jarvis). Per 'chi mi ha chiamato?'. Se Andrea vuole richiamare, usa chiama_prepara con il nome.",
      "input_schema": {"type": "object", "properties": {}}},
+    {"name": "agenti_attivi", "description": "L'elenco vero degli agenti di sottofondo accesi e cosa fa ciascuno. Usalo se Andrea chiede 'quali agenti sono attivi?', 'cosa fanno gli agenti?'.",
+     "input_schema": {"type": "object", "properties": {}}},
     {"name": "promemoria_elenco", "description": "Elenca i promemoria in attesa.", "input_schema": {"type": "object", "properties": {}}},
     {"name": "promemoria_togli", "description": "Toglie un promemoria (per id o per parole del testo) oppure 'tutti'.",
      "input_schema": {"type": "object", "properties": {"id_o_testo": {"type": "string"}}, "required": ["id_o_testo"]}},
@@ -45,4 +47,9 @@ def _perse() -> str:
     return chiamate_perse.elenco()
 
 
-HANDLERS = {"chiamate_perse": _perse, "promesse_aperte": _promesse, "diario_agenti": _diario, "promemoria_crea": _crea, "promemoria_elenco": promemoria.elenco, "promemoria_togli": promemoria.togli}
+def _agenti() -> str:
+    from .. import vigile
+    return vigile.agenti_elenco()
+
+
+HANDLERS = {"agenti_attivi": _agenti, "chiamate_perse": _perse, "promesse_aperte": _promesse, "diario_agenti": _diario, "promemoria_crea": _crea, "promemoria_elenco": promemoria.elenco, "promemoria_togli": promemoria.togli}

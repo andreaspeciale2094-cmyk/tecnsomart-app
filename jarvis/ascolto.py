@@ -470,6 +470,12 @@ _NEGOZI_CHIEDE = re.compile(r"(?:\bcome (?:sono|stanno|vanno)|\bandat[aoie]\b|\b
 
 def negozi_veloce(testo: str) -> str | None:
     """'Come sono andati i negozi?', 'i numeri dei negozi': i numeri sono gia' pronti (li prepara l'agente negozi), si dicono subito senza passare dal cervello."""
+    if re.search(r"\bagenti\b", testo, re.IGNORECASE) and re.search(r"\b(?:attiv|quali|elenco|che cosa fanno|cosa fanno|lavorano)", testo, re.IGNORECASE) and len(testo) < 90:
+        try:
+            from . import vigile
+            return vigile.agenti_elenco()  # l'elenco vero, senza far ragionare il cervello
+        except Exception as e:
+            logs.log_error(e, "agenti elenco")
     if not config.ENABLE_NEGOZI or len(testo) > 110:
         return None
     try:
