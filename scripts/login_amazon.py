@@ -10,6 +10,13 @@ except ImportError:
     sys.exit("Manca il programma: fai doppio clic su installa_trenord.bat e riprova.")
 from jarvis import amazon
 
+try:  # se Jarvis tiene acceso il browser di Amazon, lo chiude: il profilo e' lo stesso
+    import httpx
+    chiave = (Path(__file__).parent.parent / "memoria" / "chiudi.token").read_text(encoding="utf-8").strip()
+    httpx.post("http://127.0.0.1:8000/api/amazon/chiudi", headers={"x-chiudi": chiave}, timeout=15)
+except Exception:
+    pass
+
 with sync_playwright() as p:
     ctx = amazon._contesto(p, visibile=True)
     pag = ctx.pages[0] if ctx.pages else ctx.new_page()

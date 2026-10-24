@@ -55,6 +55,11 @@ async def lifespan(app):
     threading.Thread(target=_avvio_scaglionato, daemon=True).start()  # il resto parte a scaglioni: prima la schermata, poi il resto
     logs.log_route(f"AVVIO: server pronto in {_t.time() - _T0:.1f} s (dall'inizio del caricamento dei programmi)")
     yield
+    try:
+        from . import amazon
+        amazon.chiudi_browser()
+    except Exception:
+        pass
     pulizia.alla_chiusura()
 
 
@@ -63,7 +68,7 @@ CHIAMATE_PERSE_TOKEN = Path(__file__).parent.parent / "memoria" / "chiamate_pers
 app = FastAPI(title="Jarvis", lifespan=lifespan)
 _sessions = sessions.histories
 STATIC = Path(__file__).parent.parent / "static"
-PUBLIC = {"/api/chiamata_persa", "/api/login", "/api/auth", "/api/chiudi", "/api/davanti", "/api/stato_ascolto", "/api/ritmo"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
+PUBLIC = {"/api/amazon/chiudi", "/api/chiamata_persa", "/api/login", "/api/auth", "/api/chiudi", "/api/davanti", "/api/stato_ascolto", "/api/ritmo"}  # /api/chiudi ha un controllo suo: solo dal PC e con chiave
 
 
 @app.middleware("http")
@@ -75,6 +80,17 @@ async def guard(request: Request, call_next):
     if request.url.path == "/" or request.url.path.startswith("/static/"):
         risposta.headers["Cache-Control"] = "no-cache"  # il browser controlla sempre se la pagina e' cambiata: dopo una copia dei file si vede subito la versione nuova
     return risposta
+
+
+@app.post("/api/amazon/chiudi")
+def amazon_chiudi(request: Request):
+    """Chiude il browser di Amazon tenuto acceso (lo chiama login_amazon.bat prima di aprire lo stesso profilo): solo da questo PC e con la chiave."""
+    chiave = CHIUDI_TOKEN.read_text(encoding="utf-8").strip() if CHIUDI_TOKEN.exists() else ""
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1") or not chiave or not secrets.compare_digest(request.headers.get("x-chiudi", ""), chiave):
+        return JSONResponse({"error": "non autorizzato"}, status_code=403)
+    from . import amazon
+    amazon.chiudi_browser()
+    return {"ok": True}
 
 
 @app.post("/api/chiudi")

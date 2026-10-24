@@ -4,6 +4,7 @@ Se compare un CAPTCHA si ferma e avvisa. Quello che si legge sulla pagina e' sol
 Nei registri solo 'AMAZON: ricerca / aggiunta al carrello', mai cosa si cerca."""
 from __future__ import annotations
 
+import queue
 import threading
 from urllib.parse import quote_plus
 import time
@@ -55,25 +56,109 @@ _JS_RISULTATI = """() => [...document.querySelectorAll('div[data-component-type=
 }).filter(x => x.asin && x.titolo)"""
 
 
+# ---- Chrome tenuto acceso in sottofondo: la prima ricerca apre il browser (qualche secondo), le successive partono subito; dopo 15 minuti senza uso si chiude da solo ----
+INATTIVO_S = 15 * 60
+
+
+class _Lavoratore(threading.Thread):
+    """Un solo filo possiede Playwright e il browser (Playwright non si puo' usare da fili diversi): gli altri gli mandano lavori e aspettano il risultato."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.coda: "queue.Queue" = queue.Queue()
+        self.vivo = True
+
+    def run(self):
+        pw = ctx = None
+        try:
+            while True:
+                try:
+                    lavoro = self.coda.get(timeout=INATTIVO_S)
+                except queue.Empty:
+                    break  # nessuno lo usa da un po': si chiude il browser
+                if lavoro is None:
+                    break
+                fn, out = lavoro
+                try:
+                    if ctx is None:
+                        from playwright.sync_api import sync_playwright
+                        pw = sync_playwright().start()
+                        ctx = _contesto(pw)
+                    out.put((True, fn(ctx)))
+                except Exception as e:
+                    if isinstance(e, AmazonError):
+                        out.put((False, e))
+                    else:
+                        out.put((False, AmazonError("Amazon non risponde come previsto: " + type(e).__name__)))
+                        try:  # il browser potrebbe essersi rotto: si riparte da zero la prossima volta
+                            ctx.close()
+                        except Exception:
+                            pass
+                        ctx = None
+        finally:
+            self.vivo = False
+            for chiudi in (lambda: ctx and ctx.close(), lambda: pw and pw.stop()):
+                try:
+                    chiudi()
+                except Exception:
+                    pass
+
+
+_lav: _Lavoratore | None = None
+_lav_lock = threading.Lock()
+
+
+def _esegui(fn, timeout: float = 90):
+    """Esegue fn(contesto_del_browser) nel filo del browser (acceso se serve) e ritorna il risultato."""
+    global _lav
+    try:
+        import playwright.sync_api  # noqa: F401
+    except ImportError:
+        raise AmazonError("Manca il programma per navigare: fai doppio clic su installa_trenord.bat.")
+    with _lav_lock:
+        if _lav is None or not _lav.vivo:
+            _lav = _Lavoratore()
+            _lav.start()
+        lav = _lav
+    out: "queue.Queue" = queue.Queue()
+    lav.coda.put((fn, out))
+    try:
+        ok, val = out.get(timeout=timeout)
+    except queue.Empty:
+        raise AmazonError("Amazon ci mette troppo a rispondere: riprova tra poco.")
+    if not ok:
+        raise val
+    return val
+
+
+def chiudi_browser():
+    """Chiude il browser tenuto acceso (all'uscita di Jarvis o prima del login, che usa lo stesso profilo)."""
+    global _lav
+    with _lav_lock:
+        lav, _lav = _lav, None
+    if lav is not None and lav.vivo:
+        lav.coda.put(None)
+        lav.join(timeout=10)
+
+
 def cerca(query: str, quanti: int = 5) -> str:
     query = (query or "").strip()
     if not query:
         raise AmazonError("Dimmi cosa devo cercare.")
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        raise AmazonError("Manca il programma per navigare: fai doppio clic su installa_trenord.bat.")
-    with _lock, sync_playwright() as p:
-        ctx = _contesto(p)
+    termine = quote_plus(query)
+
+    def lavoro(ctx):
+        pag = ctx.new_page()
         try:
-            pag = ctx.new_page()
-            termine = quote_plus(query)
             pag.goto(f"{SITO}/s?k={termine}", wait_until="domcontentloaded", timeout=45000)
-            pag.wait_for_timeout(1500)
+            pag.wait_for_timeout(800)
             _controlla_pagina(pag)
-            voci = [v for v in pag.evaluate(_JS_RISULTATI) if not v["sponsorizzato"]][:max(1, min(int(quanti), 8))]
+            return [v for v in pag.evaluate(_JS_RISULTATI) if not v["sponsorizzato"]][:max(1, min(int(quanti), 8))]
         finally:
-            ctx.close()
+            pag.close()
+
+    with _lock:
+        voci = _esegui(lavoro)
     if not voci:
         return "Non ho trovato risultati su Amazon per questa ricerca."
     _risultati.clear()
@@ -103,34 +188,32 @@ def conferma_carrello(numero: int) -> str:
         raise AmazonError("Prima te lo chiedo: non ho niente in attesa del tuo si'.")
     if att["turno"] == posta.turno():
         raise AmazonError("Serve il tuo si' in un nuovo messaggio: chiedilo ad Andrea e aspetta la sua risposta.")
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        raise AmazonError("Manca il programma per navigare: fai doppio clic su installa_trenord.bat.")
     del _in_attesa[n]
-    with _lock, sync_playwright() as p:
-        ctx = _contesto(p)
+
+    def lavoro(ctx):
+        pag = ctx.new_page()
         try:
-            pag = ctx.new_page()
             pag.goto(f"{SITO}/dp/{v['asin']}", wait_until="domcontentloaded", timeout=45000)
-            pag.wait_for_timeout(1500)
+            pag.wait_for_timeout(1000)
             _controlla_pagina(pag)
-            pag.locator("#add-to-cart-button, input[name='submit.add-to-cart']").first.click(timeout=8000)
-            pag.wait_for_timeout(2500)
+            try:
+                pag.locator("#add-to-cart-button, input[name='submit.add-to-cart']").first.click(timeout=8000)
+            except Exception:
+                raise AmazonError("Non sono riuscito a premere 'Aggiungi al carrello': Amazon potrebbe aver cambiato la pagina. Fallo tu dal link.")
+            pag.wait_for_timeout(2000)
             for rifiuta in ("#attachSiNoCoverage-announce", "#siNoCoverage-announce", "input[aria-labelledby*='NoCoverage']"):
                 try:
-                    pag.locator(rifiuta).first.click(timeout=1500)  # il 'no grazie' alle garanzie extra
+                    pag.locator(rifiuta).first.click(timeout=1200)  # il 'no grazie' alle garanzie extra
                     break
                 except Exception:
                     pass
             pag.goto(f"{SITO}/gp/cart/view.html", wait_until="domcontentloaded", timeout=45000)
             _controlla_pagina(pag)
-            nel_carrello = v["asin"] in pag.content()
-        except AmazonError:
-            raise
-        except Exception:
-            raise AmazonError("Non sono riuscito a premere 'Aggiungi al carrello': Amazon potrebbe aver cambiato la pagina. Fallo tu dal link.")
+            return v["asin"] in pag.content()
         finally:
-            ctx.close()
+            pag.close()
+
+    with _lock:
+        nel_carrello = _esegui(lavoro)
     logs.log_route("AMAZON: aggiunta al carrello" + ("" if nel_carrello else " (non verificata)"))
     return "Fatto, e' nel carrello. L'acquisto lo fai tu." if nel_carrello else "Ho premuto 'Aggiungi al carrello' ma non vedo il prodotto nel carrello: controlla tu. L'acquisto lo fai tu."
