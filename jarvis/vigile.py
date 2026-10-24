@@ -8,6 +8,7 @@ from pathlib import Path
 import threading
 import time
 import uuid
+from urllib.parse import quote
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -27,6 +28,7 @@ _domani = {"giorno": ""}   # agente "domani": una volta la sera
 _prom = {"tentativi": {}}   # promemoria: quante volte si e' provato a dirlo a voce
 _obi = {"settimana": ""}   # obiettivi del mese: una volta il lunedi
 _prom_ag = {"giorno": ""}   # promesse di WhatsApp: una volta la sera
+_senza = {"ultimo": 0.0, "avvisati": set()}   # WhatsApp senza risposta: chat+messaggio gia' segnalati (solo RAM)
 _lock = threading.Lock()
 SISTEMA = ("Sei l'agente vigile di Andrea, che gestisce negozi TecnoSmart. Ti arrivano le NOVITA' appena comparse (mail non lette: mittente e oggetto; chat WhatsApp: solo il nome). "
            "Decidi se vale la pena interromperlo adesso. SI' per: persone vere (clienti, colleghi, ragazzi dei negozi, familiari), richieste, problemi, scadenze, soldi. "
@@ -60,7 +62,7 @@ def diario_testo() -> str:
     if not voci:
         return "Oggi gli agenti di sottofondo non hanno avuto niente da segnalare."
     righe = []
-    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "chiamate": "chiamate perse", "impegno": "ricordi di impegni"}
+    nomi = {"banca": "movimenti in banca", "posta": "mail importanti", "whatsapp": "messaggi WhatsApp", "negozi": "negozi", "chiamate": "chiamate perse", "senza risposta": "chat senza risposta", "impegno": "ricordi di impegni"}
     conta: dict[str, int] = {}
     for ora, tipo, testo in voci:
         if tipo in _TESTO_NEL_DIARIO:
@@ -412,6 +414,43 @@ def chiamata_persa(frase: str):
         threading.Thread(target=_parla, args=(frase,), daemon=True).start()
 
 
+_CHIUSURA_CHAT = re.compile(r"^\W*(?:ok|okay|va bene|grazie|grazie mille|perfetto|ricevuto|capito|ci sono|a dopo|a domani|ciao|buonanotte|buona serata|si|no|\W)*\W*$", re.IGNORECASE)
+
+
+def _controlla_senza_risposta(adesso: datetime) -> int:
+    """Senza modello, costo zero: dalle 9 alle 21, ogni 10 minuti, guarda le chat singole dove l'ULTIMO messaggio e' dell'altra persona, di oltre 3 ore fa (ma di oggi o ieri),
+    e non e' un semplice 'ok/grazie'. Una scheda che raggruppa i nomi, una volta per messaggio. Il testo dei messaggi non viene mai mostrato ne' registrato."""
+    if not (config.ENABLE_WHATSAPP and config.ENABLE_WHATSAPP_LEGGI) or not _in_fascia("senza_risposta", adesso, ((9, 0), (21, 0))) or time.time() - _senza["ultimo"] < 600:
+        return 0
+    _senza["ultimo"] = time.time()
+    from . import whatsapp
+    ora = time.time()
+    chat = [c for c in whatsapp._helper_json("/chat?tutte=1").get("chat", []) if 3 * 3600 <= ora - c.get("ultimo", 0) <= 30 * 3600][:30]
+    nomi = []
+    with _ag.lavora("whatsapp"):
+        for c in chat:
+            chiave = f"{c.get('id')}|{int(c.get('ultimo', 0))}"
+            if chiave in _senza["avvisati"]:
+                continue
+            try:
+                r = whatsapp._helper_json(f"/messaggi?id={quote(c['id'])}&n=1&segna=0")
+            except Exception:
+                continue
+            m = (r.get("messaggi") or [None])[-1]
+            if not m or m.get("da_me") or _CHIUSURA_CHAT.match(str(m.get("testo", ""))[:40]):
+                _senza["avvisati"].add(chiave)  # non serve una risposta (o l'ultima parola e' tua): non si ricontrolla
+                continue
+            _senza["avvisati"].add(chiave)
+            nomi.append(whatsapp._nome_da_rubrica(c.get("numero", ""), c.get("nome", "")))
+    if not nomi:
+        return 0
+    frase = (f"{nomi[0]} ti ha scritto e non hai ancora risposto." if len(nomi) == 1 else
+             "Non hai ancora risposto a: " + ", ".join(nomi[:4]) + (f" e altri {len(nomi) - 4}." if len(nomi) > 4 else "."))
+    _aggiungi("senza risposta", frase, False)
+    logs.log_route(f"VIGILE: WhatsApp senza risposta, {len(nomi)} chat")
+    return 1
+
+
 def _in_fascia(nome: str, adesso: datetime, predefinita: tuple) -> bool:
     """L'agente lavora solo nella sua fascia oraria (memoria/orari_agenti.json, es. {"negozi": ["09:30", "20:30"]}): fuori fascia non fa nessuna richiesta."""
     try:
@@ -477,6 +516,10 @@ def controlla(adesso: datetime | None = None) -> int:
         creati += _controlla_banca(adesso)
     except Exception as e:
         logs.log_error(e, "vigile banca")
+    try:
+        creati += _controlla_senza_risposta(adesso)
+    except Exception as e:
+        logs.log_error(e, "vigile senza risposta")
     try:
         creati += _controlla_promesse(adesso)
     except Exception as e:

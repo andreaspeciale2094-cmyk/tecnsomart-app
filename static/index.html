@@ -742,7 +742,7 @@ speechSynthesis?.getVoices();
   M.onclick = e => { if (e.target.id === 'int') chiudi(); }; addEventListener('keydown', e => { if (e.key === 'Escape') chiudi(); }); }
 
 // avvisi dell'agente vigile: una scheda per ogni cosa che conta; cliccandola si apre la finestra giusta; sparisce da sola dopo un po'
-{ const C = $('#avvisi'), mostrati = new Set(); const TAG = { impegno: 'impegno', posta: 'posta', whatsapp: 'whatsapp', banca: 'banca', treno: 'treno', negozi: 'negozi', domani: 'domani', promemoria: 'promemoria', obiettivi: 'obiettivi', promesse: 'promesse', salute: 'salute', chiamate: 'chiamata persa', calendario: 'calendario' };
+{ const C = $('#avvisi'), mostrati = new Set(); const TAG = { impegno: 'impegno', posta: 'posta', whatsapp: 'whatsapp', banca: 'banca', treno: 'treno', negozi: 'negozi', domani: 'domani', promemoria: 'promemoria', obiettivi: 'obiettivi', promesse: 'promesse', salute: 'salute', chiamate: 'chiamata persa', calendario: 'calendario', 'senza risposta': 'senza risposta' };
   const chiudi = (id, el) => { el.remove(); api('/api/vigile/letto', { method: 'POST', body: JSON.stringify({ id }) }).catch(() => {}); };
   async function sonda() { if (document.hidden) return;
     try { const d = await (await api('/api/vigile')).json();
