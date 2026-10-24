@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agenti, ascolto, backup, chiamate_perse, salute, ritmo, rubrica_sync, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
+from . import siti, agenti, ascolto, backup, chiamate_perse, salute, ritmo, rubrica_sync, auth, interazioni, vigile, voce_id, barra, benvenuto, meteo, tools, brain, config, fase, logs, pannello, memory, pulizia, scheduler, sessions, telegram_bot, voice, whatsapp
 
 
 def _avvio_scaglionato():
@@ -183,6 +183,20 @@ def vigile_letto(body: Letto):
 def agenti_stato():
     """Quali agenti stanno lavorando adesso (solo etichette): serve alla rete neurale per mostrarli."""
     return {"agenti": agenti.stato_pubblico()}
+
+
+@app.get("/anteprima/{nome}/{percorso:path}")
+def anteprima_sito(nome: str, percorso: str, request: Request):
+    """Anteprima dei siti di Jarvis: solo da questo PC. 'sandbox' = il sito non puo' toccare Jarvis ne' il suo login."""
+    if not _dal_pc(request):
+        return JSONResponse({"error": "solo dal PC"}, status_code=403)
+    try:
+        f = siti.file_anteprima(nome, percorso)
+    except siti.SitoError:
+        f = None
+    if not f:
+        return JSONResponse({"error": "non trovato"}, status_code=404)
+    return FileResponse(f, headers={"Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups allow-modals", "Cache-Control": "no-cache"})
 
 
 @app.get("/api/pannello")

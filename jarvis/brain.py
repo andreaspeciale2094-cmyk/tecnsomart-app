@@ -16,7 +16,7 @@ SERVER_TOOLS = [{"type": "web_search_20260209", "name": "web_search", "max_uses"
 
 BLOCKED_UNATTENDED = {"run_shell", "write_file", "background_task", "schedule_task", "cancel_task",
                       "banca_riepilogo", "banca_movimenti", "mail_invia", "chiama_prepara", "chiama_avvia", "whatsapp_apri", "whatsapp_invia", "whatsapp_non_lette", "whatsapp_leggi",
-                      "pc_apri", "pc_volume", "pc_blocca", "pc_mostra_desktop", "pc_azione_prepara", "pc_azione_conferma", "pc_annulla_spegnimento", "pc_alias", "desktop_aggiungi", "desktop_togli", "desktop_importa_barra", "delega_agenti", "promemoria_crea", "promemoria_togli", "promesse_aperte", "calendario_prepara", "calendario_conferma", "amazon_cerca", "amazon_carrello_prepara", "amazon_carrello_conferma"}  # la banca solo quando Andrea e' presente
+                      "pc_apri", "pc_volume", "pc_blocca", "pc_mostra_desktop", "pc_azione_prepara", "pc_azione_conferma", "pc_annulla_spegnimento", "pc_alias", "desktop_aggiungi", "desktop_togli", "desktop_importa_barra", "delega_agenti", "promemoria_crea", "promemoria_togli", "promesse_aperte", "calendario_prepara", "calendario_conferma", "amazon_cerca", "amazon_carrello_prepara", "amazon_carrello_conferma", "sito_scrivi", "sito_anteprima"}  # la banca solo quando Andrea e' presente
 
 
 def _last_user_text(history: list[dict]) -> str:
@@ -83,8 +83,9 @@ def _effort(query: str) -> str:
 
 
 # Modello rapido (Haiku) per le domande normali; il modello forte per azioni con effetti (inviare, chiamare, comprare, spegnere...) e per ragionare/scrivere.
-_AZIONI = re.compile(r"\b(invia\w*|mand\w+|chiam\w+|telefon\w+|pag\w+|compr\w+|ordin\w+|prenot\w+|cancell\w+|elimin\w+|spegn\w+|riavvi\w+|carrello|amazon|bozza|rispond\w+|scriv\w+|prepara\w*|modific\w+|sposta\w*|aggiung\w+|togli\w*|metti|appuntamento|calendario)\b", re.IGNORECASE)
+_AZIONI = re.compile(r"\b(invia\w*|mand\w+|chiam\w+|telefon\w+|pag\w+|compr\w+|ordin\w+|prenot\w+|cancell\w+|elimin\w+|spegn\w+|riavvi\w+|carrello|amazon|bozza|rispond\w+|scriv\w+|prepara\w*|modific\w+|sposta\w*|aggiung\w+|togli\w*|metti|appuntamento|calendario|sito|siti|webapp|web app|pagina web|landing)\b", re.IGNORECASE)
 _SINTESI = re.compile(r"\b(giornata|briefing|buon\s?g\w*|resoconto|concludi|chiudi\w*|fine giornata|negozi|quadro|situazione|aggiorna\w*)\b", re.IGNORECASE)  # sintesi di piu' dati: meglio il modello forte
+_SITO = re.compile(r"\b(sito|siti|webapp|web app|pagina web|landing)\b", re.IGNORECASE)
 _veloce = {"ok": True}   # se il modello rapido non c'e' sull'account si smette di usarlo (una volta sola)
 
 
@@ -121,7 +122,7 @@ def think_stream(history: list[dict], unattended: bool = False, summary: str = "
             parametri = {} if rapido else {"output_config": {"effort": _effort(query)}}  # il modello rapido non usa l'impegno di ragionamento
             with client.messages.stream(
                 model=modello,
-                max_tokens=4096,  # il "pensiero" conta nel limite
+                max_tokens=24000 if _SITO.search(query) else 4096,  # il "pensiero" conta nel limite; i siti hanno file lunghi
                 system=system_blocks(query, unattended, summary),
                 tools=schemas + SERVER_TOOLS,
                 messages=history,

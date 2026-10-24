@@ -30,6 +30,7 @@ BANCA_RITORNO = os.getenv("ENABLE_BANKING_RITORNO", "https://localhost:8000/banc
 BANCA_PRESENTE = _flag("ENABLE_BANKING_PRESENTE", True)  # avvisa la banca che Andrea e' presente (meno limiti)
 TELEFONO_URL = os.getenv("TELEFONO_URL", "").strip()  # indirizzo dell'app sul telefono che fa partire la chiamata (rete privata Tailscale), es. http://100.x.x.x:8080/chiama
 TELEFONO_CHIAVE = os.getenv("TELEFONO_CHIAVE", "").strip()  # parola segreta che il telefono controlla
+ENABLE_SITI = _flag("JARVIS_SITI", True)  # Jarvis crea siti e webapp sul PC (spegnere con false)
 ENABLE_PROMEMORIA = _flag("JARVIS_PROMEMORIA", True)  # "ricordami alle 17 di..." (spegnere con false)
 ENABLE_SALUTE = _flag("JARVIS_SALUTE", True)  # controlla da solo che le parti di Jarvis funzionino, ripara le cose sicure e avvisa del resto (+ guardiano dei consumi)
 TETTO_MENSILE = os.getenv("TETTO_MENSILE", "25")  # dollari: soglia del guardiano dei consumi (il tetto vero lo imposta Andrea nella Console Anthropic)
