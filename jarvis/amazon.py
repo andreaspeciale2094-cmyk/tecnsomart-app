@@ -27,7 +27,8 @@ def _contesto(p, visibile: bool = False):
     ultimo = None
     for canale in ("chrome", "msedge"):
         try:
-            return p.chromium.launch_persistent_context(str(PROFILO), channel=canale, headless=not visibile, locale="it-IT", viewport={"width": 1280, "height": 1000})
+            return p.chromium.launch_persistent_context(str(PROFILO), channel=canale, headless=not visibile, locale="it-IT", viewport={"width": 1280, "height": 1000},
+                                                        chromium_sandbox=True, ignore_default_args=["--enable-automation"], args=["--disable-blink-features=AutomationControlled"])
         except Exception as e:
             ultimo = e
     raise AmazonError(f"Non riesco ad aprire Chrome o Edge: {str(ultimo)[:100]}")

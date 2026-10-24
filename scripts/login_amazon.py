@@ -13,8 +13,9 @@ from jarvis import amazon
 with sync_playwright() as p:
     ctx = amazon._contesto(p, visibile=True)
     pag = ctx.pages[0] if ctx.pages else ctx.new_page()
-    pag.goto(amazon.SITO + "/ap/signin?openid.return_to=https%3A%2F%2Fwww.amazon.it%2F", wait_until="domcontentloaded")
-    print("Entra con il tuo account Amazon nella finestra aperta. Quando hai finito CHIUDI la finestra di Chrome.")
+    pag.goto(amazon.SITO + "/", wait_until="domcontentloaded")
+    print("Nella finestra di Chrome clicca 'Accedi' in alto a destra e entra con il tuo account Amazon (anche la verifica in due passaggi).")
+    print("Quando sei dentro CHIUDI la finestra di Chrome.")
     try:
         ctx.wait_for_event("close", timeout=15 * 60 * 1000)
     except Exception:
