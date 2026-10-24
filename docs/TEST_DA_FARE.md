@@ -33,6 +33,12 @@ Segna con [x] quando provato. Dopo ogni prova dire a Jarvis/Claude com'e' andata
 - [ ] "novita' su Milano", "notizie sul Milan", "cosa e' successo in politica"
 - [ ] Primo sito: "fammi un sito vetrina..." e anteprima
 
+## Agenti scioperi / Milan / meteo
+- [ ] Sciopero treni: scheda quando un giornale ne parla (si vede solo se ce n'e' uno)
+- [ ] Milan: scheda con formazioni prima della partita e risultato dopo
+- [ ] Meteo: avviso con temporale o pioggia forte in arrivo
+- [ ] Sky Go: con Display Portal scollegato non si blocca
+
 ## Altre prove rimaste
 - [ ] Interruzioni a voce (pezzo 4 Fase 2) e fermare Jarvis mentre parla
 - [ ] Riconoscimento della tua voce

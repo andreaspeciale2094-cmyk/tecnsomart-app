@@ -4,6 +4,8 @@ arrotondata a circa 1 km, mai nei registri ne' in GitHub."""
 import json
 from pathlib import Path
 
+import time
+
 import httpx
 
 from . import config
@@ -130,3 +132,25 @@ def frase_domani() -> str:
     elif m["alle7"] and m["alle7"][0] <= 5:
         parti.append(f"alle 7 fa freddo, {m['alle7'][0]} gradi")
     return ", ".join(parti) + "."
+
+
+def allerta_ore() -> str:
+    """Senza modello: se nelle prossime 3 ore e' prevista pioggia forte o temporale, una frase breve; altrimenti vuota."""
+    p = _dove()
+    if not p:
+        return ""
+    d = httpx.get("https://api.open-meteo.com/v1/forecast", timeout=8, params={
+        "latitude": p[0], "longitude": p[1], "timezone": "auto", "forecast_days": 2, "hourly": "precipitation_probability,precipitation,weather_code"}).json()
+    h = d["hourly"]
+    adesso = time.strftime("%Y-%m-%dT%H")
+    try:
+        i0 = next(i for i, t in enumerate(h["time"]) if t[:13] >= adesso)
+    except StopIteration:
+        return ""
+    for k in range(i0, min(i0 + 3, len(h["time"]))):
+        temporale = int(h["weather_code"][k] or 0) >= 95
+        forte = (h["precipitation_probability"][k] or 0) >= 70 and (h["precipitation"][k] or 0) >= 1.5
+        if temporale or forte:
+            ora = h["time"][k][11:16]
+            return f"{'Temporale' if temporale else 'Pioggia forte'} in arrivo a {p[2]} verso le {ora}: porta l'ombrello."
+    return ""

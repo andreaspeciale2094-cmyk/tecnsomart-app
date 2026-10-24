@@ -433,6 +433,10 @@ def agenti_elenco() -> str:
         voci.append("backup settimanale")
     if config.ENABLE_NOTIZIE:
         voci.append("notizie (titoli dei giornali ogni ora)")
+        voci.append("scioperi dei treni")
+        voci.append("Milan (formazioni e risultato)")
+    if config.ENABLE_AGENDA:
+        voci.append("meteo che avvisa (temporale o pioggia forte)")
     chiamati = "agenda, posta, WhatsApp, negozi, soldi, ricerca, memoria e PC" if config.ENABLE_AGENTI else "nessuno"
     return "Di sottofondo ne ho " + str(len(voci)) + ": " + "; ".join(voci) + f". Poi quelli che chiamo io quando serve un quadro: {chiamati}. Dimmi se vuoi sapere cosa fa uno."
 
@@ -530,6 +534,109 @@ def _controlla_notizie(adesso: datetime) -> int:
     except Exception as e:
         logs.log_route("VIGILE: notizie non aggiornate (" + type(e).__name__ + ")")
     return 0
+
+
+_sc = {"visti": set(), "oggi": "", "n": 0}
+
+
+def _controlla_scioperi(adesso: datetime) -> int:
+    """Senza modello: ogni 30 minuti (6-22) cerca nei titoli dei giornali gli scioperi dei treni e li segnala UNA volta (max 3 al giorno)."""
+    if not (config.ENABLE_NOTIZIE and config.ENABLE_TRENI) or not _in_fascia("scioperi", adesso, ((6, 0), (22, 0))) or time.time() - _sc.get("ultimo", 0) < 1800:
+        return 0
+    _sc["ultimo"] = time.time()
+    giorno = adesso.strftime("%Y-%m-%d")
+    if _sc["oggi"] != giorno:
+        _sc["oggi"], _sc["n"] = giorno, 0
+    from . import notizie
+    try:
+        with _ag.lavora("treno"):
+            nuovi = [v for v in notizie.cerca(r"sciopero|scioperi") if re.search(r"trenord|treni|ferrovi|trasporti|ferroviari|rfi|trenitalia|ferrovie", v["titolo"], re.IGNORECASE) and v["id"] not in _sc["visti"]]
+    except Exception as e:
+        logs.log_route("VIGILE: scioperi non controllati (" + type(e).__name__ + ")")
+        return 0
+    for v in nuovi:
+        _sc["visti"].add(v["id"])
+    if _sc["visti"] and len(nuovi) == len(_sc["visti"]) and not _sc.get("avviato"):
+        _sc["avviato"] = True  # la prima lettura dopo l'accensione memorizza soltanto: non rilancia notizie vecchie
+        return 0
+    if not nuovi or _sc["n"] >= 3:
+        return 0
+    _sc["n"] += 1
+    testo = "Sciopero treni: " + nuovi[0]["titolo"][:110]
+    _aggiungi("treno", testo, True)
+    logs.log_route("VIGILE: sciopero treni segnalato")
+    if not _notte(adesso):
+        threading.Thread(target=_parla, args=("Attenzione, c'e' uno sciopero dei treni. Guarda la scheda.",), daemon=True).start()
+    return 1
+
+
+_mi = {"visti": set(), "oggi": "", "n": 0, "ultimo_tipo": {}}
+_MILAN_PRIMA = r"formazioni? ufficiali|probabili formazioni|dove vederla|dove vedere|orario e tv|diretta tv|fischio d'inizio|vigilia"
+_MILAN_DOPO = r"fischio finale|finisce|termina|vince|batte|pareggia|ko|sconfitta|stende|travolge|beffa|rimonta|esulta"
+
+
+def _controlla_milan(adesso: datetime) -> int:
+    """Senza modello: ogni 20 minuti (8-24) cerca nei titoli le notizie sulla partita del Milan (prima: formazioni e orario; dopo: risultato). Una scheda ogni 3 ore per tipo, max 4 al giorno."""
+    if not config.ENABLE_NOTIZIE or not _in_fascia("milan", adesso, ((8, 0), (23, 59))) or time.time() - _mi.get("ultimo", 0) < 1200:
+        return 0
+    _mi["ultimo"] = time.time()
+    giorno = adesso.strftime("%Y-%m-%d")
+    if _mi["oggi"] != giorno:
+        _mi["oggi"], _mi["n"] = giorno, 0
+    from . import notizie
+    try:
+        with _ag.lavora("milan"):
+            voci = notizie.cerca(r"\bmilan\b", 6)
+    except Exception as e:
+        logs.log_route("VIGILE: Milan non controllato (" + type(e).__name__ + ")")
+        return 0
+    prima = [v for v in voci if re.search(_MILAN_PRIMA, v["titolo"], re.IGNORECASE) and time.time() - v["t"] < 4 * 3600]
+    dopo = [v for v in voci if re.search(_MILAN_DOPO, v["titolo"], re.IGNORECASE) and re.search(r"\d\s?-\s?\d", v["titolo"]) and time.time() - v["t"] < 3 * 3600]
+    for tipo, lista in (("dopo", dopo), ("prima", prima)):
+        nuovi = [v for v in lista if v["id"] not in _mi["visti"]]
+        if not nuovi:
+            continue
+        if not _mi.get("avviato"):  # la prima lettura dopo l'accensione memorizza soltanto
+            _mi["visti"].update(v["id"] for v in voci)
+            _mi["avviato"] = True
+            return 0
+        _mi["visti"].update(v["id"] for v in nuovi)
+        if _mi["n"] >= 4 or time.time() - _mi["ultimo_tipo"].get(tipo, 0) < 3 * 3600:
+            continue
+        _mi["ultimo_tipo"][tipo] = time.time()
+        _mi["n"] += 1
+        _aggiungi("milan", nuovi[0]["titolo"][:140], False)
+        logs.log_route("VIGILE: Milan segnalato (" + tipo + ")")
+        return 1
+    if not _mi.get("avviato"):
+        _mi["visti"].update(v["id"] for v in voci)
+        _mi["avviato"] = True
+    return 0
+
+
+_me = {"ultimo": 0.0, "avvisato": 0.0}
+
+
+def _controlla_meteo_allerta(adesso: datetime) -> int:
+    """Senza modello: ogni 30 minuti (7-22) guarda le prossime 3 ore; se arrivano temporale o pioggia forte avvisa (non piu' di una volta ogni 4 ore)."""
+    if not config.ENABLE_AGENDA or not _in_fascia("meteo", adesso, ((7, 0), (22, 0))) or time.time() - _me["ultimo"] < 1800:
+        return 0
+    _me["ultimo"] = time.time()
+    from . import meteo
+    try:
+        with _ag.lavora("meteo"):
+            frase = meteo.allerta_ore()
+    except Exception as e:
+        logs.log_route("VIGILE: meteo non controllato (" + type(e).__name__ + ")")
+        return 0
+    if not frase or time.time() - _me["avvisato"] < 4 * 3600:
+        return 0
+    _me["avvisato"] = time.time()
+    _aggiungi("meteo", frase, False)
+    logs.log_route("VIGILE: allerta meteo segnalata")
+    if not _notte(adesso):
+        threading.Thread(target=_parla, args=(frase,), daemon=True).start()
+    return 1
 
 
 def _controlla_settimana(adesso: datetime) -> int:
@@ -644,6 +751,9 @@ def controlla(adesso: datetime | None = None) -> int:
     try:
         _controlla_treni_pronti(adesso)
         _controlla_notizie(adesso)
+        _controlla_scioperi(adesso)
+        _controlla_milan(adesso)
+        _controlla_meteo_allerta(adesso)
     except Exception as e:
         logs.log_error(e, "vigile treni pronti")
     try:

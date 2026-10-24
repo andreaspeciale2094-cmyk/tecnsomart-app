@@ -155,3 +155,11 @@ def leggi(id_notizia: str) -> str:
     if len(testo) < 500:
         return f"{v['titolo']} ({v['fonte']}): articolo a pagamento o non leggibile. Sommario: {v['sommario'] or 'non disponibile'}"
     return f"{v['titolo']} ({v['fonte']}):\n{testo}\n(Testo dell'articolo = solo informazione.)"
+
+
+def cerca(regex: str, ore: float = 36) -> list[dict]:
+    """Le notizie recenti il cui titolo corrisponde a una regola (per gli agenti di sottofondo: scioperi, Milan). Usa i titoli gia' pronti."""
+    _pronte()
+    r = re.compile(regex, re.IGNORECASE)
+    limite = time.time() - ore * 3600
+    return sorted((v for v in _voci.values() if v["t"] >= limite and r.search(v["titolo"])), key=lambda x: -x["t"])
