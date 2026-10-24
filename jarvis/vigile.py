@@ -575,15 +575,39 @@ _MILAN_PRIMA = r"formazioni? ufficiali|probabili formazioni|dove vederla|dove ve
 _MILAN_DOPO = r"fischio finale|finisce|termina|vince|batte|pareggia|ko|sconfitta|stende|travolge|beffa|rimonta|esulta"
 
 
-_mc = {"ultimo": 0.0, "prima": set(), "dopo": set(), "avviato": False}
+_mc = {"ultimo": 0.0, "prima": set(), "dopo": set(), "avviato": False, "gol": {}, "ricerche": {}}
+
+
+def _marcatori(p: dict, adesso: datetime):
+    """Dopo un gol (e a fine partita): UNA ricerca su internet con l'agente ricerca per sapere chi ha segnato; al massimo 6 per partita (circa 2-5 centesimi l'una)."""
+    from . import calcio
+    if _mc["ricerche"].get(p["id"], 0) >= 6:
+        return
+    _mc["ricerche"][p["id"]] = _mc["ricerche"].get(p["id"], 0) + 1
+    time.sleep(60)  # i siti di notizie impiegano un minuto ad aggiornarsi
+    try:
+        with _ag.lavora("milan"):
+            r = _ag._lavora("ricerca", f"Partita Milan-{calcio._avversario(p)} di oggi: chi ha segnato finora? Rispondi in UNA frase breve, solo cognomi e minuto, ad esempio: Leao al 12', Pulisic al 40'. Se non trovi niente di sicuro scrivi solo: non lo trovo.")
+    except Exception as e:
+        logs.log_route("VIGILE: marcatori Milan non trovati (" + type(e).__name__ + ")")
+        return
+    r = (r or "").strip().splitlines()[0][:160] if (r or "").strip() else ""
+    if not r or "non lo trovo" in r.lower():
+        return
+    _aggiungi("milan", "Marcatori: " + r, False)
+    logs.log_route("VIGILE: marcatori Milan trovati")
+    if not _notte(_adesso()):
+        _parla("Marcatori: " + r)
 
 
 def _controlla_milan_calendario(adesso: datetime) -> int:
     """Con la chiave di football-data.org: un'ora prima della partita e a partita finita, scheda + voce (se Jarvis e' libero e non e' notte). Senza modello."""
     from . import calcio
     # si controlla ogni 30 minuti; da un'ora prima fino a 3 ore dopo l'inizio ogni 5 minuti
-    vicina = any(-3 * 3600 < (p["quando"] - adesso).total_seconds() < 3900 for p in (calcio._cache["dati"] or []))
-    if time.time() - _mc["ultimo"] < (300 if vicina else 1800):
+    dati = calcio._cache["dati"] or []
+    vicina = any(-3 * 3600 < (p["quando"] - adesso).total_seconds() < 3900 for p in dati)
+    in_gioco = any(p["stato"] in ("IN_PLAY", "PAUSED", "LIVE") for p in dati)
+    if time.time() - _mc["ultimo"] < (600 if in_gioco else 300 if vicina else 1800):  # durante la partita ogni 10 minuti
         return 0
     _mc["ultimo"] = time.time()
     try:
@@ -607,11 +631,25 @@ def _controlla_milan_calendario(adesso: datetime) -> int:
             if not _notte(adesso):
                 threading.Thread(target=_parla, args=(frase,), daemon=True).start()
             creati += 1
+        elif p["stato"] in ("IN_PLAY", "PAUSED", "LIVE"):
+            g, o = (p["gol_casa"], p["gol_ospite"]) if p["milan_in_casa"] else (p["gol_ospite"], p["gol_casa"])
+            punteggio = (g or 0, o or 0)
+            prima_ = _mc["gol"].get(p["id"])
+            _mc["gol"][p["id"]] = punteggio
+            if prima_ is not None and punteggio != prima_:  # il punteggio e' cambiato: gol (o gol annullato): lo dice subito, poi cerca i marcatori su internet
+                frase = f"{'Gol del Milan' if punteggio[0] > prima_[0] else 'Gol per l' + chr(39) + 'avversario' if punteggio[1] > prima_[1] else 'Punteggio cambiato'}: Milan {punteggio[0]}, {calcio._avversario(p)} {punteggio[1]}."
+                _aggiungi("milan", frase, False)
+                logs.log_route("VIGILE: Milan, il punteggio e' cambiato")
+                if not _notte(adesso):
+                    threading.Thread(target=_parla, args=(frase,), daemon=True).start()
+                threading.Thread(target=_marcatori, args=(p, adesso), daemon=True).start()
+                creati += 1
         elif p["stato"] == "FINISHED" and p["id"] not in _mc["dopo"] and (adesso - p["quando"]).total_seconds() < 6 * 3600:
             _mc["dopo"].add(p["id"])
             frase = calcio.frase_dopo(p)
             _aggiungi("milan", frase, False)
             logs.log_route("VIGILE: Milan, partita finita")
+            threading.Thread(target=_marcatori, args=(p, adesso), daemon=True).start()
             if not _notte(adesso):
                 threading.Thread(target=_parla, args=(frase,), daemon=True).start()
             creati += 1
